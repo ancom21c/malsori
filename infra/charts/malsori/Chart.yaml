@@ -1,0 +1,6 @@
+apiVersion: v2
+name: malsori
+description: Helm chart for deploying the malsori Python API and webapp in one pod.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

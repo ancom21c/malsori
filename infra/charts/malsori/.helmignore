@@ -1,0 +1,8 @@
+# Common Helm ignores
+*.swp
+*.tmp
+*.DS_Store
+.git/
+.github/
+node_modules/
+dist/

@@ -1,0 +1,41 @@
+replicaCount: 1
+
+image:
+  pythonApi:
+    repository: malsori/api-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  webapp:
+    repository: malsori/webapp
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  pythonPort: 8000
+  webPort: 80
+
+pythonApi:
+  deployment: cloud
+  verifySsl: true
+  debug: false
+  env:
+    STT_STORAGE_BASE_DIR: /data
+  secretEnv: {}
+  resources: {}
+
+webapp:
+  apiBaseUrl: ""
+  env: {}
+  resources: {}
+
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+  hosts: []
+  paths:
+    - path: /
+      pathType: Prefix
+      servicePort: web
+  tls: []

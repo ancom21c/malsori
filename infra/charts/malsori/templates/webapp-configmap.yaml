@@ -1,0 +1,17 @@
+{{- if .Values.webapp.apiBaseUrl }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "malsori.webappConfigName" . }}
+  labels:
+    {{- include "malsori.labels" . | nindent 4 }}
+data:
+  malsori-config.js: |
+    window.__MALSORI_CONFIG__ = Object.assign(
+      {},
+      window.__MALSORI_CONFIG__,
+      {
+        apiBaseUrl: "{{ .Values.webapp.apiBaseUrl }}"
+      }
+    );
+{{- end }}

@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+node_modules
+webapp/node_modules
+webapp/dist
+webapp/.vite
+infra/helm
+scripts
+README.md
+LICENSE
+dist
+*.log

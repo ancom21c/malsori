@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "malsori.fullname" . }}
+  labels:
+    {{- include "malsori.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "malsori.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "malsori.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: python-api
+          image: "{{ .Values.image.pythonApi.repository }}:{{ .Values.image.pythonApi.tag }}"
+          imagePullPolicy: {{ .Values.image.pythonApi.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.pythonPort }}
+              name: python
+          env:
+            - name: STT_DEPLOYMENT
+              value: {{ default "cloud" .Values.pythonApi.deployment | quote }}
+            - name: STT_VERIFY_SSL
+              value: {{ ternary "1" "0" (default true .Values.pythonApi.verifySsl) | quote }}
+            {{- if .Values.pythonApi.debug }}
+            - name: MALSORI_DEBUG
+              value: "1"
+            {{- end }}
+            {{- range $key, $value := .Values.pythonApi.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.pythonApi.secretEnv }}
+          envFrom:
+            - secretRef:
+                name: {{ include "malsori.pythonSecretName" . }}
+          {{- end }}
+          volumeMounts:
+            - name: python-storage
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.pythonApi.resources | nindent 12 }}
+        - name: webapp
+          image: "{{ .Values.image.webapp.repository }}:{{ .Values.image.webapp.tag }}"
+          imagePullPolicy: {{ .Values.image.webapp.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.webPort }}
+              name: web
+          env:
+            {{- range $key, $value := .Values.webapp.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.webapp.apiBaseUrl }}
+          volumeMounts:
+            - name: webapp-config
+              mountPath: /usr/share/nginx/html/config/malsori-config.js
+              subPath: malsori-config.js
+          {{- end }}
+          resources:
+            {{- toYaml .Values.webapp.resources | nindent 12 }}
+      volumes:
+        - name: python-storage
+          emptyDir: {}
+        {{- if .Values.webapp.apiBaseUrl }}
+        - name: webapp-config
+          configMap:
+            name: {{ include "malsori.webappConfigName" . }}
+        {{- end }}

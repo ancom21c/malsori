@@ -1,0 +1,73 @@
+{{- if .Values.ingress.enabled }}
+{{- $root := . -}}
+{{- $sharedPaths := .Values.ingress.paths }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "malsori.fullname" . }}
+  labels:
+    {{- include "malsori.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- $className := or .Values.ingress.ingressClassName .Values.ingress.className }}
+  {{- if $className }}
+  ingressClassName: {{ $className }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    {{- $hostEntry := . }}
+    {{- $hostName := "" }}
+    {{- $hostPaths := list }}
+    {{- if kindIs "map" $hostEntry }}
+      {{- $hostName = $hostEntry.host | default "" }}
+      {{- if $hostEntry.paths }}
+        {{- $hostPaths = $hostEntry.paths }}
+      {{- end }}
+    {{- else }}
+      {{- $hostName = $hostEntry | default "" }}
+    {{- end }}
+    {{- if not $hostName }}
+      {{- continue }}
+    {{- end }}
+    {{- if or (not $hostPaths) (eq (len $hostPaths) 0) }}
+      {{- $hostPaths = $sharedPaths }}
+    {{- end }}
+    {{- if or (not $hostPaths) (eq (len $hostPaths) 0) }}
+      {{- $hostPaths = list (dict "path" "/" "pathType" "Prefix" "servicePort" "web") }}
+    {{- end }}
+    - host: {{ $hostName }}
+      http:
+        paths:
+          {{- range $hostPaths }}
+          {{- $pathEntry := . }}
+          {{- $pathValue := "/" }}
+          {{- $pathType := "Prefix" }}
+          {{- $servicePort := "web" }}
+          {{- if kindIs "map" $pathEntry }}
+            {{- $pathValue = $pathEntry.path | default "/" }}
+            {{- $pathType = $pathEntry.pathType | default "Prefix" }}
+            {{- $servicePort = $pathEntry.servicePort | default "web" }}
+          {{- else }}
+            {{- $pathValue = $pathEntry | default "/" }}
+          {{- end }}
+          - path: {{ $pathValue }}
+            pathType: {{ $pathType }}
+            backend:
+              service:
+                name: {{ include "malsori.fullname" $root }}
+                port:
+                  {{- if kindIs "string" $servicePort }}
+                  name: {{ $servicePort }}
+                  {{- else }}
+                  number: {{ $servicePort }}
+                  {{- end }}
+          {{- end }}
+    {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
