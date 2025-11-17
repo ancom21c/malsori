@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  python-api:
+    build:
+      context: ../../python_api
+    container_name: malsori-python-api
+    environment:
+      STT_STORAGE_BASE_DIR: /data
+      PRONAIA_API_BASE: ${PRONAIA_API_BASE:-https://openapi.vito.ai}
+      PRONAIA_CLIENT_ID: ${PRONAIA_CLIENT_ID:-your_client_id}
+      PRONAIA_CLIENT_SECRET: ${PRONAIA_CLIENT_SECRET:-your_client_secret}
+      STT_DEPLOYMENT: ${STT_DEPLOYMENT:-cloud}
+      STT_VERIFY_SSL: ${STT_VERIFY_SSL:-1}
+    ports:
+      - "8000:8000"
+    volumes:
+      - python_api_data:/data
+
+  webapp:
+    build:
+      context: ../../webapp
+      args:
+        NEXT_PUBLIC_API_BASE: http://python-api:8000
+    container_name: malsori-webapp
+    depends_on:
+      - python-api
+    environment:
+      NEXT_PUBLIC_API_BASE: http://python-api:8000
+    ports:
+      - "4173:80"
+
+volumes:
+  python_api_data:
