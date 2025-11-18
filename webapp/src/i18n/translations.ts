@@ -1934,6 +1934,11 @@ sessionStateRecording: {
     en: "Audio is not available right now.",
     ja: "現在音声は利用できません。",
   },
+  shareAudioDecodingFailed: {
+    ko: "공유된 오디오를 복호화할 수 없습니다.",
+    en: "Unable to decode the shared audio.",
+    ja: "共有された音声を復号できません。",
+  },
   sharePasswordLabel: {
     ko: "공유 암호",
     en: "Share password",

@@ -31,6 +31,9 @@ export interface ShareAudioData {
   base64Data: string;
   sampleRate?: number;
   channels?: number;
+  compression?: "gzip";
+  originalSize?: number;
+  compressedSize?: number;
 }
 
 export interface ShareDocument {

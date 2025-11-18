@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { ChangeEvent as ReactChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Alert,
   Box,
@@ -35,6 +35,7 @@ import dayjs from "dayjs";
 import { useSnackbar } from "notistack";
 import { useI18n } from "../i18n";
 import { appDb, type LocalSegment, type LocalWordTiming } from "../data/app-db";
+import { deflate } from "pako";
 import { createSharePayload, type ShareDocument } from "../share/payload";
 import {
   deleteTranscription,
@@ -352,6 +353,7 @@ export default function TranscriptionDetailPage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareGenerating, setShareGenerating] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const userToggledAudioRef = useRef(false);
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
   const activeWordHighlightRef = useRef<{ segmentId: string; index: number } | null>(null);
@@ -365,6 +367,11 @@ export default function TranscriptionDetailPage() {
     }
     navigate("/", { replace: true });
   }, [navigate]);
+
+  const handleIncludeAudioChange = useCallback((event: ReactChangeEvent<HTMLInputElement>) => {
+    userToggledAudioRef.current = true;
+    setIncludeAudioInShare(event.target.checked);
+  }, []);
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
@@ -384,15 +391,20 @@ export default function TranscriptionDetailPage() {
   }, [segments]);
 
   useEffect(() => {
-    if (!shareAudioAvailable && includeAudioInShare) {
-      setIncludeAudioInShare(false);
-    }
-  }, [shareAudioAvailable, includeAudioInShare]);
-
-  useEffect(() => {
     setShareLink(null);
     setShareError(null);
   }, [transcriptionId, segments?.length, includeAudioInShare, sharePassword]);
+
+  useEffect(() => {
+    userToggledAudioRef.current = false;
+    setIncludeAudioInShare(true);
+  }, [transcriptionId]);
+
+  useEffect(() => {
+    if (shareAudioAvailable && !userToggledAudioRef.current) {
+      setIncludeAudioInShare(true);
+    }
+  }, [shareAudioAvailable]);
 
   useEffect(() => {
     activeSegmentIdRef.current = activeSegmentId;
@@ -826,9 +838,14 @@ export default function TranscriptionDetailPage() {
       return undefined;
     }
     const buffer = await sourceBlob.arrayBuffer();
+    const sourceBytes = new Uint8Array(buffer);
+    const compressedBytes = deflate(sourceBytes);
     return {
       mimeType: sourceBlob.type || "audio/wav",
-      base64Data: arrayBufferToBase64(buffer),
+      base64Data: arrayBufferToBase64(compressedBytes),
+      compression: "gzip",
+      originalSize: sourceBytes.byteLength,
+      compressedSize: compressedBytes.byteLength,
       sampleRate: transcription.audioSampleRate,
       channels: transcription.audioChannels,
     };
@@ -886,7 +903,7 @@ export default function TranscriptionDetailPage() {
       });
       const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
       const shareEntryUrl = new URL("share.html", baseUrl).toString();
-      const finalLink = `${shareEntryUrl}?payload=${encodeURIComponent(payload)}`;
+      const finalLink = `${shareEntryUrl}#payload=${encodeURIComponent(payload)}`;
       setShareLink(finalLink);
       enqueueSnackbar(t("shareLinkCreated"), { variant: "success" });
     } catch (error) {
@@ -1217,7 +1234,7 @@ export default function TranscriptionDetailPage() {
                     control={
                       <Switch
                         checked={shareAudioAvailable && includeAudioInShare}
-                        onChange={(event) => setIncludeAudioInShare(event.target.checked)}
+                        onChange={handleIncludeAudioChange}
                         disabled={!shareAudioAvailable || shareGenerating}
                       />
                     }
