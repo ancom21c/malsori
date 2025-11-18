@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
   Alert,
@@ -19,6 +19,7 @@ import {
 import { inflate } from "pako";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import DownloadIcon from "@mui/icons-material/Download";
+import PauseIcon from "@mui/icons-material/Pause";
 import type { ShareDocument, ShareSegment } from "../../share/payload";
 import {
   inspectSharePackage,
@@ -228,6 +229,7 @@ export default function ShareViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [embeddedAudioUrl, setEmbeddedAudioUrl] = useState<string | null>(null);
   const [embeddedAudioError, setEmbeddedAudioError] = useState<string | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const segmentEndRef = useRef<number | null>(null);
   const programmaticSeekRef = useRef(false);
@@ -310,7 +312,39 @@ export default function ShareViewerPage() {
   }, [shareDocument?.audio, t]);
 
   const playbackUrl = embeddedAudioUrl ?? shareDocument?.remoteAudioUrl ?? null;
-  const segments = shareDocument?.segments ?? [];
+  const segments = useMemo(() => {
+    if (!shareDocument?.segments) {
+      return [];
+    }
+    return [...shareDocument.segments].sort((a, b) => {
+      const aStart = getSegmentStartMs(a);
+      const bStart = getSegmentStartMs(b);
+      if (aStart === null && bStart === null) {
+        return 0;
+      }
+      if (aStart === null) {
+        return 1;
+      }
+      if (bStart === null) {
+        return -1;
+      }
+      if (aStart !== bStart) {
+        return aStart - bStart;
+      }
+      const aEnd = getSegmentEndMs(a);
+      const bEnd = getSegmentEndMs(b);
+      if (aEnd === null && bEnd === null) {
+        return 0;
+      }
+      if (aEnd === null) {
+        return 1;
+      }
+      if (bEnd === null) {
+        return -1;
+      }
+      return aEnd - bEnd;
+    });
+  }, [shareDocument]);
   const aggregatedText =
     shareDocument?.correctedAggregatedText ??
     shareDocument?.aggregatedText ??
@@ -396,22 +430,25 @@ export default function ShareViewerPage() {
           return bytes;
         };
         const importMap = { imports: {}, scopes: {} };
+        const moduleBlobMap = {};
         for (const [url, base64] of Object.entries(moduleSources)) {
           const blob = new Blob([decodeBase64(base64)], { type: "text/javascript" });
           const blobUrl = URL.createObjectURL(blob);
           importMap.imports[url] = blobUrl;
+          moduleBlobMap[url] = blobUrl;
         }
         for (const [parentUrl, deps] of Object.entries(moduleDeps)) {
           if (!Array.isArray(deps)) continue;
+          const parentBlobUrl = moduleBlobMap[parentUrl];
           deps.forEach(([spec, resolved]) => {
-            if (!resolved || !importMap.imports[resolved]) {
+            if (!resolved || !moduleBlobMap[resolved]) {
               return;
             }
             if (/^(?:https?:)?\\//.test(spec)) {
-              importMap.imports[spec] = importMap.imports[resolved];
-            } else {
-              importMap.scopes[parentUrl] = importMap.scopes[parentUrl] || {};
-              importMap.scopes[parentUrl][spec] = importMap.imports[resolved];
+              importMap.imports[spec] = moduleBlobMap[resolved];
+            } else if (parentBlobUrl) {
+              importMap.scopes[parentBlobUrl] = importMap.scopes[parentBlobUrl] || {};
+              importMap.scopes[parentBlobUrl][spec] = moduleBlobMap[resolved];
             }
           });
         }
@@ -419,7 +456,8 @@ export default function ShareViewerPage() {
         importMapScript.type = "importmap";
         importMapScript.textContent = JSON.stringify(importMap);
         document.currentScript.before(importMapScript);
-        import("${entryUrl}").catch((error) => console.error("Failed to bootstrap share view", error));
+        const entryBlobUrl = moduleBlobMap["${entryUrl}"] || "${entryUrl}";
+        import(entryBlobUrl).catch((error) => console.error("Failed to bootstrap share view", error));
       })();
     </script>
   </body>
@@ -494,6 +532,25 @@ export default function ShareViewerPage() {
     [segments, activeWordHighlight]
   );
 
+  const syncActiveSegmentWithPlayback = useCallback(
+    (currentSeconds: number) => {
+      const match = findSegmentForPlaybackTime(currentSeconds);
+      if (match) {
+        if (activeSegmentId !== match.id) {
+          setActiveSegmentId(match.id);
+        }
+        updateActiveWordHighlight(match.id, currentSeconds);
+        return match;
+      }
+      if (activeSegmentId) {
+        setActiveSegmentId(null);
+        setActiveWordHighlight(null);
+      }
+      return null;
+    },
+    [activeSegmentId, findSegmentForPlaybackTime, updateActiveWordHighlight]
+  );
+
   const handlePlaySegment = useCallback(
     (segment: ShareSegment) => {
       if (!playbackUrl) {
@@ -504,6 +561,10 @@ export default function ShareViewerPage() {
         return;
       }
       if (!hasTiming(segment)) {
+        return;
+      }
+      if (!audio.paused && activeSegmentId === segment.id) {
+        audio.pause();
         return;
       }
       const startMs = getSegmentStartMs(segment);
@@ -536,7 +597,7 @@ export default function ShareViewerPage() {
         setActiveWordHighlight(null);
       });
     },
-    [playbackUrl, updateActiveWordHighlight]
+    [activeSegmentId, playbackUrl, updateActiveWordHighlight]
   );
 
   useEffect(() => {
@@ -564,22 +625,15 @@ export default function ShareViewerPage() {
           segmentEndRef.current = null;
           setActiveSegmentId(null);
           setActiveWordHighlight(null);
+          setIsAudioPlaying(false);
           return;
         }
       }
-      const match = findSegmentForPlaybackTime(audio.currentTime);
-      if (match) {
-        if (activeSegmentId !== match.id) {
-          setActiveSegmentId(match.id);
-        }
-        updateActiveWordHighlight(match.id, audio.currentTime);
-      } else if (activeSegmentId) {
-        setActiveSegmentId(null);
-        setActiveWordHighlight(null);
-      }
+      syncActiveSegmentWithPlayback(audio.currentTime);
     };
     const handleStop = () => {
       segmentEndRef.current = null;
+      setIsAudioPlaying(false);
       setActiveSegmentId(null);
       setActiveWordHighlight(null);
     };
@@ -594,28 +648,32 @@ export default function ShareViewerPage() {
         programmaticSeekRef.current = false;
         return;
       }
-      const match = findSegmentForPlaybackTime(audio.currentTime);
-      if (match) {
-        setActiveSegmentId(match.id);
-        updateActiveWordHighlight(match.id, audio.currentTime);
-      } else {
-        setActiveSegmentId(null);
-        setActiveWordHighlight(null);
-      }
+      syncActiveSegmentWithPlayback(audio.currentTime);
+    };
+    const handlePlay = () => {
+      setIsAudioPlaying(true);
+      syncActiveSegmentWithPlayback(audio.currentTime);
+    };
+    const handleLoadedMetadata = () => {
+      syncActiveSegmentWithPlayback(audio.currentTime);
     };
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("ended", handleStop);
     audio.addEventListener("pause", handleStop);
     audio.addEventListener("seeking", handleSeeking);
     audio.addEventListener("seeked", handleSeeked);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleStop);
       audio.removeEventListener("pause", handleStop);
       audio.removeEventListener("seeking", handleSeeking);
       audio.removeEventListener("seeked", handleSeeked);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
     };
-  }, [activeSegmentId, findSegmentForPlaybackTime, updateActiveWordHighlight]);
+  }, [syncActiveSegmentWithPlayback]);
 
   return (
     <Box
