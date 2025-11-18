@@ -10,8 +10,13 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  FormControlLabel,
+  FormGroup,
+  IconButton,
+  InputAdornment,
   LinearProgress,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -22,18 +27,22 @@ import AudiotrackIcon from "@mui/icons-material/Audiotrack";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DescriptionIcon from "@mui/icons-material/Description";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import dayjs from "dayjs";
 import { useSnackbar } from "notistack";
 import { useI18n } from "../i18n";
 import { appDb, type LocalSegment, type LocalWordTiming } from "../data/app-db";
+import { createSharePayload, type ShareDocument } from "../share/payload";
 import {
   deleteTranscription,
   listAudioChunks,
   updateSegmentCorrection,
 } from "../services/data/transcriptionRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
+import { arrayBufferToBase64 } from "../utils/base64";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
@@ -337,6 +346,12 @@ export default function TranscriptionDetailPage() {
   const [editingWordTimings, setEditingWordTimings] = useState<LocalWordTiming[] | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const audioReady = Boolean(audioUrl || audioBlobRef.current) && !audioLoading;
+  const shareAudioAvailable = Boolean(audioUrl || audioBlobRef.current);
+  const [includeAudioInShare, setIncludeAudioInShare] = useState(true);
+  const [sharePassword, setSharePassword] = useState("");
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareGenerating, setShareGenerating] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
   const activeWordHighlightRef = useRef<{ segmentId: string; index: number } | null>(null);
@@ -367,6 +382,17 @@ export default function TranscriptionDetailPage() {
   useEffect(() => {
     segmentsRef.current = segments ?? [];
   }, [segments]);
+
+  useEffect(() => {
+    if (!shareAudioAvailable && includeAudioInShare) {
+      setIncludeAudioInShare(false);
+    }
+  }, [shareAudioAvailable, includeAudioInShare]);
+
+  useEffect(() => {
+    setShareLink(null);
+    setShareError(null);
+  }, [transcriptionId, segments?.length, includeAudioInShare, sharePassword]);
 
   useEffect(() => {
     activeSegmentIdRef.current = activeSegmentId;
@@ -782,6 +808,126 @@ export default function TranscriptionDetailPage() {
     }
   }, [audioUrl, transcription]);
 
+  const captureShareAudio = useCallback(async () => {
+    if (!includeAudioInShare || !transcription || !shareAudioAvailable) {
+      return undefined;
+    }
+    let sourceBlob: Blob | null = null;
+    if (audioBlobRef.current) {
+      sourceBlob = audioBlobRef.current;
+    } else if (audioUrl) {
+      const response = await fetch(audioUrl);
+      if (!response.ok) {
+        throw new Error(t("shareAudioIncludeFailed"));
+      }
+      sourceBlob = await response.blob();
+    }
+    if (!sourceBlob) {
+      return undefined;
+    }
+    const buffer = await sourceBlob.arrayBuffer();
+    return {
+      mimeType: sourceBlob.type || "audio/wav",
+      base64Data: arrayBufferToBase64(buffer),
+      sampleRate: transcription.audioSampleRate,
+      channels: transcription.audioChannels,
+    };
+  }, [includeAudioInShare, audioUrl, transcription, t, shareAudioAvailable]);
+
+  const handleGenerateShareLink = useCallback(async () => {
+    if (!transcription) {
+      return;
+    }
+    setShareGenerating(true);
+    setShareError(null);
+    setShareLink(null);
+    try {
+      const audioPayload = await captureShareAudio();
+      const segmentList = segments ?? [];
+      const aggregatedText =
+        transcription.transcriptText && transcription.transcriptText.trim().length
+          ? transcription.transcriptText
+          : aggregateSegmentText(segmentList, false);
+      const correctedText = aggregateSegmentText(segmentList, true) ?? aggregatedText;
+      const serializedSegments = segmentList.map((segment) => ({
+        ...segment,
+        words: segment.words ? segment.words.map((word) => ({ ...word })) : undefined,
+      }));
+      const shareDocument: ShareDocument = {
+        id: transcription.id,
+        title: transcription.title,
+        kind: transcription.kind,
+        status: transcription.status,
+        createdAt: transcription.createdAt,
+        updatedAt: transcription.updatedAt,
+        remoteId: transcription.remoteId,
+        transcriptText: transcription.transcriptText,
+        aggregatedText,
+        correctedAggregatedText: correctedText,
+        configPresetName: transcription.configPresetName,
+        modelName: transcription.modelName,
+        backendEndpointName: transcription.backendEndpointName,
+        backendEndpointSource: transcription.backendEndpointSource,
+        backendDeployment: transcription.backendDeployment,
+        backendApiBaseUrl: transcription.backendApiBaseUrl,
+        remoteAudioUrl: transcription.remoteAudioUrl,
+        segments: serializedSegments,
+        audio: audioPayload
+          ? {
+              mimeType: audioPayload.mimeType,
+              base64Data: audioPayload.base64Data,
+              sampleRate: audioPayload.sampleRate,
+              channels: audioPayload.channels,
+            }
+          : undefined,
+      };
+      const payload = await createSharePayload(shareDocument, {
+        password: sharePassword.trim().length ? sharePassword.trim() : undefined,
+      });
+      const baseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
+      const shareEntryUrl = new URL("share.html", baseUrl).toString();
+      const finalLink = `${shareEntryUrl}?payload=${encodeURIComponent(payload)}`;
+      setShareLink(finalLink);
+      enqueueSnackbar(t("shareLinkCreated"), { variant: "success" });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t("shareGenerateFailed");
+      setShareError(message);
+    } finally {
+      setShareGenerating(false);
+    }
+  }, [
+    captureShareAudio,
+    segments,
+    sharePassword,
+    t,
+    transcription,
+    enqueueSnackbar,
+  ]);
+
+  const handleCopyShareLink = useCallback(async () => {
+    if (!shareLink) {
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareLink);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = shareLink;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      enqueueSnackbar(t("shareLinkCopied"), { variant: "success" });
+    } catch {
+      enqueueSnackbar(t("shareLinkCopyFailed"), { variant: "warning" });
+    }
+  }, [enqueueSnackbar, shareLink, t]);
+
   const findSegmentForPlaybackTime = useCallback((currentSeconds: number): LocalSegment | null => {
     const entries = segmentsRef.current;
     if (!entries || entries.length === 0) {
@@ -1022,9 +1168,9 @@ export default function TranscriptionDetailPage() {
                 </Box>
               ) : null}
             </Stack>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
-              <Button
-                variant="outlined"
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+            <Button
+              variant="outlined"
                 startIcon={<DescriptionIcon />}
                 onClick={handleDownloadJson}
                 fullWidth
@@ -1051,21 +1197,91 @@ export default function TranscriptionDetailPage() {
               >
                 {t("audio")}
               </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleDelete}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("delete")}
-              </Button>
-            </Stack>
-            <Typography variant="caption" color="text.secondary">
-              {t(
-                "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
-              )}
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+              fullWidth
+              sx={{ maxWidth: { sm: 200 } }}
+            >
+              {t("delete")}
+            </Button>
+          </Stack>
+          <Card>
+            <CardHeader title={t("shareSectionTitle")} />
+            <CardContent>
+              <Stack spacing={2}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={shareAudioAvailable && includeAudioInShare}
+                        onChange={(event) => setIncludeAudioInShare(event.target.checked)}
+                        disabled={!shareAudioAvailable || shareGenerating}
+                      />
+                    }
+                    label={t("shareIncludeAudioLabel")}
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    {shareAudioAvailable
+                      ? t("shareIncludeAudioHelper")
+                      : t("shareIncludeAudioUnavailable")}
+                  </Typography>
+                </FormGroup>
+                <TextField
+                  label={t("sharePasswordLabel")}
+                  type="password"
+                  value={sharePassword}
+                  onChange={(event) => setSharePassword(event.target.value)}
+                  helperText={t("sharePasswordHelper")}
+                  fullWidth
+                  disabled={shareGenerating}
+                />
+                <Stack spacing={1} alignItems="flex-start">
+                  <Button
+                    variant="contained"
+                    startIcon={
+                      shareGenerating ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : (
+                        <ShareOutlinedIcon />
+                      )
+                    }
+                    onClick={handleGenerateShareLink}
+                    disabled={shareGenerating || !transcription}
+                  >
+                    {shareGenerating
+                      ? t("shareGenerating")
+                      : t("shareCreateLinkButton")}
+                  </Button>
+                  {shareLink ? (
+                    <TextField
+                      value={shareLink}
+                      fullWidth
+                      InputProps={{
+                        readOnly: true,
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title={t("shareCopyLink")}>
+                              <IconButton onClick={handleCopyShareLink} size="small">
+                                <ContentCopyOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  ) : null}
+                </Stack>
+                {shareError ? <Alert severity="error">{shareError}</Alert> : null}
+              </Stack>
+            </CardContent>
+          </Card>
+          <Typography variant="caption" color="text.secondary">
+            {t(
+              "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
+            )}
             </Typography>
           </Stack>
         </CardContent>

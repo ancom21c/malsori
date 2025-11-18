@@ -1829,6 +1829,161 @@ sessionStateRecording: {
     en: "Your transcription request has been sent.",
     ja: "文字起こしリクエストが送信されました。",
   },
+  sharePageTitle: {
+    ko: "전사 결과 공유",
+    en: "Transcription share view",
+    ja: "文字起こし共有ビュー",
+  },
+  sharePageSubtitle: {
+    ko: "링크를 열면 앱 접속 없이 결과를 확인할 수 있습니다.",
+    en: "Open the link to view the transcription without visiting the app.",
+    ja: "リンクを開くとアプリにアクセスせずに結果を確認できます。",
+  },
+  sharePayloadMissing: {
+    ko: "공유 링크에 전사 데이터가 포함되어 있지 않습니다.",
+    en: "No transcription data was included in the share link.",
+    ja: "共有リンクに文字起こしデータが含まれていません。",
+  },
+  sharePayloadInvalid: {
+    ko: "공유 링크를 읽을 수 없거나 손상되었습니다.",
+    en: "The share link is invalid or corrupted.",
+    ja: "共有リンクが無効か破損しています。",
+  },
+  sharePasswordPrompt: {
+    ko: "암호를 입력하여 전사 결과를 확인하세요.",
+    en: "Enter the password to view the transcription.",
+    ja: "文字起こしを表示するにはパスワードを入力してください。",
+  },
+  sharePasswordPlaceholder: {
+    ko: "암호 (선택)",
+    en: "Password (optional)",
+    ja: "パスワード（任意）",
+  },
+  shareUnlock: {
+    ko: "열기",
+    en: "Unlock",
+    ja: "開く",
+  },
+  shareAudioIncluded: {
+    ko: "오디오가 포함되어 있습니다.",
+    en: "Audio is included in this share.",
+    ja: "音声が含まれています。",
+  },
+  shareRemoteAudioAvailable: {
+    ko: "원본 오디오를 아래 버튼에서 재생합니다.",
+    en: "You can play the original audio via the button below.",
+    ja: "以下のボタンで元の音声を再生できます。",
+  },
+  sharePlayRemoteAudio: {
+    ko: "원본 오디오 재생",
+    en: "Play original audio",
+    ja: "元の音声を再生",
+  },
+  shareAudioUnavailable: {
+    ko: "오디오가 포함되지 않은 공유입니다.",
+    en: "This share does not include audio.",
+    ja: "この共有には音声が含まれていません。",
+  },
+  shareAggregatedText: {
+    ko: "전체 전사",
+    en: "Aggregated transcript",
+    ja: "集約された文字起こし",
+  },
+  shareSegmentsTitle: {
+    ko: "구간",
+    en: "Segments",
+    ja: "セグメント",
+  },
+  shareSegmentsSubTitle: {
+    ko: "{{count}}개 구간",
+    en: "{{count}} segments",
+    ja: "{{count}}セグメント",
+  },
+  shareNoSegments: {
+    ko: "저장된 구간이 없습니다.",
+    en: "There are no saved segments.",
+    ja: "保存されたセグメントはありません。",
+  },
+  shareSegmentTextEmpty: {
+    ko: "내용이 없습니다.",
+    en: "No text available.",
+    ja: "テキストがありません。",
+  },
+  untitledTranscription: {
+    ko: "제목 없음",
+    en: "Untitled transcription",
+    ja: "タイトルなし",
+  },
+  shareSectionTitle: {
+    ko: "공유 링크 생성",
+    en: "Share link",
+    ja: "共有リンク",
+  },
+  shareIncludeAudioLabel: {
+    ko: "이 링크에 오디오 포함",
+    en: "Include audio in this link",
+    ja: "このリンクに音声を含める",
+  },
+  shareIncludeAudioHelper: {
+    ko: "오디오를 포함하면 URL이 길어질 수 있습니다.",
+    en: "Including audio makes the URL longer.",
+    ja: "音声を含めるとURLが長くなります。",
+  },
+  shareIncludeAudioUnavailable: {
+    ko: "현재 오디오가 없어 포함할 수 없습니다.",
+    en: "Audio is not available right now.",
+    ja: "現在音声は利用できません。",
+  },
+  sharePasswordLabel: {
+    ko: "공유 암호",
+    en: "Share password",
+    ja: "共有パスワード",
+  },
+  sharePasswordHelper: {
+    ko: "선택 사항입니다. 입력하면 링크가 암호화됩니다.",
+    en: "Optional. Entering a password encrypts the link.",
+    ja: "任意。パスワードを入力するとリンクが暗号化されます。",
+  },
+  shareGenerating: {
+    ko: "링크 생성 중...",
+    en: "Generating link...",
+    ja: "リンクを生成中...",
+  },
+  shareCreateLinkButton: {
+    ko: "공유 링크 만들기",
+    en: "Create share link",
+    ja: "共有リンクを作成",
+  },
+  shareCopyLink: {
+    ko: "링크 복사",
+    en: "Copy link",
+    ja: "リンクをコピー",
+  },
+  shareLinkCreated: {
+    ko: "공유 링크를 생성했습니다.",
+    en: "Share link created.",
+    ja: "共有リンクが生成されました。",
+  },
+  shareGenerateFailed: {
+    ko: "공유 링크 생성에 실패했습니다.",
+    en: "Failed to generate share link.",
+    ja: "共有リンクの生成に失敗しました。",
+  },
+  shareAudioIncludeFailed: {
+    ko: "오디오를 가져올 수 없어 포함하지 않습니다.",
+    en: "Unable to fetch audio to include in the share.",
+    ja: "音声を取得できず、共有に含めることができません。",
+  },
+  shareLinkCopied: {
+    ko: "링크가 복사되었습니다.",
+    en: "Link copied.",
+    ja: "リンクがコピーされました。",
+  },
+  shareLinkCopyFailed: {
+    ko: "자동 복사에 실패했습니다. 수동으로 복사하세요.",
+    en: "Automatic copy failed; please copy manually.",
+    ja: "自動コピーに失敗しました。手動でコピーしてください。",
+  },
 };
 
 const buildLocaleMap = (locale: Locale) => {
