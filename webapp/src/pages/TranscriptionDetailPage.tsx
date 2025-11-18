@@ -39,7 +39,6 @@ import dayjs from "dayjs";
 import { useSnackbar } from "notistack";
 import { useI18n } from "../i18n";
 import { appDb, type LocalSegment, type LocalWordTiming } from "../data/app-db";
-import { deflate } from "pako";
 import { createSharePayload, type ShareDocument } from "../share/payload";
 import {
   deleteTranscription,
@@ -358,6 +357,7 @@ export default function TranscriptionDetailPage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareGenerating, setShareGenerating] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [audioTranscoding, setAudioTranscoding] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const userToggledAudioRef = useRef(false);
   const segmentsRef = useRef<LocalSegment[]>([]);
@@ -838,37 +838,38 @@ export default function TranscriptionDetailPage() {
     if (!includeAudioInShare || !transcription || !shareAudioAvailable) {
       return undefined;
     }
-    let sourceBlob: Blob | null = null;
-    if (audioBlobRef.current) {
-      sourceBlob = audioBlobRef.current;
-    } else if (audioUrl) {
-      const response = await fetch(audioUrl);
-      if (!response.ok) {
-        throw new Error(t("shareAudioIncludeFailed"));
+    setAudioTranscoding(true);
+    try {
+      let sourceBlob: Blob | null = null;
+      if (audioBlobRef.current) {
+        sourceBlob = audioBlobRef.current;
+      } else if (audioUrl) {
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+          throw new Error(t("shareAudioIncludeFailed"));
+        }
+        sourceBlob = await response.blob();
       }
-      sourceBlob = await response.blob();
+      if (!sourceBlob) {
+        return undefined;
+      }
+      const transcodedBlob = await transcodeShareAudio(sourceBlob, {
+        targetSampleRate: 12000,
+        audioBitsPerSecond: 24000,
+      });
+      const finalBlob = transcodedBlob ?? sourceBlob;
+      const buffer = await finalBlob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      return {
+        mimeType: finalBlob.type || sourceBlob.type || "audio/webm",
+        base64Data: arrayBufferToBase64(bytes),
+        sampleRate: transcription.audioSampleRate,
+        channels: transcription.audioChannels,
+        transcoded: finalBlob !== sourceBlob,
+      };
+    } finally {
+      setAudioTranscoding(false);
     }
-    if (!sourceBlob) {
-      return undefined;
-    }
-    const transcodedBlob = await transcodeShareAudio(sourceBlob, {
-      targetSampleRate: 12000,
-      audioBitsPerSecond: 24000,
-    });
-    const finalBlob = transcodedBlob ?? sourceBlob;
-    const buffer = await finalBlob.arrayBuffer();
-    const sourceBytes = new Uint8Array(buffer);
-    const compressedBytes = deflate(sourceBytes);
-    return {
-      mimeType: finalBlob.type || sourceBlob.type || "audio/wav",
-      base64Data: arrayBufferToBase64(compressedBytes),
-      compression: "gzip",
-      originalSize: sourceBytes.byteLength,
-      compressedSize: compressedBytes.byteLength,
-      sampleRate: transcription.audioSampleRate,
-      channels: transcription.audioChannels,
-      transcoded: finalBlob !== sourceBlob,
-    };
   }, [includeAudioInShare, audioUrl, transcription, t, shareAudioAvailable]);
 
   const handleGenerateShareLink = useCallback(async () => {
@@ -1296,18 +1297,23 @@ export default function TranscriptionDetailPage() {
             fullWidth
             disabled={shareGenerating}
           />
+          {audioTranscoding ? (
+            <Typography variant="body2" color="text.secondary">
+              {t("shareTranscoding")}
+            </Typography>
+          ) : null}
           <Stack spacing={1} alignItems="flex-start">
             <Button
               variant="contained"
               startIcon={
-                shareGenerating ? (
+                shareGenerating || audioTranscoding ? (
                   <CircularProgress size={16} color="inherit" />
                 ) : (
                   <ShareOutlinedIcon />
                 )
               }
               onClick={handleGenerateShareLink}
-              disabled={shareGenerating || !transcription}
+              disabled={shareGenerating || audioTranscoding || !transcription}
             >
               {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
             </Button>

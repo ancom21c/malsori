@@ -127,11 +127,9 @@ export default function ShareViewerPage() {
       return;
     }
     try {
-      const compressedBytes = base64ToUint8Array(shareDocument.audio.base64Data);
+      const encodedBytes = base64ToUint8Array(shareDocument.audio.base64Data);
       const rawBytes =
-        shareDocument.audio.compression === "gzip"
-          ? inflate(compressedBytes)
-          : compressedBytes;
+        shareDocument.audio.compression === "gzip" ? inflate(encodedBytes) : encodedBytes;
       const blob = new Blob([rawBytes], { type: shareDocument.audio.mimeType });
       objectUrl = URL.createObjectURL(blob);
       setEmbeddedAudioUrl(objectUrl);

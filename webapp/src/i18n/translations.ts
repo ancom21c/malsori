@@ -1939,6 +1939,11 @@ sessionStateRecording: {
     en: "Share",
     ja: "共有",
   },
+  shareTranscoding: {
+    ko: "오디오 변환 중...",
+    en: "Transcoding audio...",
+    ja: "音声を変換中…",
+  },
   shareAudioDecodingFailed: {
     ko: "공유된 오디오를 복호화할 수 없습니다.",
     en: "Unable to decode the shared audio.",
