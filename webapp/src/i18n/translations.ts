@@ -1944,11 +1944,6 @@ sessionStateRecording: {
     en: "Transcoding audio...",
     ja: "音声を変換中…",
   },
-  shareDownloadHtml: {
-    ko: "화면 HTML 다운로드",
-    en: "Download page HTML",
-    ja: "ページHTMLをダウンロード",
-  },
   sharePlaySegment: {
     ko: "구간 재생",
     en: "Play segment",

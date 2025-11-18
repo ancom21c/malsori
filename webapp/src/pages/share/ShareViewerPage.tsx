@@ -18,7 +18,6 @@ import {
 } from "@mui/material";
 import { inflate } from "pako";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import DownloadIcon from "@mui/icons-material/Download";
 import PauseIcon from "@mui/icons-material/Pause";
 import type { ShareDocument, ShareSegment } from "../../share/payload";
 import {
@@ -32,72 +31,6 @@ declare global {
   interface Window {
     __SHARE_EMBED__?: string;
   }
-}
-
-const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
-
-function buildDownloadFileName(title: string | undefined, fallback: string) {
-  const base = (title?.trim().length ? title.trim() : fallback)
-    .replace(INVALID_FILENAME_CHARS, "_")
-    .replace(/\s+/g, "_");
-  const normalized = base || "transcription";
-  return {
-    fileName: `${normalized}.html`,
-    displayTitle: title?.trim().length ? title.trim() : normalized,
-  };
-}
-
-async function fetchTextContent(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch asset: ${url}`);
-  }
-  return await response.text();
-}
-
-const IMPORT_SPECIFIER_REGEX =
-  /(?:import|export)\s+(?:[^"'`]+?\s+from\s*)?["']([^"'`]+)["']|import\s*\(\s*["']([^"'`]+)["']\s*\)/g;
-
-type ModuleDependency = { spec: string; resolved: string | null };
-
-async function collectModuleGraph(
-  entryUrl: string,
-  modules: Map<string, string>,
-  depsMap: Map<string, ModuleDependency[]>,
-  origin: string
-) {
-  if (modules.has(entryUrl)) {
-    return;
-  }
-  const code = await fetchTextContent(entryUrl);
-  modules.set(entryUrl, code);
-  const dependencies: ModuleDependency[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = IMPORT_SPECIFIER_REGEX.exec(code)) !== null) {
-    const spec = match[1] ?? match[2];
-    if (!spec) {
-      continue;
-    }
-    if (spec.startsWith("data:") || spec.startsWith("blob:")) {
-      continue;
-    }
-    let resolvedUrl: string | null = null;
-    if (/^(https?:)?\/\//.test(spec)) {
-      resolvedUrl = spec;
-    } else if (spec.startsWith("/")) {
-      resolvedUrl = new URL(spec, origin).href;
-    } else {
-      resolvedUrl = new URL(spec, entryUrl).href;
-    }
-    if (!resolvedUrl.startsWith(origin) || !resolvedUrl.includes("/assets/")) {
-      resolvedUrl = null;
-    }
-    dependencies.push({ spec, resolved: resolvedUrl });
-    if (resolvedUrl) {
-      await collectModuleGraph(resolvedUrl, modules, depsMap, origin);
-    }
-  }
-  depsMap.set(entryUrl, dependencies);
 }
 
 function formatSegmentTiming(segment: ShareSegment, localeFallback: string) {
@@ -349,147 +282,6 @@ export default function ShareViewerPage() {
     shareDocument?.correctedAggregatedText ??
     shareDocument?.aggregatedText ??
     shareDocument?.transcriptText;
-
-  const downloadShareHtml = useCallback(async () => {
-    if (!shareDocument || !payloadParam) return;
-    const { fileName, displayTitle } = buildDownloadFileName(shareDocument.title, shareDocument.id);
-    const origin = window.location.origin;
-    const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"]'))
-      .map((script) => script.getAttribute("src"))
-      .filter((src): src is string => Boolean(src && src.includes("/assets/")))
-      .map((src) => new URL(src!, window.location.href).href);
-    const uniqueModuleScripts = Array.from(new Set(moduleScripts));
-    if (uniqueModuleScripts.length === 0) {
-      console.warn("No module scripts found for share download.");
-      return;
-    }
-    const styleLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
-      .map((link) => link.getAttribute("href"))
-      .filter((href): href is string => Boolean(href && href.includes("/assets/")))
-      .map((href) => new URL(href!, window.location.href).href);
-    const uniqueStyleLinks = Array.from(new Set(styleLinks));
-    const moduleGraph = new Map<string, string>();
-    const moduleDeps = new Map<string, ModuleDependency[]>();
-    for (const entry of uniqueModuleScripts) {
-      await collectModuleGraph(entry, moduleGraph, moduleDeps, origin);
-    }
-    const moduleSources: Record<string, string> = {};
-    moduleGraph.forEach((code, url) => {
-      const deps = moduleDeps.get(url) ?? [];
-      const rewritten = code.replace(
-        IMPORT_SPECIFIER_REGEX,
-        (full, specFromStatic, specFromDynamic) => {
-          const spec = specFromStatic ?? specFromDynamic;
-          const match = deps.find((dep) => dep.spec === spec);
-          if (!match?.resolved) {
-            return full;
-          }
-          const replacement = match.resolved;
-          if (specFromStatic) {
-            return full.replace(specFromStatic, replacement);
-          }
-          if (specFromDynamic) {
-            return full.replace(specFromDynamic, replacement);
-          }
-          return full;
-        }
-      );
-      moduleSources[url] = btoa(unescape(encodeURIComponent(rewritten)));
-    });
-    const moduleDepsRecord: Record<string, Array<[string, string | null]>> = {};
-    moduleDeps.forEach((deps, url) => {
-      moduleDepsRecord[url] = deps.map((dep) => [dep.spec, dep.resolved]);
-    });
-
-    const styleContents = await Promise.all(
-      uniqueStyleLinks.map(async (href) => {
-        try {
-          return await fetchTextContent(href);
-        } catch (error) {
-          console.warn("Failed to fetch style", href, error);
-          return "";
-        }
-      })
-    );
-    const inlineStyles = styleContents
-      .filter((content) => content.trim().length > 0)
-      .map(
-        (content) =>
-          `<style>${content.replace(/<\/style>/gi, "<\\/style>")}</style>`
-      )
-      .join("\n");
-
-    const moduleSourcesJson = JSON.stringify(moduleSources).replace(/</g, "\\u003c");
-    const moduleDepsJson = JSON.stringify(moduleDepsRecord).replace(/</g, "\\u003c");
-    const entryUrl = uniqueModuleScripts[0];
-    const htmlContent = `<!doctype html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    ${inlineStyles}
-    <title>${displayTitle}</title>
-  </head>
-  <body>
-    <div id="share-root"></div>
-    <script>
-      window.__SHARE_EMBED__ = "${payloadParam}";
-    </script>
-    <script>
-      (function () {
-        const moduleSources = ${moduleSourcesJson};
-        const moduleDeps = ${moduleDepsJson};
-        const decodeBase64 = (base64) => {
-          const binary = atob(base64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-          }
-          return bytes;
-        };
-        const importMap = { imports: {}, scopes: {} };
-        const moduleBlobMap = {};
-        for (const [url, base64] of Object.entries(moduleSources)) {
-          const blob = new Blob([decodeBase64(base64)], { type: "text/javascript" });
-          const blobUrl = URL.createObjectURL(blob);
-          importMap.imports[url] = blobUrl;
-          moduleBlobMap[url] = blobUrl;
-        }
-        for (const [parentUrl, deps] of Object.entries(moduleDeps)) {
-          if (!Array.isArray(deps)) continue;
-          const parentBlobUrl = moduleBlobMap[parentUrl];
-          deps.forEach(([spec, resolved]) => {
-            if (!resolved || !moduleBlobMap[resolved]) {
-              return;
-            }
-            if (/^(?:https?:)?\\//.test(spec)) {
-              importMap.imports[spec] = moduleBlobMap[resolved];
-            } else if (parentBlobUrl) {
-              importMap.scopes[parentBlobUrl] = importMap.scopes[parentBlobUrl] || {};
-              importMap.scopes[parentBlobUrl][spec] = moduleBlobMap[resolved];
-            }
-          });
-        }
-        const importMapScript = document.createElement("script");
-        importMapScript.type = "importmap";
-        importMapScript.textContent = JSON.stringify(importMap);
-        document.currentScript.before(importMapScript);
-        const entryBlobUrl = moduleBlobMap["${entryUrl}"] || "${entryUrl}";
-        import(entryBlobUrl).catch((error) => console.error("Failed to bootstrap share view", error));
-      })();
-    </script>
-  </body>
-</html>`;
-    const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }, [shareDocument, payloadParam]);
 
   const findSegmentForPlaybackTime = useCallback(
     (currentSeconds: number): ShareSegment | null => {
@@ -822,15 +614,6 @@ export default function ShareViewerPage() {
                     ) : (
                       <Alert severity="info">{t("shareAudioUnavailable")}</Alert>
                     )}
-                    <Stack alignItems="flex-end">
-                      <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={() => void downloadShareHtml()}
-                      >
-                        {t("shareDownloadHtml")}
-                      </Button>
-                    </Stack>
                     <Typography variant="body2" color="text.secondary">
                       {t("updatedAt")}:{" "}
                       {dayjs(shareDocument.updatedAt ?? shareDocument.createdAt).format(
