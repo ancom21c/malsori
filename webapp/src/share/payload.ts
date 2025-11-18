@@ -35,6 +35,7 @@ export interface ShareAudioData {
   compression?: "gzip";
   originalSize?: number;
   compressedSize?: number;
+  transcoded?: boolean;
 }
 
 export interface ShareDocument {

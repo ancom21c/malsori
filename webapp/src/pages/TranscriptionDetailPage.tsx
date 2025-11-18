@@ -47,6 +47,7 @@ import {
   updateSegmentCorrection,
 } from "../services/data/transcriptionRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
+import { transcodeShareAudio } from "../services/audio/shareTranscoder";
 import { arrayBufferToBase64 } from "../utils/base64";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
@@ -850,17 +851,23 @@ export default function TranscriptionDetailPage() {
     if (!sourceBlob) {
       return undefined;
     }
-    const buffer = await sourceBlob.arrayBuffer();
+    const transcodedBlob = await transcodeShareAudio(sourceBlob, {
+      targetSampleRate: 12000,
+      audioBitsPerSecond: 24000,
+    });
+    const finalBlob = transcodedBlob ?? sourceBlob;
+    const buffer = await finalBlob.arrayBuffer();
     const sourceBytes = new Uint8Array(buffer);
     const compressedBytes = deflate(sourceBytes);
     return {
-      mimeType: sourceBlob.type || "audio/wav",
+      mimeType: finalBlob.type || sourceBlob.type || "audio/wav",
       base64Data: arrayBufferToBase64(compressedBytes),
       compression: "gzip",
       originalSize: sourceBytes.byteLength,
       compressedSize: compressedBytes.byteLength,
       sampleRate: transcription.audioSampleRate,
       channels: transcription.audioChannels,
+      transcoded: finalBlob !== sourceBlob,
     };
   }, [includeAudioInShare, audioUrl, transcription, t, shareAudioAvailable]);
 
