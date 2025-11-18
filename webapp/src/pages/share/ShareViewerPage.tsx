@@ -57,37 +57,46 @@ async function fetchTextContent(url: string): Promise<string> {
 const IMPORT_SPECIFIER_REGEX =
   /(?:import|export)\s+(?:[^"'`]+?\s+from\s*)?["']([^"'`]+)["']|import\s*\(\s*["']([^"'`]+)["']\s*\)/g;
 
+type ModuleDependency = { spec: string; resolved: string | null };
+
 async function collectModuleGraph(
   entryUrl: string,
-  visited: Map<string, string>,
+  modules: Map<string, string>,
+  depsMap: Map<string, ModuleDependency[]>,
   origin: string
-): Promise<Map<string, string>> {
-  if (visited.has(entryUrl)) {
-    return visited;
+) {
+  if (modules.has(entryUrl)) {
+    return;
   }
   const code = await fetchTextContent(entryUrl);
-  visited.set(entryUrl, code);
+  modules.set(entryUrl, code);
+  const dependencies: ModuleDependency[] = [];
   let match: RegExpExecArray | null;
   while ((match = IMPORT_SPECIFIER_REGEX.exec(code)) !== null) {
     const spec = match[1] ?? match[2];
     if (!spec) {
       continue;
     }
-    if (/^(https?:)?\/\//.test(spec)) {
-      continue;
-    }
     if (spec.startsWith("data:") || spec.startsWith("blob:")) {
       continue;
     }
-    if (spec.startsWith(".") || spec.startsWith("/")) {
-      const resolvedUrl = new URL(spec, entryUrl).href;
-      if (!resolvedUrl.startsWith(origin) || !resolvedUrl.includes("/assets/")) {
-        continue;
-      }
-      await collectModuleGraph(resolvedUrl, visited, origin);
+    let resolvedUrl: string | null = null;
+    if (/^(https?:)?\/\//.test(spec)) {
+      resolvedUrl = spec;
+    } else if (spec.startsWith("/")) {
+      resolvedUrl = new URL(spec, origin).href;
+    } else {
+      resolvedUrl = new URL(spec, entryUrl).href;
+    }
+    if (!resolvedUrl.startsWith(origin) || !resolvedUrl.includes("/assets/")) {
+      resolvedUrl = null;
+    }
+    dependencies.push({ spec, resolved: resolvedUrl });
+    if (resolvedUrl) {
+      await collectModuleGraph(resolvedUrl, modules, depsMap, origin);
     }
   }
-  return visited;
+  depsMap.set(entryUrl, dependencies);
 }
 
 function formatSegmentTiming(segment: ShareSegment, localeFallback: string) {
@@ -327,12 +336,17 @@ export default function ShareViewerPage() {
     const uniqueStyleLinks = Array.from(new Set(styleLinks));
 
     const moduleGraph = new Map<string, string>();
+    const moduleDeps = new Map<string, ModuleDependency[]>();
     for (const entry of uniqueModuleScripts) {
-      await collectModuleGraph(entry, moduleGraph, origin);
+      await collectModuleGraph(entry, moduleGraph, moduleDeps, origin);
     }
     const moduleSources: Record<string, string> = {};
     moduleGraph.forEach((code, url) => {
       moduleSources[url] = btoa(unescape(encodeURIComponent(code)));
+    });
+    const moduleDepsRecord: Record<string, Array<[string, string | null]>> = {};
+    moduleDeps.forEach((deps, url) => {
+      moduleDepsRecord[url] = deps.map((dep) => [dep.spec, dep.resolved]);
     });
 
     const styleContents = await Promise.all(
@@ -354,6 +368,7 @@ export default function ShareViewerPage() {
       .join("\n");
 
     const moduleSourcesJson = JSON.stringify(moduleSources).replace(/</g, "\\u003c");
+    const moduleDepsJson = JSON.stringify(moduleDepsRecord).replace(/</g, "\\u003c");
     const entryUrl = uniqueModuleScripts[0];
     const htmlContent = `<!doctype html>
 <html lang="ko">
@@ -371,6 +386,7 @@ export default function ShareViewerPage() {
     <script>
       (function () {
         const moduleSources = ${moduleSourcesJson};
+        const moduleDeps = ${moduleDepsJson};
         const decodeBase64 = (base64) => {
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
@@ -379,11 +395,25 @@ export default function ShareViewerPage() {
           }
           return bytes;
         };
-        const importMap = { imports: {} };
+        const importMap = { imports: {}, scopes: {} };
         for (const [url, base64] of Object.entries(moduleSources)) {
           const blob = new Blob([decodeBase64(base64)], { type: "text/javascript" });
           const blobUrl = URL.createObjectURL(blob);
           importMap.imports[url] = blobUrl;
+        }
+        for (const [parentUrl, deps] of Object.entries(moduleDeps)) {
+          if (!Array.isArray(deps)) continue;
+          deps.forEach(([spec, resolved]) => {
+            if (!resolved || !importMap.imports[resolved]) {
+              return;
+            }
+            if (/^(?:https?:)?\\//.test(spec)) {
+              importMap.imports[spec] = importMap.imports[resolved];
+            } else {
+              importMap.scopes[parentUrl] = importMap.scopes[parentUrl] || {};
+              importMap.scopes[parentUrl][spec] = importMap.imports[resolved];
+            }
+          });
         }
         const importMapScript = document.createElement("script");
         importMapScript.type = "importmap";
