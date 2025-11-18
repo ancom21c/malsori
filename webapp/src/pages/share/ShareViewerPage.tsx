@@ -27,13 +27,23 @@ import {
 import { base64ToUint8Array } from "../../utils/base64";
 import { useI18n } from "../../i18n";
 
+declare global {
+  interface Window {
+    __SHARE_EMBED__?: string;
+  }
+}
+
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 
-function sanitizeFileName(title: string | undefined, fallback: string) {
+function buildDownloadFileName(title: string | undefined, fallback: string) {
   const base = (title?.trim().length ? title.trim() : fallback)
     .replace(INVALID_FILENAME_CHARS, "_")
     .replace(/\s+/g, "_");
-  return `${base || "transcription"}.html`;
+  const normalized = base || "transcription";
+  return {
+    fileName: `${normalized}.html`,
+    displayTitle: title?.trim().length ? title.trim() : normalized,
+  };
 }
 
 function formatSegmentTiming(segment: ShareSegment, localeFallback: string) {
@@ -155,7 +165,9 @@ function resolveWordTimingMs(
 
 export default function ShareViewerPage() {
   const { t } = useI18n();
-  const [payloadParam, setPayloadParam] = useState<string | null>(null);
+  const [payloadParam, setPayloadParam] = useState<string | null>(
+    typeof window !== "undefined" && window.__SHARE_EMBED__ ? window.__SHARE_EMBED__ : null
+  );
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [shareDocument, setShareDocument] = useState<ShareDocument | null>(null);
@@ -192,9 +204,12 @@ export default function ShareViewerPage() {
   );
 
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const queryParams = new URLSearchParams(window.location.search);
-    const payload = hashParams.get("payload") ?? queryParams.get("payload");
+    let payload = window.__SHARE_EMBED__ ?? null;
+    if (!payload) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const queryParams = new URLSearchParams(window.location.search);
+      payload = hashParams.get("payload") ?? queryParams.get("payload");
+    }
     if (!payload) {
       setError(t("sharePayloadMissing"));
       return;
@@ -249,11 +264,35 @@ export default function ShareViewerPage() {
     shareDocument?.transcriptText;
 
   const downloadShareHtml = useCallback(() => {
-    if (!shareDocument) return;
-    const serializer = new XMLSerializer();
-    const html = serializer.serializeToString(document.documentElement);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const fileName = sanitizeFileName(shareDocument.title, shareDocument.id);
+    if (!shareDocument || !payloadParam) return;
+    const { fileName, displayTitle } = buildDownloadFileName(shareDocument.title, shareDocument.id);
+    const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"]'))
+      .map((script) => script.getAttribute("src"))
+      .filter((src): src is string => Boolean(src))
+      .map((src) => new URL(src!, window.location.href).href);
+    const styleLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
+      .map((link) => link.getAttribute("href"))
+      .filter((href): href is string => Boolean(href))
+      .map((href) => new URL(href!, window.location.href).href);
+    const htmlContent = `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    ${styleLinks.map((href) => `<link rel="stylesheet" href="${href}" />`).join("\n")}
+    <title>${displayTitle}</title>
+  </head>
+  <body>
+    <div id="share-root"></div>
+    <script>
+      window.__SHARE_EMBED__ = "${payloadParam}";
+    </script>
+    ${moduleScripts
+      .map((src) => `<script type="module" src="${src}" crossorigin="anonymous"></script>`)
+      .join("\n")}
+  </body>
+</html>`;
+    const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -262,7 +301,7 @@ export default function ShareViewerPage() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [shareDocument]);
+  }, [shareDocument, payloadParam]);
 
   const findSegmentForPlaybackTime = useCallback(
     (currentSeconds: number): ShareSegment | null => {
@@ -354,6 +393,11 @@ export default function ShareViewerPage() {
       segmentEndRef.current = endSeconds;
       setActiveSegmentId(segment.id);
       updateActiveWordHighlight(segment.id, startSeconds);
+      const cardRef = segmentCardRefs.current.get(segment.id);
+      if (cardRef) {
+        cardRef.scrollIntoView({ behavior: "smooth", block: "center" });
+        cardRef.focus({ preventScroll: true });
+      }
       void audio.play().catch(() => {
         segmentEndRef.current = null;
         setActiveSegmentId(null);
