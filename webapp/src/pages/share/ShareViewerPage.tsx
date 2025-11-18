@@ -368,7 +368,6 @@ export default function ShareViewerPage() {
       .filter((href): href is string => Boolean(href && href.includes("/assets/")))
       .map((href) => new URL(href!, window.location.href).href);
     const uniqueStyleLinks = Array.from(new Set(styleLinks));
-
     const moduleGraph = new Map<string, string>();
     const moduleDeps = new Map<string, ModuleDependency[]>();
     for (const entry of uniqueModuleScripts) {
@@ -376,7 +375,26 @@ export default function ShareViewerPage() {
     }
     const moduleSources: Record<string, string> = {};
     moduleGraph.forEach((code, url) => {
-      moduleSources[url] = btoa(unescape(encodeURIComponent(code)));
+      const deps = moduleDeps.get(url) ?? [];
+      const rewritten = code.replace(
+        IMPORT_SPECIFIER_REGEX,
+        (full, specFromStatic, specFromDynamic) => {
+          const spec = specFromStatic ?? specFromDynamic;
+          const match = deps.find((dep) => dep.spec === spec);
+          if (!match?.resolved) {
+            return full;
+          }
+          const replacement = match.resolved;
+          if (specFromStatic) {
+            return full.replace(specFromStatic, replacement);
+          }
+          if (specFromDynamic) {
+            return full.replace(specFromDynamic, replacement);
+          }
+          return full;
+        }
+      );
+      moduleSources[url] = btoa(unescape(encodeURIComponent(rewritten)));
     });
     const moduleDepsRecord: Record<string, Array<[string, string | null]>> = {};
     moduleDeps.forEach((deps, url) => {
@@ -551,6 +569,14 @@ export default function ShareViewerPage() {
     [activeSegmentId, findSegmentForPlaybackTime, updateActiveWordHighlight]
   );
 
+  const focusSegmentCard = useCallback((segmentId: string) => {
+    const cardRef = segmentCardRefs.current.get(segmentId);
+    if (cardRef) {
+      cardRef.scrollIntoView({ behavior: "smooth", block: "center" });
+      cardRef.focus({ preventScroll: true });
+    }
+  }, []);
+
   const handlePlaySegment = useCallback(
     (segment: ShareSegment) => {
       if (!playbackUrl) {
@@ -586,30 +612,22 @@ export default function ShareViewerPage() {
       segmentEndRef.current = endSeconds;
       setActiveSegmentId(segment.id);
       updateActiveWordHighlight(segment.id, startSeconds);
-      const cardRef = segmentCardRefs.current.get(segment.id);
-      if (cardRef) {
-        cardRef.scrollIntoView({ behavior: "smooth", block: "center" });
-        cardRef.focus({ preventScroll: true });
-      }
+      focusSegmentCard(segment.id);
       void audio.play().catch(() => {
         segmentEndRef.current = null;
         setActiveSegmentId(null);
         setActiveWordHighlight(null);
       });
     },
-    [activeSegmentId, playbackUrl, updateActiveWordHighlight]
+    [activeSegmentId, focusSegmentCard, playbackUrl, updateActiveWordHighlight]
   );
 
   useEffect(() => {
     if (!activeSegmentId) {
       return;
     }
-    const ref = segmentCardRefs.current.get(activeSegmentId);
-    if (ref) {
-      ref.scrollIntoView({ behavior: "smooth", block: "center" });
-      ref.focus({ preventScroll: true });
-    }
-  }, [activeSegmentId]);
+    focusSegmentCard(activeSegmentId);
+  }, [activeSegmentId, focusSegmentCard]);
 
   useEffect(() => {
     const audio = audioElementRef.current;
@@ -648,11 +666,17 @@ export default function ShareViewerPage() {
         programmaticSeekRef.current = false;
         return;
       }
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      const match = syncActiveSegmentWithPlayback(audio.currentTime);
+      if (match) {
+        focusSegmentCard(match.id);
+      }
     };
     const handlePlay = () => {
       setIsAudioPlaying(true);
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      const match = syncActiveSegmentWithPlayback(audio.currentTime);
+      if (match) {
+        focusSegmentCard(match.id);
+      }
     };
     const handleLoadedMetadata = () => {
       syncActiveSegmentWithPlayback(audio.currentTime);
@@ -673,7 +697,7 @@ export default function ShareViewerPage() {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
     };
-  }, [syncActiveSegmentWithPlayback]);
+  }, [focusSegmentCard, syncActiveSegmentWithPlayback]);
 
   return (
     <Box
@@ -847,6 +871,7 @@ export default function ShareViewerPage() {
                           const isActive = activeSegmentId === segment.id;
                           const hasTimingInfo = hasTiming(segment);
                           const startMs = getSegmentStartMs(segment);
+                          const isSegmentPlaying = isAudioPlaying && isActive;
                           const timingLabel = hasTimingInfo
                             ? formatSegmentTiming(segment, t("noTimeInformation"))
                             : t("noTimeInformation");
@@ -888,7 +913,11 @@ export default function ShareViewerPage() {
                                           disabled={!playbackUrl || !hasTimingInfo || startMs === null}
                                           onClick={() => handlePlaySegment(segment)}
                                         >
-                                          <PlayArrowIcon fontSize="small" />
+                                          {isSegmentPlaying ? (
+                                            <PauseIcon fontSize="small" />
+                                          ) : (
+                                            <PlayArrowIcon fontSize="small" />
+                                          )}
                                         </IconButton>
                                       </span>
                                     </Tooltip>
