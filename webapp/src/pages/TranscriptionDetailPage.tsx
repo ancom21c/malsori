@@ -33,7 +33,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import dayjs from "dayjs";
 import { useSnackbar } from "notistack";
@@ -334,6 +334,7 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 export default function TranscriptionDetailPage() {
   const { transcriptionId } = useParams<{ transcriptionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -366,13 +367,13 @@ export default function TranscriptionDetailPage() {
   const segmentCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const handleNavigateBack = useCallback(() => {
-    const state = window.history.state as { idx?: number } | null;
-    if (state && typeof state.idx === "number" && state.idx > 0) {
+    const fromList = Boolean((location.state as { fromList?: boolean } | null)?.fromList);
+    if (fromList) {
       navigate(-1);
       return;
     }
     navigate("/", { replace: true });
-  }, [navigate]);
+  }, [location.state, navigate]);
 
   const handleIncludeAudioChange = useCallback((event: ReactChangeEvent<HTMLInputElement>) => {
     userToggledAudioRef.current = true;

@@ -456,11 +456,12 @@ export default function TranscriptionListPage() {
                       }
                       disablePadding
                     >
-                      <ListItemButton
-                        component={RouterLink}
-                        to={`/transcriptions/${item.id}`}
-                        sx={{ py: 1.5 }}
-                      >
+                  <ListItemButton
+                    component={RouterLink}
+                    to={`/transcriptions/${item.id}`}
+                    state={{ fromList: true }}
+                    sx={{ py: 1.5 }}
+                  >
                         <ListItemAvatar>{getKindAvatar(item.kind)}</ListItemAvatar>
                         <ListItemText
                           primary={

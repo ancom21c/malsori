@@ -34,6 +34,7 @@ import {
   updateLocalTranscription,
   replaceSegments,
   appendAudioChunk,
+  deleteTranscription,
 } from "../services/data/transcriptionRepository";
 import { RtzrStreamingClient } from "../services/api/rtzrStreamingClient";
 import {
@@ -405,6 +406,7 @@ export default function RealtimeSessionPage() {
   const portalContainer = useAppPortalContainer();
   const runtimeSettingsFabRef = useRef<HTMLButtonElement | null>(null);
   const runtimeSettingsPreviouslyOpenRef = useRef(false);
+  const sessionConnectedRef = useRef(false);
 
   useEffect(() => {
     if (!runtimeSettingsOpen) {
@@ -546,6 +548,7 @@ export default function RealtimeSessionPage() {
     setPartialText(null);
     setCountdown(3);
     sessionStartRef.current = null;
+    sessionConnectedRef.current = false;
     chunkIndexRef.current = 0;
     recordedSampleRateRef.current = null;
     finalizingRef.current = false;
@@ -705,6 +708,7 @@ export default function RealtimeSessionPage() {
 
   const startRecording = async (decoderConfig: Record<string, unknown>) => {
     setSessionState("connecting");
+    sessionConnectedRef.current = false;
 
     const recorder = new RecorderManager();
     recorderRef.current = recorder;
@@ -729,6 +733,7 @@ export default function RealtimeSessionPage() {
         setSessionState("connecting");
       },
       onOpen: () => {
+        sessionConnectedRef.current = true;
         setSessionState("recording");
         startAutosaveTimer();
         setErrorMessage(null);
@@ -784,6 +789,7 @@ export default function RealtimeSessionPage() {
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     const id = transcriptionIdRef.current;
+    const shouldDiscard = aborted && !sessionConnectedRef.current;
     if (sessionState !== "saving") {
       setSessionState("saving");
     }
@@ -791,7 +797,9 @@ export default function RealtimeSessionPage() {
     const duration = sessionStartRef.current ? Date.now() - sessionStartRef.current : undefined;
 
     try {
-      if (id) {
+      if (id && shouldDiscard) {
+        await deleteTranscription(id);
+      } else if (id) {
         await replaceSegments(
           id,
           segmentsRef.current.map((segment) => ({
@@ -818,6 +826,10 @@ export default function RealtimeSessionPage() {
 
     const navigateId = id;
     resetSessionState();
+    if (shouldDiscard) {
+      enqueueSnackbar(t("theSessionHasBeenAborted"), { variant: "warning" });
+      return;
+    }
     if (navigateId) {
       navigate(`/transcriptions/${navigateId}`);
     }
@@ -902,6 +914,10 @@ export default function RealtimeSessionPage() {
     }
     if (sessionState === "idle") {
       void handleStartSession();
+      return;
+    }
+    if (sessionState === "connecting") {
+      stopSession(true);
       return;
     }
     if (sessionState === "recording") {
@@ -1040,8 +1056,7 @@ export default function RealtimeSessionPage() {
     return `${start}s ~ ${end}s`;
   };
 
-  const mainButtonDisabled =
-    sessionState === "countdown" || sessionState === "connecting" || sessionState === "saving";
+  const mainButtonDisabled = sessionState === "countdown" || sessionState === "saving";
   const mainButtonLabel = (() => {
     switch (sessionState) {
       case "idle":
@@ -1092,6 +1107,9 @@ export default function RealtimeSessionPage() {
     if (sessionState === "paused") {
       return t("tapToResumeTranscription");
     }
+    if (sessionState === "connecting") {
+      return t("sessionEnds");
+    }
     if (sessionState === "idle") {
       return t("realTimeTranscriptionBeginsAfterA3SecondCountdown");
     }
@@ -1100,7 +1118,16 @@ export default function RealtimeSessionPage() {
     }
     return t("preparingForSession");
   })();
-  const showStopFab = sessionState === "paused";
+  const showStopFab =
+    sessionState === "paused" ||
+    sessionState === "recording" ||
+    sessionState === "connecting" ||
+    sessionState === "countdown";
+
+  const handleStopFabClick = () => {
+    const shouldAbort = sessionState === "connecting" || sessionState === "countdown";
+    stopSession(shouldAbort ? true : false);
+  };
 
   return (
     <>
@@ -1212,7 +1239,10 @@ export default function RealtimeSessionPage() {
           bottom: { xs: 16, sm: 32 },
           display: "flex",
           justifyContent: "center",
-          zIndex: (theme) => theme.zIndex.modal + 1,
+          zIndex: (theme) =>
+            sessionState === "countdown"
+              ? theme.zIndex.modal + 3
+              : theme.zIndex.modal + 1,
           pointerEvents: "none",
         }}
       >
@@ -1252,7 +1282,7 @@ export default function RealtimeSessionPage() {
               <Fab
                 color="error"
                 aria-label={t("sessionEnds")}
-                onClick={() => stopSession(false)}
+                onClick={handleStopFabClick}
                 sx={{
                   boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
                 }}

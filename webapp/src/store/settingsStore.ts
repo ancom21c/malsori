@@ -4,8 +4,8 @@ import { appDb } from "../data/app-db";
 import type { AppSetting } from "../data/app-db";
 
 const DEFAULT_API_BASE_URL =
-  (typeof window !== "undefined" && window.__MALSORI_CONFIG__?.apiBaseUrl) ||
   import.meta.env.VITE_API_BASE ||
+  (typeof window !== "undefined" && window.__MALSORI_CONFIG__?.apiBaseUrl) ||
   "http://localhost:8000";
 
 export type SettingKey =
