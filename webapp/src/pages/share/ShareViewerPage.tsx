@@ -46,6 +46,50 @@ function buildDownloadFileName(title: string | undefined, fallback: string) {
   };
 }
 
+async function fetchTextContent(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch asset: ${url}`);
+  }
+  return await response.text();
+}
+
+const IMPORT_SPECIFIER_REGEX =
+  /(?:import|export)\s+(?:[^"'`]+?\s+from\s*)?["']([^"'`]+)["']|import\s*\(\s*["']([^"'`]+)["']\s*\)/g;
+
+async function collectModuleGraph(
+  entryUrl: string,
+  visited: Map<string, string>,
+  origin: string
+): Promise<Map<string, string>> {
+  if (visited.has(entryUrl)) {
+    return visited;
+  }
+  const code = await fetchTextContent(entryUrl);
+  visited.set(entryUrl, code);
+  let match: RegExpExecArray | null;
+  while ((match = IMPORT_SPECIFIER_REGEX.exec(code)) !== null) {
+    const spec = match[1] ?? match[2];
+    if (!spec) {
+      continue;
+    }
+    if (/^(https?:)?\/\//.test(spec)) {
+      continue;
+    }
+    if (spec.startsWith("data:") || spec.startsWith("blob:")) {
+      continue;
+    }
+    if (spec.startsWith(".") || spec.startsWith("/")) {
+      const resolvedUrl = new URL(spec, entryUrl).href;
+      if (!resolvedUrl.startsWith(origin) || !resolvedUrl.includes("/assets/")) {
+        continue;
+      }
+      await collectModuleGraph(resolvedUrl, visited, origin);
+    }
+  }
+  return visited;
+}
+
 function formatSegmentTiming(segment: ShareSegment, localeFallback: string) {
   const startLabel =
     typeof segment.startMs === "number" && Number.isFinite(segment.startMs)
@@ -263,23 +307,60 @@ export default function ShareViewerPage() {
     shareDocument?.aggregatedText ??
     shareDocument?.transcriptText;
 
-  const downloadShareHtml = useCallback(() => {
+  const downloadShareHtml = useCallback(async () => {
     if (!shareDocument || !payloadParam) return;
     const { fileName, displayTitle } = buildDownloadFileName(shareDocument.title, shareDocument.id);
+    const origin = window.location.origin;
     const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"]'))
       .map((script) => script.getAttribute("src"))
-      .filter((src): src is string => Boolean(src))
+      .filter((src): src is string => Boolean(src && src.includes("/assets/")))
       .map((src) => new URL(src!, window.location.href).href);
+    const uniqueModuleScripts = Array.from(new Set(moduleScripts));
+    if (uniqueModuleScripts.length === 0) {
+      console.warn("No module scripts found for share download.");
+      return;
+    }
     const styleLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
       .map((link) => link.getAttribute("href"))
-      .filter((href): href is string => Boolean(href))
+      .filter((href): href is string => Boolean(href && href.includes("/assets/")))
       .map((href) => new URL(href!, window.location.href).href);
+    const uniqueStyleLinks = Array.from(new Set(styleLinks));
+
+    const moduleGraph = new Map<string, string>();
+    for (const entry of uniqueModuleScripts) {
+      await collectModuleGraph(entry, moduleGraph, origin);
+    }
+    const moduleSources: Record<string, string> = {};
+    moduleGraph.forEach((code, url) => {
+      moduleSources[url] = btoa(unescape(encodeURIComponent(code)));
+    });
+
+    const styleContents = await Promise.all(
+      uniqueStyleLinks.map(async (href) => {
+        try {
+          return await fetchTextContent(href);
+        } catch (error) {
+          console.warn("Failed to fetch style", href, error);
+          return "";
+        }
+      })
+    );
+    const inlineStyles = styleContents
+      .filter((content) => content.trim().length > 0)
+      .map(
+        (content) =>
+          `<style>${content.replace(/<\/style>/gi, "<\\/style>")}</style>`
+      )
+      .join("\n");
+
+    const moduleSourcesJson = JSON.stringify(moduleSources).replace(/</g, "\\u003c");
+    const entryUrl = uniqueModuleScripts[0];
     const htmlContent = `<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    ${styleLinks.map((href) => `<link rel="stylesheet" href="${href}" />`).join("\n")}
+    ${inlineStyles}
     <title>${displayTitle}</title>
   </head>
   <body>
@@ -287,9 +368,30 @@ export default function ShareViewerPage() {
     <script>
       window.__SHARE_EMBED__ = "${payloadParam}";
     </script>
-    ${moduleScripts
-      .map((src) => `<script type="module" src="${src}" crossorigin="anonymous"></script>`)
-      .join("\n")}
+    <script>
+      (function () {
+        const moduleSources = ${moduleSourcesJson};
+        const decodeBase64 = (base64) => {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          return bytes;
+        };
+        const importMap = { imports: {} };
+        for (const [url, base64] of Object.entries(moduleSources)) {
+          const blob = new Blob([decodeBase64(base64)], { type: "text/javascript" });
+          const blobUrl = URL.createObjectURL(blob);
+          importMap.imports[url] = blobUrl;
+        }
+        const importMapScript = document.createElement("script");
+        importMapScript.type = "importmap";
+        importMapScript.textContent = JSON.stringify(importMap);
+        document.currentScript.before(importMapScript);
+        import("${entryUrl}").catch((error) => console.error("Failed to bootstrap share view", error));
+      })();
+    </script>
   </body>
 </html>`;
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
@@ -612,7 +714,7 @@ export default function ShareViewerPage() {
                       <Button
                         variant="outlined"
                         startIcon={<DownloadIcon />}
-                        onClick={downloadShareHtml}
+                        onClick={() => void downloadShareHtml()}
                       >
                         {t("shareDownloadHtml")}
                       </Button>
