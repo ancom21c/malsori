@@ -9,6 +9,7 @@ import {
   decodeStringFromBase64Url,
   encodeStringToBase64Url,
 } from "../utils/base64";
+import { deflate, inflate } from "pako";
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
@@ -62,6 +63,7 @@ interface SharePackage {
   version: 1;
   encrypted: boolean;
   payload: string;
+  compressed?: boolean;
   iv?: string;
   salt?: string;
 }
@@ -69,6 +71,7 @@ interface SharePackage {
 export interface SharePackageMetadata {
   version: number;
   encrypted: boolean;
+  compressed?: boolean;
 }
 
 async function deriveEncryptionKey(password: string, salt: Uint8Array) {
@@ -128,31 +131,18 @@ async function decryptMessage(
   return new Uint8Array(plainBuffer);
 }
 
-function buildSharePackage(documentJson: string, encrypted: false): SharePackage;
 function buildSharePackage(
-  documentJson: string,
-  encrypted: true,
-  cipherData: { cipher: string; iv: string; salt: string }
-): SharePackage;
-function buildSharePackage(
-  documentJson: string,
+  payloadBase64: string,
   encrypted: boolean,
-  cipherData?: { cipher: string; iv: string; salt: string }
-) {
-  if (encrypted) {
-    return {
-      version: PACKAGE_VERSION,
-      encrypted: true,
-      payload: cipherData?.cipher ?? "",
-      iv: cipherData?.iv,
-      salt: cipherData?.salt,
-    };
-  }
-  const documentBytes = TEXT_ENCODER.encode(documentJson);
+  options?: { iv?: string; salt?: string }
+): SharePackage {
   return {
     version: PACKAGE_VERSION,
-    encrypted: false,
-    payload: base64UrlEncode(documentBytes),
+    encrypted,
+    payload: payloadBase64,
+    compressed: true,
+    iv: options?.iv,
+    salt: options?.salt,
   };
 }
 
@@ -160,23 +150,23 @@ function encodeSharePackage(pkg: SharePackage) {
   return encodeStringToBase64Url(JSON.stringify(pkg));
 }
 
-async function decodeShareDocument(payload: string) {
-  const decoded = base64UrlDecode(payload);
-  const json = TEXT_DECODER.decode(decoded);
-  return JSON.parse(json) as ShareDocument;
-}
-
 export async function createSharePayload(
   document: ShareDocument,
   options?: { password?: string }
 ) {
   const docJson = JSON.stringify(document);
+  const documentBytes = TEXT_ENCODER.encode(docJson);
+  const compressedBytes = deflate(documentBytes);
   if (options?.password && options.password.trim().length > 0) {
-    const cipherData = await encryptMessage(TEXT_ENCODER.encode(docJson), options.password.trim());
-    const pkg = buildSharePackage(docJson, true, cipherData);
+    const cipherData = await encryptMessage(compressedBytes, options.password.trim());
+    const pkg = buildSharePackage(cipherData.cipher, true, {
+      iv: cipherData.iv,
+      salt: cipherData.salt,
+    });
     return encodeSharePackage(pkg);
   }
-  const pkg = buildSharePackage(docJson, false);
+  const payload = base64UrlEncode(compressedBytes);
+  const pkg = buildSharePackage(payload, false);
   return encodeSharePackage(pkg);
 }
 
@@ -190,6 +180,7 @@ export function inspectSharePackage(payloadParam: string): SharePackageMetadata 
     return {
       version: parsed.version,
       encrypted: Boolean(parsed.encrypted),
+      compressed: parsed.compressed,
     };
   } catch {
     return null;
@@ -210,8 +201,14 @@ export async function parseSharePayload(payloadParam: string, password?: string)
       throw new Error("Missing encryption metadata.");
     }
     const decrypted = await decryptMessage(pkg.payload, password.trim(), pkg.salt, pkg.iv);
-    const json = TEXT_DECODER.decode(decrypted);
+    const shouldDecompress = pkg.compressed ?? false;
+    const decompressed = shouldDecompress ? inflate(decrypted) : decrypted;
+    const json = TEXT_DECODER.decode(decompressed);
     return JSON.parse(json) as ShareDocument;
   }
-  return decodeShareDocument(pkg.payload);
+  const payloadBytes = base64UrlDecode(pkg.payload);
+  const shouldDecompress = pkg.compressed ?? false;
+  const decompressed = shouldDecompress ? inflate(payloadBytes) : payloadBytes;
+  const json = TEXT_DECODER.decode(decompressed);
+  return JSON.parse(json) as ShareDocument;
 }
