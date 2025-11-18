@@ -9,6 +9,10 @@ import {
   CardHeader,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControlLabel,
   FormGroup,
@@ -353,6 +357,7 @@ export default function TranscriptionDetailPage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareGenerating, setShareGenerating] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const userToggledAudioRef = useRef(false);
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
@@ -371,6 +376,14 @@ export default function TranscriptionDetailPage() {
   const handleIncludeAudioChange = useCallback((event: ReactChangeEvent<HTMLInputElement>) => {
     userToggledAudioRef.current = true;
     setIncludeAudioInShare(event.target.checked);
+  }, []);
+
+  const handleShareDialogOpen = useCallback(() => {
+    setShareDialogOpen(true);
+  }, []);
+
+  const handleShareDialogClose = useCallback(() => {
+    setShareDialogOpen(false);
   }, []);
 
   const transcription = useLiveQuery(async () => {
@@ -1188,32 +1201,32 @@ export default function TranscriptionDetailPage() {
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
             <Button
               variant="outlined"
-                startIcon={<DescriptionIcon />}
-                onClick={handleDownloadJson}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("json")}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ArticleIcon />}
-                onClick={handleDownloadText}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("text2")}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<AudiotrackIcon />}
-                disabled={!audioUrl && !audioBlobRef.current}
-                onClick={handleDownloadAudio}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("audio")}
-              </Button>
+              startIcon={<DescriptionIcon />}
+              onClick={handleDownloadJson}
+              fullWidth
+              sx={{ maxWidth: { sm: 200 } }}
+            >
+              {t("json")}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ArticleIcon />}
+              onClick={handleDownloadText}
+              fullWidth
+              sx={{ maxWidth: { sm: 200 } }}
+            >
+              {t("text2")}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<AudiotrackIcon />}
+              disabled={!audioUrl && !audioBlobRef.current}
+              onClick={handleDownloadAudio}
+              fullWidth
+              sx={{ maxWidth: { sm: 200 } }}
+            >
+              {t("audio")}
+            </Button>
             <Button
               variant="outlined"
               color="error"
@@ -1224,85 +1237,99 @@ export default function TranscriptionDetailPage() {
             >
               {t("delete")}
             </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ShareOutlinedIcon />}
+              onClick={handleShareDialogOpen}
+              fullWidth
+              sx={{ maxWidth: { sm: 200 } }}
+            >
+              {t("shareButtonLabel")}
+            </Button>
           </Stack>
-          <Card>
-            <CardHeader title={t("shareSectionTitle")} />
-            <CardContent>
-              <Stack spacing={2}>
-                <FormGroup>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={shareAudioAvailable && includeAudioInShare}
-                        onChange={handleIncludeAudioChange}
-                        disabled={!shareAudioAvailable || shareGenerating}
-                      />
-                    }
-                    label={t("shareIncludeAudioLabel")}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    {shareAudioAvailable
-                      ? t("shareIncludeAudioHelper")
-                      : t("shareIncludeAudioUnavailable")}
-                  </Typography>
-                </FormGroup>
-                <TextField
-                  label={t("sharePasswordLabel")}
-                  type="password"
-                  value={sharePassword}
-                  onChange={(event) => setSharePassword(event.target.value)}
-                  helperText={t("sharePasswordHelper")}
-                  fullWidth
-                  disabled={shareGenerating}
-                />
-                <Stack spacing={1} alignItems="flex-start">
-                  <Button
-                    variant="contained"
-                    startIcon={
-                      shareGenerating ? (
-                        <CircularProgress size={16} color="inherit" />
-                      ) : (
-                        <ShareOutlinedIcon />
-                      )
-                    }
-                    onClick={handleGenerateShareLink}
-                    disabled={shareGenerating || !transcription}
-                  >
-                    {shareGenerating
-                      ? t("shareGenerating")
-                      : t("shareCreateLinkButton")}
-                  </Button>
-                  {shareLink ? (
-                    <TextField
-                      value={shareLink}
-                      fullWidth
-                      InputProps={{
-                        readOnly: true,
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip title={t("shareCopyLink")}>
-                              <IconButton onClick={handleCopyShareLink} size="small">
-                                <ContentCopyOutlinedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  ) : null}
-                </Stack>
-                {shareError ? <Alert severity="error">{shareError}</Alert> : null}
-              </Stack>
-            </CardContent>
-          </Card>
           <Typography variant="caption" color="text.secondary">
             {t(
               "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
             )}
+          </Typography>
+        </Stack>
+      </CardContent>
+    </Card>
+    <Dialog
+      open={shareDialogOpen}
+      onClose={handleShareDialogClose}
+      maxWidth="sm"
+      fullWidth
+      scroll="paper"
+    >
+      <DialogTitle>{t("shareSectionTitle")}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={shareAudioAvailable && includeAudioInShare}
+                  onChange={handleIncludeAudioChange}
+                  disabled={!shareAudioAvailable || shareGenerating}
+                />
+              }
+              label={t("shareIncludeAudioLabel")}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {shareAudioAvailable ? t("shareIncludeAudioHelper") : t("shareIncludeAudioUnavailable")}
             </Typography>
+          </FormGroup>
+          <TextField
+            label={t("sharePasswordLabel")}
+            type="password"
+            value={sharePassword}
+            onChange={(event) => setSharePassword(event.target.value)}
+            helperText={t("sharePasswordHelper")}
+            fullWidth
+            disabled={shareGenerating}
+          />
+          <Stack spacing={1} alignItems="flex-start">
+            <Button
+              variant="contained"
+              startIcon={
+                shareGenerating ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <ShareOutlinedIcon />
+                )
+              }
+              onClick={handleGenerateShareLink}
+              disabled={shareGenerating || !transcription}
+            >
+              {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
+            </Button>
+            {shareLink ? (
+              <TextField
+                value={shareLink}
+                fullWidth
+                InputProps={{
+                  readOnly: true,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title={t("shareCopyLink")}>
+                        <IconButton onClick={handleCopyShareLink} size="small">
+                          <ContentCopyOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            ) : null}
           </Stack>
-        </CardContent>
-      </Card>
+          {shareError ? <Alert severity="error">{shareError}</Alert> : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleShareDialogClose}>{t("close")}</Button>
+      </DialogActions>
+    </Dialog>
 
       <Stack spacing={2}>
         {segments && segments.length > 0 ? (

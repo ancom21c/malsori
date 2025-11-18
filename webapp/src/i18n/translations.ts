@@ -1934,6 +1934,11 @@ sessionStateRecording: {
     en: "Audio is not available right now.",
     ja: "現在音声は利用できません。",
   },
+  shareButtonLabel: {
+    ko: "공유하기",
+    en: "Share",
+    ja: "共有",
+  },
   shareAudioDecodingFailed: {
     ko: "공유된 오디오를 복호화할 수 없습니다.",
     en: "Unable to decode the shared audio.",
