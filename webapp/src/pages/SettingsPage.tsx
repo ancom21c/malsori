@@ -324,9 +324,9 @@ export default function SettingsPage() {
     if (nextPreset) {
       handleBackendPresetSelect(nextPreset);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     backendPresets,
-    selectedBackendPresetId,
     activeBackendPresetId,
     handleBackendPresetSelect,
   ]);

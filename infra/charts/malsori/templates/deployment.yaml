@@ -64,12 +64,23 @@ spec:
             - name: webapp-config
               mountPath: /usr/share/nginx/html/config/malsori-config.js
               subPath: malsori-config.js
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          {{- else }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
           {{- end }}
           resources:
             {{- toYaml .Values.webapp.resources | nindent 12 }}
       volumes:
         - name: python-storage
           emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "malsori.fullname" . }}-nginx
         {{- if .Values.webapp.apiBaseUrl }}
         - name: webapp-config
           configMap:
