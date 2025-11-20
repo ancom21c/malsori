@@ -412,6 +412,8 @@ export default function RealtimeSessionPage() {
   const runtimeSettingsFabRef = useRef<HTMLButtonElement | null>(null);
   const runtimeSettingsPreviouslyOpenRef = useRef(false);
   const sessionConnectedRef = useRef(false);
+  const connectionReadyRef = useRef(false);
+  const countdownFinishedRef = useRef(false);
 
   useEffect(() => {
     if (!runtimeSettingsOpen) {
@@ -554,6 +556,8 @@ export default function RealtimeSessionPage() {
     setCountdown(3);
     sessionStartRef.current = null;
     sessionConnectedRef.current = false;
+    connectionReadyRef.current = false;
+    countdownFinishedRef.current = false;
     chunkIndexRef.current = 0;
     recordedSampleRateRef.current = null;
     finalizingRef.current = false;
@@ -575,6 +579,7 @@ export default function RealtimeSessionPage() {
   };
 
   const handleAudioChunk = (buffer: ArrayBuffer, info: RecorderChunkInfo) => {
+    if (!countdownFinishedRef.current) return;
     const id = transcriptionIdRef.current;
     if (!id) return;
     const sampleRate = info?.sampleRate;
@@ -719,9 +724,9 @@ export default function RealtimeSessionPage() {
     });
   };
 
-  const startRecording = async (decoderConfig: Record<string, unknown>) => {
-    setSessionState("connecting");
+  const prepareSession = async (decoderConfig: Record<string, unknown>) => {
     sessionConnectedRef.current = false;
+    connectionReadyRef.current = false;
 
     const recorder = new RecorderManager();
     recorderRef.current = recorder;
@@ -743,13 +748,18 @@ export default function RealtimeSessionPage() {
         enqueueSnackbar(t("attemptingToReconnectToStreaming", { values: { attempt } }), {
           variant: "warning",
         });
-        setSessionState("connecting");
+        if (countdownFinishedRef.current) {
+          setSessionState("connecting");
+        }
       },
       onOpen: () => {
         sessionConnectedRef.current = true;
-        setSessionState("recording");
-        startAutosaveTimer();
-        setErrorMessage(null);
+        connectionReadyRef.current = true;
+        if (countdownFinishedRef.current) {
+          setSessionState("recording");
+          startAutosaveTimer();
+          setErrorMessage(null);
+        }
       },
       onClose: (event) => {
         if (finalizingRef.current) return;
@@ -860,7 +870,12 @@ export default function RealtimeSessionPage() {
     finalizeReasonRef.current = aborted ? "aborted" : "normal";
     if (sessionState === "countdown") {
       clearCountdown();
-      void finalizeSession(true);
+      finalizeReasonRef.current = "aborted";
+      if (recorderRef.current) {
+        recorderRef.current.stop();
+      } else {
+        void finalizeSession(true);
+      }
       return;
     }
     if (!aborted) {
@@ -1032,15 +1047,27 @@ export default function RealtimeSessionPage() {
     chunkIndexRef.current = 0;
     setErrorMessage(null);
     finalizeReasonRef.current = "normal";
+    countdownFinishedRef.current = false;
+
     setCountdown(3);
     setSessionState("countdown");
     setRuntimeSettingsOpen(false);
+
+    void prepareSession(decoderConfig);
+
     clearCountdown();
     countdownTimerRef.current = window.setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearCountdown();
-          void startRecording(decoderConfig);
+          countdownFinishedRef.current = true;
+          if (connectionReadyRef.current) {
+            setSessionState("recording");
+            startAutosaveTimer();
+            setErrorMessage(null);
+          } else {
+            setSessionState("connecting");
+          }
           return 0;
         }
         return prev - 1;
