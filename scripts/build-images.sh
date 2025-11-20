@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 REGISTRY="${REGISTRY:?Set REGISTRY to the target container registry (e.g. ghcr.io/your-org)}"
 DEV_BUILD="${DEV_BUILD:-0}"
-NEXT_PUBLIC_API_BASE="${NEXT_PUBLIC_API_BASE:-https://miminance.ancom.duckdns.org}"
 
 pushd "${ROOT_DIR}" >/dev/null
 
@@ -45,7 +44,6 @@ docker build \
 
 echo "Building webapp image -> ${WEBAPP_IMAGE}"
 docker build \
-  --build-arg NEXT_PUBLIC_API_BASE="${NEXT_PUBLIC_API_BASE}" \
   --build-arg NEXT_PUBLIC_APP_VERSION="${NEXT_PUBLIC_APP_VERSION}" \
   --build-arg BUILD_SHA="${BUILD_TOKEN}" \
   -f webapp/Dockerfile \

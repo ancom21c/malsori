@@ -44,6 +44,8 @@ import {
   deleteTranscription,
   listAudioChunks,
   updateSegmentCorrection,
+  updateSegmentSpeakerLabel,
+  updateSingleSegmentSpeakerLabel,
 } from "../services/data/transcriptionRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
 import { transcodeShareAudio } from "../services/audio/shareTranscoder";
@@ -208,8 +210,8 @@ function resolveWordTimingMs(segment: LocalSegment, word: LocalWordTiming) {
         ? segmentStart + rawStart
         : rawStart
       : endLooksRelative && rawEnd !== null
-      ? segmentStart + rawEnd
-      : segmentStart;
+        ? segmentStart + rawEnd
+        : segmentStart;
 
   const normalizedEndCandidate =
     rawEnd !== null
@@ -254,7 +256,7 @@ function formatSegmentPlainText(segment: LocalSegment, index: number, createdAtI
     typeof segment.endMs === "number" && Number.isFinite(segment.endMs) && segment.endMs >= segment.startMs;
   const endAt = hasValidEnd ? Math.round(segment.endMs) : null;
   const duration = endAt !== null ? Math.max(0, endAt - startOffset) : 0;
-  const speaker = segment.speaker?.trim().length ? segment.speaker.trim() : "unknown";
+  const speaker = segment.speaker_label?.trim().length ? segment.speaker_label.trim() : "unknown";
   const header = `# ${index + 1} ${speaker} ${formatAbsoluteStartTime(
     startOffset,
     createdAtIso
@@ -282,11 +284,11 @@ function buildStreamingResultPayload(
     const words =
       segment.words && segment.words.length > 0
         ? segment.words.map((word) => ({
-            text: word.text,
-            start_at: word.startMs,
-            duration: Math.max(0, word.endMs - word.startMs),
-            confidence: word.confidence ?? 0,
-          }))
+          text: word.text,
+          start_at: word.startMs,
+          duration: Math.max(0, word.endMs - word.startMs),
+          confidence: word.confidence ?? 0,
+        }))
         : undefined;
 
     const alternatives: RtzrStreamingAlternative[] = [
@@ -365,6 +367,58 @@ export default function TranscriptionDetailPage() {
   const activeSegmentIdRef = useRef<string | null>(null);
   const activeWordHighlightRef = useRef<{ segmentId: string; index: number } | null>(null);
   const segmentCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const [speakerEditDialogOpen, setSpeakerEditDialogOpen] = useState(false);
+  const [speakerEditTarget, setSpeakerEditTarget] = useState<{
+    segmentId: string;
+    currentSpk: string;
+    currentLabel: string;
+  } | null>(null);
+  const [speakerEditName, setSpeakerEditName] = useState("");
+
+  const handleSpeakerClick = useCallback((segment: LocalSegment) => {
+    setSpeakerEditTarget({
+      segmentId: segment.id,
+      currentSpk: segment.spk ?? "0",
+      currentLabel: segment.speaker_label ?? "",
+    });
+    setSpeakerEditName(segment.speaker_label ?? "");
+    setSpeakerEditDialogOpen(true);
+  }, []);
+
+  const handleSpeakerEditClose = useCallback(() => {
+    setSpeakerEditDialogOpen(false);
+    setSpeakerEditTarget(null);
+    setSpeakerEditName("");
+  }, []);
+
+  const handleSpeakerUpdateAll = useCallback(async () => {
+    if (!transcriptionId || !speakerEditTarget) return;
+    try {
+      await updateSegmentSpeakerLabel(
+        transcriptionId,
+        speakerEditTarget.currentSpk,
+        speakerEditName
+      );
+      enqueueSnackbar(t("speakerUpdateSuccess"), { variant: "success" });
+      handleSpeakerEditClose();
+    } catch (error) {
+      console.error("Failed to update speaker", error);
+      enqueueSnackbar(t("failedToSaveCorrections"), { variant: "error" });
+    }
+  }, [transcriptionId, speakerEditTarget, speakerEditName, enqueueSnackbar, t, handleSpeakerEditClose]);
+
+  const handleSpeakerUpdateSingle = useCallback(async () => {
+    if (!speakerEditTarget) return;
+    try {
+      await updateSingleSegmentSpeakerLabel(speakerEditTarget.segmentId, speakerEditName);
+      enqueueSnackbar(t("speakerUpdateSuccess"), { variant: "success" });
+      handleSpeakerEditClose();
+    } catch (error) {
+      console.error("Failed to update speaker", error);
+      enqueueSnackbar(t("failedToSaveCorrections"), { variant: "error" });
+    }
+  }, [speakerEditTarget, speakerEditName, enqueueSnackbar, t, handleSpeakerEditClose]);
 
   const handleNavigateBack = useCallback(() => {
     const fromList = Boolean((location.state as { fromList?: boolean } | null)?.fromList);
@@ -809,10 +863,10 @@ export default function TranscriptionDetailPage() {
     const useRealtimeName = transcription.kind === "realtime";
     const downloadName = useRealtimeName
       ? buildRealtimeAudioFileName(
-          transcription.title,
-          transcription.id,
-          transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE
-        )
+        transcription.title,
+        transcription.id,
+        transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE
+      )
       : buildDownloadFileName(transcription.title, transcription.id, "wav");
     if (audioBlobRef.current) {
       const url = URL.createObjectURL(audioBlobRef.current);
@@ -913,11 +967,11 @@ export default function TranscriptionDetailPage() {
         segments: serializedSegments,
         audio: audioPayload
           ? {
-              mimeType: audioPayload.mimeType,
-              base64Data: audioPayload.base64Data,
-              sampleRate: audioPayload.sampleRate,
-              channels: audioPayload.channels,
-            }
+            mimeType: audioPayload.mimeType,
+            base64Data: audioPayload.base64Data,
+            sampleRate: audioPayload.sampleRate,
+            channels: audioPayload.channels,
+          }
           : undefined,
       };
       const payload = await createSharePayload(shareDocument, {
@@ -1197,153 +1251,185 @@ export default function TranscriptionDetailPage() {
                 <Box sx={{ mt: 1 }}>
                   <audio
                     ref={audioElementRef}
-                  controls
-                  src={audioUrl}
-                  style={{ width: "100%" }}
-                  aria-label={t("recordingPlayback")}
-                >
-                  {t("yourBrowserDoesNotSupportTheAudioTag")}
-                </audio>
+                    controls
+                    src={audioUrl}
+                    style={{ width: "100%" }}
+                    aria-label={t("recordingPlayback")}
+                  >
+                    {t("yourBrowserDoesNotSupportTheAudioTag")}
+                  </audio>
                 </Box>
               ) : null}
             </Stack>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
-            <Button
-              variant="outlined"
-              startIcon={<DescriptionIcon />}
-              onClick={handleDownloadJson}
-              fullWidth
-              sx={{ maxWidth: { sm: 200 } }}
-            >
-              {t("json")}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<ArticleIcon />}
-              onClick={handleDownloadText}
-              fullWidth
-              sx={{ maxWidth: { sm: 200 } }}
-            >
-              {t("text2")}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<AudiotrackIcon />}
-              disabled={!audioUrl && !audioBlobRef.current}
-              onClick={handleDownloadAudio}
-              fullWidth
-              sx={{ maxWidth: { sm: 200 } }}
-            >
-              {t("audio")}
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={handleDelete}
-              fullWidth
-              sx={{ maxWidth: { sm: 200 } }}
-            >
-              {t("delete")}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<ShareOutlinedIcon />}
-              onClick={handleShareDialogOpen}
-              fullWidth
-              sx={{ maxWidth: { sm: 200 } }}
-            >
-              {t("shareButtonLabel")}
-            </Button>
-          </Stack>
-          <Typography variant="caption" color="text.secondary">
-            {t(
-              "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
-            )}
-          </Typography>
-        </Stack>
-      </CardContent>
-    </Card>
-    <Dialog
-      open={shareDialogOpen}
-      onClose={handleShareDialogClose}
-      maxWidth="sm"
-      fullWidth
-      scroll="paper"
-    >
-      <DialogTitle>{t("shareSectionTitle")}</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={shareAudioAvailable && includeAudioInShare}
-                  onChange={handleIncludeAudioChange}
-                  disabled={!shareAudioAvailable || shareGenerating}
-                />
-              }
-              label={t("shareIncludeAudioLabel")}
-            />
-            <Typography variant="caption" color="text.secondary">
-              {shareAudioAvailable ? t("shareIncludeAudioHelper") : t("shareIncludeAudioUnavailable")}
-            </Typography>
-          </FormGroup>
-          <TextField
-            label={t("sharePasswordLabel")}
-            type="password"
-            value={sharePassword}
-            onChange={(event) => setSharePassword(event.target.value)}
-            helperText={t("sharePasswordHelper")}
-            fullWidth
-            disabled={shareGenerating}
-          />
-          {audioTranscoding ? (
-            <Typography variant="body2" color="text.secondary">
-              {t("shareTranscoding")}
-            </Typography>
-          ) : null}
-          <Stack spacing={1} alignItems="flex-start">
-            <Button
-              variant="contained"
-              startIcon={
-                shareGenerating || audioTranscoding ? (
-                  <CircularProgress size={16} color="inherit" />
-                ) : (
-                  <ShareOutlinedIcon />
-                )
-              }
-              onClick={handleGenerateShareLink}
-              disabled={shareGenerating || audioTranscoding || !transcription}
-            >
-              {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
-            </Button>
-            {shareLink ? (
-              <TextField
-                value={shareLink}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+              <Button
+                variant="outlined"
+                startIcon={<DescriptionIcon />}
+                onClick={handleDownloadJson}
                 fullWidth
-                InputProps={{
-                  readOnly: true,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title={t("shareCopyLink")}>
-                        <IconButton onClick={handleCopyShareLink} size="small">
-                          <ContentCopyOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            ) : null}
+                sx={{ maxWidth: { sm: 200 } }}
+              >
+                {t("json")}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ArticleIcon />}
+                onClick={handleDownloadText}
+                fullWidth
+                sx={{ maxWidth: { sm: 200 } }}
+              >
+                {t("text2")}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<AudiotrackIcon />}
+                disabled={!audioUrl && !audioBlobRef.current}
+                onClick={handleDownloadAudio}
+                fullWidth
+                sx={{ maxWidth: { sm: 200 } }}
+              >
+                {t("audio")}
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={handleDelete}
+                fullWidth
+                sx={{ maxWidth: { sm: 200 } }}
+              >
+                {t("delete")}
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ShareOutlinedIcon />}
+                onClick={handleShareDialogOpen}
+                fullWidth
+                sx={{ maxWidth: { sm: 200 } }}
+              >
+                {t("shareButtonLabel")}
+              </Button>
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              {t(
+                "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
+              )}
+            </Typography>
           </Stack>
-          {shareError ? <Alert severity="error">{shareError}</Alert> : null}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleShareDialogClose}>{t("close")}</Button>
-      </DialogActions>
-    </Dialog>
+        </CardContent>
+      </Card>
+      <Dialog
+        open={shareDialogOpen}
+        onClose={handleShareDialogClose}
+        maxWidth="sm"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogTitle>{t("shareSectionTitle")}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={shareAudioAvailable && includeAudioInShare}
+                    onChange={handleIncludeAudioChange}
+                    disabled={!shareAudioAvailable || shareGenerating}
+                  />
+                }
+                label={t("shareIncludeAudioLabel")}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {shareAudioAvailable ? t("shareIncludeAudioHelper") : t("shareIncludeAudioUnavailable")}
+              </Typography>
+            </FormGroup>
+            <TextField
+              label={t("sharePasswordLabel")}
+              type="password"
+              value={sharePassword}
+              onChange={(event) => setSharePassword(event.target.value)}
+              helperText={t("sharePasswordHelper")}
+              fullWidth
+              disabled={shareGenerating}
+            />
+            {audioTranscoding ? (
+              <Typography variant="body2" color="text.secondary">
+                {t("shareTranscoding")}
+              </Typography>
+            ) : null}
+            <Stack spacing={1} alignItems="flex-start">
+              <Button
+                variant="contained"
+                startIcon={
+                  shareGenerating || audioTranscoding ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    <ShareOutlinedIcon />
+                  )
+                }
+                onClick={handleGenerateShareLink}
+                disabled={shareGenerating || audioTranscoding || !transcription}
+              >
+                {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
+              </Button>
+              {shareLink ? (
+                <TextField
+                  value={shareLink}
+                  fullWidth
+                  InputProps={{
+                    readOnly: true,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title={t("shareCopyLink")}>
+                          <IconButton onClick={handleCopyShareLink} size="small">
+                            <ContentCopyOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              ) : null}
+            </Stack>
+            {shareError ? <Alert severity="error">{shareError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleShareDialogClose}>{t("close")}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={speakerEditDialogOpen} onClose={handleSpeakerEditClose} maxWidth="xs" fullWidth>
+        <DialogTitle>{t("editSpeaker")}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <TextField
+              label={t("speakerName")}
+              value={speakerEditName}
+              onChange={(e) => setSpeakerEditName(e.target.value)}
+              fullWidth
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSpeakerUpdateAll();
+                }
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ flexDirection: "column", gap: 1, alignItems: "stretch", p: 2 }}>
+          <Button variant="contained" onClick={handleSpeakerUpdateAll} fullWidth>
+            {t("changeAllSpeakers")}
+          </Button>
+          <Button variant="outlined" onClick={handleSpeakerUpdateSingle} fullWidth>
+            {t("createNewSpeaker")}
+          </Button>
+          <Button onClick={handleSpeakerEditClose} fullWidth color="inherit">
+            {t("cancellation")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Stack spacing={2}>
         {segments && segments.length > 0 ? (
@@ -1369,8 +1455,8 @@ export default function TranscriptionDetailPage() {
             const hasEditableWords =
               Boolean(
                 editingWordInputs &&
-                  editingWordTimings &&
-                  editingWordInputs.length === editingWordTimings.length
+                editingWordTimings &&
+                editingWordInputs.length === editingWordTimings.length
               );
             const isWordEditorActive = isEditing && hasEditableWords;
             const activeWordInputs =
@@ -1391,12 +1477,13 @@ export default function TranscriptionDetailPage() {
                   <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
                     <Chip
                       label={
-                        segment.speaker
-                          ? t("speaker", { values: { speaker: segment.speaker } })
+                        segment.speaker_label
+                          ? t("speaker", { values: { speaker: segment.speaker_label } })
                           : t("speakerNotSpecified")
                       }
                       color="primary"
                       variant="outlined"
+                      onClick={() => handleSpeakerClick(segment)}
                     />
                     <Typography variant="caption" color="text.secondary">
                       {timingLabel}

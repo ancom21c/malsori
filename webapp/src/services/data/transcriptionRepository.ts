@@ -130,7 +130,8 @@ type ReplaceableWord = {
 };
 
 type ReplaceableSegment = {
-  speaker?: string;
+  spk?: string;
+  speaker_label?: string;
   language?: string;
   startMs?: number | null;
   endMs?: number | null;
@@ -180,9 +181,9 @@ export async function replaceSegments(
           const words =
             segment.words && segment.words.length > 0
               ? segment.words
-                  .map((word) => normalizeWordTiming(word))
-                  .filter((word): word is LocalWordTiming => Boolean(word))
-                  .sort((a, b) => a.startMs - b.startMs)
+                .map((word) => normalizeWordTiming(word))
+                .filter((word): word is LocalWordTiming => Boolean(word))
+                .sort((a, b) => a.startMs - b.startMs)
               : undefined;
           const fallbackStartFromWords = words && words.length > 0 ? words[0].startMs : undefined;
           const fallbackEndFromWords = words && words.length > 0 ? words[words.length - 1].endMs : undefined;
@@ -195,7 +196,8 @@ export async function replaceSegments(
           return {
             id: `${transcriptionId}-segment-${index}`,
             transcriptionId,
-            speaker: segment.speaker,
+            spk: segment.spk,
+            speaker_label: segment.speaker_label,
             language: segment.language,
             startMs: derivedStart,
             endMs: derivedEnd,
@@ -224,6 +226,33 @@ export async function updateSegmentCorrection(
     patch.words = updatedWords;
   }
   await appDb.segments.update(segmentId, patch);
+}
+
+export async function updateSegmentSpeakerLabel(
+  transcriptionId: string,
+  targetSpk: string,
+  newLabel: string
+) {
+  const normalizedNewLabel = newLabel.trim();
+  if (!normalizedNewLabel) return;
+
+  await appDb.transaction("rw", appDb.segments, async () => {
+    const segments = await appDb.segments
+      .where("transcriptionId")
+      .equals(transcriptionId)
+      .toArray();
+
+    const targets = segments.filter((s) => (s.spk ?? "0") === targetSpk);
+    for (const segment of targets) {
+      await appDb.segments.update(segment.id, { speaker_label: normalizedNewLabel });
+    }
+  });
+}
+
+export async function updateSingleSegmentSpeakerLabel(segmentId: string, newLabel: string) {
+  const normalizedNewLabel = newLabel.trim();
+  if (!normalizedNewLabel) return;
+  await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel });
 }
 
 export async function appendAudioChunk(params: {

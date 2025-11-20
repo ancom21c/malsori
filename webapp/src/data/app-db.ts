@@ -42,7 +42,8 @@ export interface LocalWordTiming {
 export interface LocalSegment {
   id: string;
   transcriptionId: string;
-  speaker?: string;
+  spk?: string;
+  speaker_label?: string;
   language?: string;
   startMs: number;
   endMs: number;
@@ -167,6 +168,30 @@ class AppDatabase extends Dexie {
       backendEndpoints: "id, deployment, isDefault, createdAt",
       searchIndexes: "transcriptionId",
     });
+
+    this.version(5)
+      .stores({
+        transcriptions: "id, createdAt, kind, status",
+        segments: "id, transcriptionId, startMs",
+        audioChunks: "id, transcriptionId, chunkIndex",
+        presets: "id, type, isDefault",
+        settings: "key",
+        backendEndpoints: "id, deployment, isDefault, createdAt",
+        searchIndexes: "transcriptionId",
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table("segments")
+          .toCollection()
+          .modify((segment) => {
+            const oldSpeaker = (segment as { speaker?: string }).speaker;
+            if (oldSpeaker !== undefined) {
+              (segment as LocalSegment).speaker_label = oldSpeaker;
+              (segment as LocalSegment).spk = "0";
+              delete (segment as { speaker?: string }).speaker;
+            }
+          });
+      });
   }
 }
 

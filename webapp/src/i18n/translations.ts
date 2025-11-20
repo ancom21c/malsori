@@ -219,6 +219,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Cancel",
     ja: "キャンセル",
   },
+  changeAllSpeakers: {
+    ko: "모든 구간 변경",
+    en: "Change all segments",
+    ja: "すべてのセグメントを変更",
+  },
   checkFileTranscriptionAndRealTimeTranscriptionResultsInChronologicalOrder: {
     ko: "파일 전사와 실시간 전사 결과를 시간 순으로 확인합니다.",
     en: "Check file transcription and real-time transcription results in chronological order.",
@@ -309,6 +314,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Creation time",
     ja: "作成時間",
   },
+  createNewSpeaker: {
+    ko: "이 구간만 변경 (새 화자)",
+    en: "Change for this segment only (New Speaker)",
+    ja: "このセグメントのみ変更（新しい話者）",
+  },
   credentialsNotUsed: {
     ko: "자격증명 미사용",
     en: "Credentials not used",
@@ -338,6 +348,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "기본 설정",
     en: "Default settings",
     ja: "デフォルト設定",
+  },
+  defaultSpeakerName: {
+    ko: "기본 화자 이름",
+    en: "Default Speaker Name",
+    ja: "デフォルトの話者名",
+  },
+  defaultSpeakerNameHelper: {
+    ko: "전사 결과에서 화자가 식별되지 않았을 때 사용할 기본 이름입니다.",
+    en: "The default name to use when the speaker is not identified in the transcription results.",
+    ja: "文字起こし結果で話者が特定されなかった場合に使用するデフォルトの名前です。",
   },
   delete: {
     ko: "삭제",
@@ -373,6 +393,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "JSON 직접 편집",
     en: "Edit JSON directly",
     ja: "JSONを直接編集する",
+  },
+  editSpeaker: {
+    ko: "화자 편집",
+    en: "Edit Speaker",
+    ja: "話者の編集",
   },
   editQuicklyWithKeyboardShortcutsIncludingWordByWordProofreadingAndVimStyleNavigationHJKL: {
     ko: "단어 단위 교정, Vim 스타일 이동(h/j/k/l) 등 키보드 단축키로 빠르게 편집합니다.",
@@ -1259,16 +1284,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Terminate Session",
     ja: "セッション終了",
   },
-sessionStateCountdown: {
-  ko: "카운트다운",
-  en: "Countdown",
-  ja: "カウントダウン",
-},
-sessionStateRecording: {
-  ko: "녹음 중",
-  en: "Recording",
-  ja: "録音中",
-},
+  sessionStateCountdown: {
+    ko: "카운트다운",
+    en: "Countdown",
+    ja: "カウントダウン",
+  },
+  sessionStateRecording: {
+    ko: "녹음 중",
+    en: "Recording",
+    ja: "録音中",
+  },
   setAsDefaultPreset: {
     ko: "기본 프리셋으로 지정",
     en: "Set as default preset",
@@ -1308,6 +1333,16 @@ sessionStateRecording: {
     ko: "화자 {{speaker}}",
     en: "Speaker {{speaker}}",
     ja: "スピーカー {{speaker}}",
+  },
+  speakerUpdateSuccess: {
+    ko: "화자 정보가 업데이트되었습니다.",
+    en: "Speaker updated successfully.",
+    ja: "話者情報が更新されました。",
+  },
+  speakerName: {
+    ko: "화자 이름",
+    en: "Speaker Name",
+    ja: "話者名",
   },
   speakerNotSpecified: {
     ko: "화자 미지정",

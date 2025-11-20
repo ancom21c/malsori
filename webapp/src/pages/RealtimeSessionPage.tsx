@@ -67,7 +67,8 @@ type RealtimeSegment = {
   startMs: number;
   endMs: number;
   isFinal: boolean;
-  speaker?: string;
+  spk?: string;
+  speakerLabel?: string;
   language?: string;
   words?: LocalWordTiming[];
 };
@@ -107,48 +108,49 @@ const RUNTIME_SETTING_FIELDS: Array<{
   helperText: string;
   step?: string;
 }> = [
-  {
-    key: "maxUtterDuration",
-    label: "max_utter_duration (초)",
-    placeholder: "예: 12",
-    helperText: "최대 발화 길이. 기본 12초, 값이 크면 긴 발화 하나로 처리됩니다.",
-    step: "1",
-  },
-  {
-    key: "noiseThreshold",
-    label: "noise_threshold",
-    placeholder: "예: 0.7",
-    helperText: "백그라운드 노이즈 감지 임계값. 기본 0.7.",
-    step: "0.01",
-  },
-  {
-    key: "epdTime",
-    label: "epd_time (초)",
-    placeholder: "예: 0.5",
-    helperText: "무음 감지 시간. 0.5~1.0초 추천.",
-    step: "0.1",
-  },
-  {
-    key: "activeThreshold",
-    label: "active_threshold",
-    placeholder: "예: 0.88",
-    helperText: "음성 활성화 임계값. 기본 0.88.",
-    step: "0.01",
-  },
-  {
-    key: "acousticScale",
-    label: "acoustic_scale",
-    placeholder: "예: 1.0",
-    helperText: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
-    step: "0.01",
-  },
-];
+    {
+      key: "maxUtterDuration",
+      label: "max_utter_duration (초)",
+      placeholder: "예: 12",
+      helperText: "최대 발화 길이. 기본 12초, 값이 크면 긴 발화 하나로 처리됩니다.",
+      step: "1",
+    },
+    {
+      key: "noiseThreshold",
+      label: "noise_threshold",
+      placeholder: "예: 0.7",
+      helperText: "백그라운드 노이즈 감지 임계값. 기본 0.7.",
+      step: "0.01",
+    },
+    {
+      key: "epdTime",
+      label: "epd_time (초)",
+      placeholder: "예: 0.5",
+      helperText: "무음 감지 시간. 0.5~1.0초 추천.",
+      step: "0.1",
+    },
+    {
+      key: "activeThreshold",
+      label: "active_threshold",
+      placeholder: "예: 0.88",
+      helperText: "음성 활성화 임계값. 기본 0.88.",
+      step: "0.01",
+    },
+    {
+      key: "acousticScale",
+      label: "acoustic_scale",
+      placeholder: "예: 1.0",
+      helperText: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
+      step: "0.01",
+    },
+  ];
 
 type NormalizedRealtimeSegmentPayload = {
   text: string;
   startMs?: number;
   endMs?: number;
-  speaker?: string;
+  spk?: string;
+  speakerLabel?: string;
   language?: string;
   words?: LocalWordTiming[];
 };
@@ -249,8 +251,8 @@ function normalizeWordFromRecord(word: unknown): LocalWordTiming | null {
     endValue !== undefined
       ? Math.max(0, Math.round(endValue))
       : normalizedStart !== undefined && durationValue !== undefined
-      ? Math.max(0, Math.round(normalizedStart + durationValue))
-      : undefined;
+        ? Math.max(0, Math.round(normalizedStart + durationValue))
+        : undefined;
   const startMs = normalizedStart ?? normalizedEnd ?? 0;
   const endMs = normalizedEnd ?? startMs;
   const confidenceValue = (word as { confidence?: unknown }).confidence;
@@ -325,10 +327,11 @@ function normalizeRealtimeSegmentPayload(payload: unknown): NormalizedRealtimeSe
     endValue !== undefined
       ? Math.max(0, Math.round(endValue))
       : normalizedStart !== undefined && durationValue !== undefined
-      ? Math.max(0, Math.round(normalizedStart + durationValue))
-      : undefined;
+        ? Math.max(0, Math.round(normalizedStart + durationValue))
+        : undefined;
 
-  const speaker = pickFirstString(candidateRecords, ["speaker", "spk", "speaker_label"]);
+  const spk = pickFirstString(candidateRecords, ["spk", "speaker"]) ?? "0";
+  const speakerLabel = pickFirstString(candidateRecords, ["speaker_label", "speaker_name"]);
   const language = pickFirstString(candidateRecords, ["language", "lang"]);
   const words = collectWordTimings(candidateRecords);
 
@@ -336,7 +339,8 @@ function normalizeRealtimeSegmentPayload(payload: unknown): NormalizedRealtimeSe
     text,
     startMs: normalizedStart,
     endMs: normalizedEnd,
-    speaker,
+    spk,
+    speakerLabel,
     language,
     words,
   };
@@ -362,8 +366,8 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
     typeof (config as { sample_rate?: unknown }).sample_rate === "number"
       ? (config as { sample_rate: number }).sample_rate
       : typeof (config as { sampleRate?: unknown }).sampleRate === "number"
-      ? (config as { sampleRate: number }).sampleRate
-      : undefined;
+        ? (config as { sampleRate: number }).sampleRate
+        : undefined;
   if (typeof maybeSampleRate === "number" && Number.isFinite(maybeSampleRate) && maybeSampleRate > 0) {
     return Math.floor(maybeSampleRate);
   }
@@ -377,6 +381,7 @@ export default function RealtimeSessionPage() {
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
   const realtimeAutoSaveSeconds = useSettingsStore((state) => state.realtimeAutoSaveSeconds);
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
+  const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const setFloatingActionsVisible = useUiStore((state) => state.setFloatingActionsVisible);
   const streamingPresets = usePresets("streaming");
   const defaultStreamingPreset = useMemo<PresetConfig | undefined>(
@@ -601,7 +606,8 @@ export default function RealtimeSessionPage() {
         startMs: segment.startMs,
         endMs: segment.endMs,
         isFinal: segment.isFinal,
-        speaker: segment.speaker,
+        spk: segment.spk,
+        speaker_label: segment.speakerLabel,
         language: segment.language,
         words: segment.words,
       }))
@@ -670,13 +676,20 @@ export default function RealtimeSessionPage() {
       const fallbackEndFromWords = normalizedWords?.[normalizedWords.length - 1]?.endMs;
       const startMs = normalized.startMs ?? fallbackStartFromWords ?? 0;
       const endMs = normalized.endMs ?? fallbackEndFromWords ?? startMs;
+
+      let speakerLabel = normalized.speakerLabel;
+      if (normalized.spk === "0" && !speakerLabel) {
+        speakerLabel = defaultSpeakerName;
+      }
+
       const segment: RealtimeSegment = {
         id: `${Date.now()}-${segmentsRef.current.length}`,
         text: normalized.text,
         startMs,
         endMs,
         isFinal: true,
-        speaker: normalized.speaker,
+        spk: normalized.spk,
+        speakerLabel,
         language: normalized.language,
         words: normalizedWords,
       };
@@ -807,7 +820,7 @@ export default function RealtimeSessionPage() {
             startMs: segment.startMs,
             endMs: segment.endMs,
             isFinal: segment.isFinal,
-            speaker: segment.speaker,
+            speaker_label: segment.speakerLabel,
             language: segment.language,
             words: segment.words,
           }))
@@ -959,8 +972,8 @@ export default function RealtimeSessionPage() {
       trimmedRequest.length > 0
         ? trimmedRequest
         : activeStreamingPreset?.configJson ??
-          defaultStreamingPreset?.configJson ??
-          fallbackStreamingConfig;
+        defaultStreamingPreset?.configJson ??
+        fallbackStreamingConfig;
     try {
       decoderConfig = JSON.parse(configString);
     } catch (error) {
@@ -1098,8 +1111,8 @@ export default function RealtimeSessionPage() {
     sessionState === "recording" || sessionState === "paused"
       ? "secondary"
       : sessionState === "saving"
-      ? "success"
-      : "primary";
+        ? "success"
+        : "primary";
   const mainButtonTooltip = (() => {
     if (sessionState === "recording") {
       return t("tapToPausePressAndHoldFor3SecondsToEndTheSession");

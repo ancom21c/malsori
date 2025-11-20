@@ -133,8 +133,8 @@ function resolveWordTimingMs(
         ? segmentStart + rawStart
         : rawStart
       : endLooksRelative && rawEnd !== null
-      ? segmentStart + rawEnd
-      : segmentStart;
+        ? segmentStart + rawEnd
+        : segmentStart;
   const normalizedEndCandidate =
     rawEnd !== null
       ? endLooksRelative
@@ -646,105 +646,105 @@ export default function ShareViewerPage() {
                   })}
                 />
                 <CardContent>
-                    {segments.length === 0 ? (
-                      <Alert severity="info">{t("shareNoSegments")}</Alert>
-                    ) : (
-                      <Stack spacing={2}>
-                        {segments.map((segment) => {
-                          const isActive = activeSegmentId === segment.id;
-                          const hasTimingInfo = hasTiming(segment);
-                          const startMs = getSegmentStartMs(segment);
-                          const isSegmentPlaying = isAudioPlaying && isActive;
-                          const timingLabel = hasTimingInfo
-                            ? formatSegmentTiming(segment, t("noTimeInformation"))
-                            : t("noTimeInformation");
-                          const highlightWordIndex =
-                            activeWordHighlight?.segmentId === segment.id ? activeWordHighlight.index : null;
-                          return (
-                            <Card
-                              key={segment.id}
-                              variant={isActive ? "outlined" : undefined}
-                              ref={(node) => {
-                                if (node) {
-                                  segmentCardRefs.current.set(segment.id, node);
-                                } else {
-                                  segmentCardRefs.current.delete(segment.id);
-                                }
-                              }}
-                              tabIndex={-1}
-                              sx={{
-                                borderColor: isActive ? "primary.main" : undefined,
-                              }}
-                            >
-                              <CardContent>
-                                <Stack spacing={1}>
-                                  <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-                                    <Chip
-                                      size="small"
-                                      label={
-                                        segment.speaker
-                                          ? t("speaker", { values: { speaker: segment.speaker } })
-                                          : t("speakerNotSpecified")
-                                      }
-                                    />
-                                    <Chip size="small" label={timingLabel} />
-                                    <Tooltip title={t("sharePlaySegment")}>
-                                      <span>
-                                        <IconButton
-                                          color="primary"
-                                          size="small"
-                                          disabled={!playbackUrl || !hasTimingInfo || startMs === null}
-                                          onClick={() => handlePlaySegment(segment)}
-                                        >
-                                          {isSegmentPlaying ? (
-                                            <PauseIcon fontSize="small" />
-                                          ) : (
-                                            <PlayArrowIcon fontSize="small" />
-                                          )}
-                                        </IconButton>
-                                      </span>
-                                    </Tooltip>
-                                  </Stack>
-                                  {segment.words && segment.words.length > 0 ? (
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                                      {segment.words.map((word, index) => {
-                                        const isActiveWord = highlightWordIndex === index;
-                                        return (
-                                          <Box
-                                            key={`${segment.id}-word-${index}`}
-                                            component="span"
-                                            sx={{
-                                              px: 0.75,
-                                              py: 0.25,
-                                              borderRadius: 1,
-                                              border: "1px solid",
-                                              borderColor: isActiveWord ? "primary.main" : "divider",
-                                              bgcolor: isActiveWord ? "primary.main" : "transparent",
-                                              color: isActiveWord ? "primary.contrastText" : "text.primary",
-                                              fontWeight: isActiveWord ? 600 : 400,
-                                            }}
-                                          >
-                                            {word.text}
-                                          </Box>
-                                        );
-                                      })}
-                                    </Box>
-                                  ) : (
-                                    <Typography variant="body1">
-                                      {resolveSegmentText(segment) || t("shareSegmentTextEmpty")}
-                                    </Typography>
-                                  )}
+                  {segments.length === 0 ? (
+                    <Alert severity="info">{t("shareNoSegments")}</Alert>
+                  ) : (
+                    <Stack spacing={2}>
+                      {segments.map((segment) => {
+                        const isActive = activeSegmentId === segment.id;
+                        const hasTimingInfo = hasTiming(segment);
+                        const startMs = getSegmentStartMs(segment);
+                        const isSegmentPlaying = isAudioPlaying && isActive;
+                        const timingLabel = hasTimingInfo
+                          ? formatSegmentTiming(segment, t("noTimeInformation"))
+                          : t("noTimeInformation");
+                        const highlightWordIndex =
+                          activeWordHighlight?.segmentId === segment.id ? activeWordHighlight.index : null;
+                        return (
+                          <Card
+                            key={segment.id}
+                            variant={isActive ? "outlined" : undefined}
+                            ref={(node) => {
+                              if (node) {
+                                segmentCardRefs.current.set(segment.id, node);
+                              } else {
+                                segmentCardRefs.current.delete(segment.id);
+                              }
+                            }}
+                            tabIndex={-1}
+                            sx={{
+                              borderColor: isActive ? "primary.main" : undefined,
+                            }}
+                          >
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+                                  <Chip
+                                    size="small"
+                                    label={
+                                      segment.speaker_label
+                                        ? t("speaker", { values: { speaker: segment.speaker_label } })
+                                        : t("speakerNotSpecified")
+                                    }
+                                  />
+                                  <Chip size="small" label={timingLabel} />
+                                  <Tooltip title={t("sharePlaySegment")}>
+                                    <span>
+                                      <IconButton
+                                        color="primary"
+                                        size="small"
+                                        disabled={!playbackUrl || !hasTimingInfo || startMs === null}
+                                        onClick={() => handlePlaySegment(segment)}
+                                      >
+                                        {isSegmentPlaying ? (
+                                          <PauseIcon fontSize="small" />
+                                        ) : (
+                                          <PlayArrowIcon fontSize="small" />
+                                        )}
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
                                 </Stack>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </Stack>
-                    )}
-                  </CardContent>
-                </Card>
-              </Stack>
-            ) : null}
+                                {segment.words && segment.words.length > 0 ? (
+                                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                    {segment.words.map((word, index) => {
+                                      const isActiveWord = highlightWordIndex === index;
+                                      return (
+                                        <Box
+                                          key={`${segment.id}-word-${index}`}
+                                          component="span"
+                                          sx={{
+                                            px: 0.75,
+                                            py: 0.25,
+                                            borderRadius: 1,
+                                            border: "1px solid",
+                                            borderColor: isActiveWord ? "primary.main" : "divider",
+                                            bgcolor: isActiveWord ? "primary.main" : "transparent",
+                                            color: isActiveWord ? "primary.contrastText" : "text.primary",
+                                            fontWeight: isActiveWord ? 600 : 400,
+                                          }}
+                                        >
+                                          {word.text}
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                ) : (
+                                  <Typography variant="body1">
+                                    {resolveSegmentText(segment) || t("shareSegmentTextEmpty")}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </CardContent>
+              </Card>
+            </Stack>
+          ) : null}
         </Stack>
       </Container>
     </Box>
