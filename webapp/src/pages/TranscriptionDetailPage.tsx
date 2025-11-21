@@ -43,6 +43,7 @@ import { createSharePayload, type ShareDocument } from "../share/payload";
 import {
   deleteTranscription,
   listAudioChunks,
+  listVideoChunks,
   updateSegmentCorrection,
   updateSegmentSpeakerLabel,
   updateSingleSegmentSpeakerLabel,
@@ -50,6 +51,7 @@ import {
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
 import { transcodeShareAudio } from "../services/audio/shareTranscoder";
 import { arrayBufferToBase64 } from "../utils/base64";
+import VideocamIcon from "@mui/icons-material/Videocam";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
@@ -89,6 +91,27 @@ function buildRealtimeAudioFileName(title: string | undefined, fallbackId: strin
       : DEFAULT_REALTIME_SAMPLE_RATE;
   const baseName = buildDownloadFileName(title, fallbackId, "wav").replace(/\.wav$/i, "");
   return `${baseName}_${normalizedRate}hz.wav`;
+}
+
+function determineVideoExtension(mimeType?: string | null) {
+  if (!mimeType) {
+    return "webm";
+  }
+  if (mimeType.includes("mp4")) {
+    return "mp4";
+  }
+  if (mimeType.includes("ogg")) {
+    return "ogv";
+  }
+  if (mimeType.includes("webm")) {
+    return "webm";
+  }
+  return "webm";
+}
+
+function buildSessionVideoFileName(title: string | undefined, fallbackId: string, mimeType?: string | null) {
+  const extension = determineVideoExtension(mimeType);
+  return buildDownloadFileName(title, fallbackId, extension);
 }
 
 function downloadBlobContent(blob: Blob, fileName: string) {
@@ -344,6 +367,11 @@ export default function TranscriptionDetailPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoBlobRef = useRef<Blob | null>(null);
+  const videoMimeTypeRef = useRef<string | null>(null);
   const segmentEndRef = useRef<number | null>(null);
   const programmaticSeekRef = useRef(false);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
@@ -848,6 +876,60 @@ export default function TranscriptionDetailPage() {
     };
   }, [t, transcription]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    videoBlobRef.current = null;
+    videoMimeTypeRef.current = null;
+    setVideoError(null);
+
+    if (!transcription || transcription.kind !== "realtime") {
+      setVideoUrl(null);
+      setVideoLoading(false);
+      return () => {
+        cancelled = true;
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }
+
+    setVideoLoading(true);
+    (async () => {
+      try {
+        const chunks = await listVideoChunks(transcription.id);
+        if (cancelled) return;
+        if (chunks.length === 0) {
+          setVideoUrl(null);
+          return;
+        }
+        const mimeType =
+          chunks.find((chunk) => chunk.mimeType)?.mimeType ?? "video/webm";
+        const blob = new Blob(chunks.map((chunk) => chunk.data), { type: mimeType });
+        videoBlobRef.current = blob;
+        videoMimeTypeRef.current = mimeType;
+        objectUrl = URL.createObjectURL(blob);
+        setVideoUrl(objectUrl);
+      } catch (error) {
+        console.error("Failed to load recorded video", error);
+        if (!cancelled) {
+          setVideoError(t("videoCannotBeLoaded"));
+        }
+      } finally {
+        if (!cancelled) {
+          setVideoLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [t, transcription]);
+
   const handleDelete = useCallback(async () => {
     if (!transcriptionId) return;
     if (!window.confirm(t("wouldYouLikeToDeleteYourTranscriptionHistory"))) {
@@ -888,6 +970,30 @@ export default function TranscriptionDetailPage() {
       link.remove();
     }
   }, [audioUrl, transcription]);
+
+  const handleDownloadVideo = useCallback(() => {
+    if (!transcription) return;
+    if (!videoBlobRef.current && !videoUrl) {
+      return;
+    }
+    const downloadName = buildSessionVideoFileName(
+      transcription.title,
+      transcription.id,
+      videoMimeTypeRef.current
+    );
+    if (videoBlobRef.current) {
+      downloadBlobContent(videoBlobRef.current, downloadName);
+      return;
+    }
+    if (videoUrl) {
+      const link = document.createElement("a");
+      link.href = videoUrl;
+      link.download = downloadName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  }, [transcription, videoUrl]);
 
   const captureShareAudio = useCallback(async () => {
     if (!includeAudioInShare || !transcription || !shareAudioAvailable) {
@@ -1318,6 +1424,59 @@ export default function TranscriptionDetailPage() {
           </Stack>
         </CardContent>
       </Card>
+      {transcription?.kind === "realtime" && (
+        <Card sx={{ mt: 3 }}>
+          <CardHeader
+            title={t("sessionVideo")}
+            subheader={t("recordedVideoPreview")}
+          />
+          <CardContent>
+            <Stack spacing={2}>
+              {videoLoading && <LinearProgress color="secondary" />}
+              {videoError ? <Alert severity="warning">{videoError}</Alert> : null}
+              {videoUrl ? (
+                <Box
+                  sx={{
+                    borderRadius: 2,
+                    overflow: "hidden",
+                    border: 1,
+                    borderColor: "divider",
+                  }}
+                >
+                  <Box
+                    component="video"
+                    src={videoUrl}
+                    controls
+                    sx={{
+                      width: "100%",
+                      display: "block",
+                      backgroundColor: "black",
+                    }}
+                  >
+                    {t("yourBrowserDoesNotSupportTheVideoTag")}
+                  </Box>
+                </Box>
+              ) : (
+                !videoLoading &&
+                !videoError && (
+                  <Typography variant="body2" color="text.secondary">
+                    {t("noVideoRecorded")}
+                  </Typography>
+                )
+              )}
+              <Button
+                variant="outlined"
+                startIcon={<VideocamIcon />}
+                onClick={handleDownloadVideo}
+                disabled={!videoUrl && !videoBlobRef.current}
+                sx={{ maxWidth: { sm: 240 } }}
+              >
+                {t("downloadVideo")}
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
       <Dialog
         open={shareDialogOpen}
         onClose={handleShareDialogClose}

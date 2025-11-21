@@ -34,6 +34,7 @@ import {
   updateLocalTranscription,
   replaceSegments,
   appendAudioChunk,
+  appendVideoChunk,
   deleteTranscription,
 } from "../services/data/transcriptionRepository";
 import { RtzrStreamingClient } from "../services/api/rtzrStreamingClient";
@@ -52,6 +53,10 @@ import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import StopCircleIcon from "@mui/icons-material/StopCircle";
 import MicNoneRoundedIcon from "@mui/icons-material/MicNoneRounded";
+import VideocamRoundedIcon from "@mui/icons-material/VideocamRounded";
+import VideocamOffRoundedIcon from "@mui/icons-material/VideocamOffRounded";
+import CameraswitchRoundedIcon from "@mui/icons-material/CameraswitchRounded";
+import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
 import {
   extractModelNameFromConfig,
@@ -83,6 +88,14 @@ const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
 };
 
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
+const VIDEO_CAPTURE_TIMESLICE_MS = 4000;
+const VIDEO_MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm;codecs=h264,opus",
+  "video/webm",
+  "video/mp4",
+];
 
 type RuntimeSettingKey =
   | "maxUtterDuration"
@@ -408,6 +421,15 @@ export default function RealtimeSessionPage() {
   const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettingsState>(DEFAULT_RUNTIME_SETTINGS);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [streamingRequestJson, setStreamingRequestJson] = useState("");
+  const cameraSupported =
+    typeof navigator !== "undefined" &&
+    typeof MediaRecorder !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+  const [cameraRecording, setCameraRecording] = useState(false);
   const portalContainer = useAppPortalContainer();
   const runtimeSettingsFabRef = useRef<HTMLButtonElement | null>(null);
   const runtimeSettingsPreviouslyOpenRef = useRef(false);
@@ -431,6 +453,81 @@ export default function RealtimeSessionPage() {
     runtimeSettingsPreviouslyOpenRef.current = runtimeSettingsOpen;
   }, [runtimeSettingsOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const activateCamera = async () => {
+      if (!cameraEnabled) {
+        await stopVideoRecorder();
+        if (!cancelled) {
+          stopCameraStream();
+          setCameraError(null);
+        }
+        return;
+      }
+      if (!cameraSupported) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      setCameraLoading(true);
+      setCameraError(null);
+      try {
+        await stopVideoRecorder();
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: cameraFacingMode },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        cameraStreamRef.current = stream;
+        const preview = cameraPreviewRef.current;
+        if (preview) {
+          preview.muted = true;
+          preview.playsInline = true;
+          preview.autoplay = true;
+          preview.controls = false;
+          preview.srcObject = stream;
+          void preview.play().catch(() => {
+            /* ignore autoplay errors */
+          });
+        }
+        if (cameraShouldRecordRef.current) {
+          await startVideoRecordingIfNeeded();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error instanceof Error ? error.message : t("cameraAccessFailed");
+        setCameraError(message);
+        setCameraEnabled(false);
+        stopCameraStream();
+      } finally {
+        if (!cancelled) {
+          setCameraLoading(false);
+        }
+      }
+    };
+    void activateCamera();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cameraEnabled,
+    cameraFacingMode,
+    cameraSupported,
+    startVideoRecordingIfNeeded,
+    stopCameraStream,
+    stopVideoRecorder,
+    t,
+  ]);
+
   const countdownTimerRef = useRef<number | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const recorderRef = useRef<RecorderManager | null>(null);
@@ -449,6 +546,13 @@ export default function RealtimeSessionPage() {
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
+  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunkIndexRef = useRef(0);
+  const videoMimeTypeRef = useRef<string | null>(null);
+  const cameraShouldRecordRef = useRef(false);
+  const videoRecorderStopPromiseRef = useRef<Promise<void> | null>(null);
 
   sessionStateRef.current = sessionState;
 
@@ -472,6 +576,136 @@ export default function RealtimeSessionPage() {
       autosaveTimerRef.current = null;
     }
   };
+
+  const stopCameraStream = useCallback(() => {
+    const stream = cameraStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+    const preview = cameraPreviewRef.current;
+    if (preview && preview.srcObject) {
+      preview.srcObject = null;
+    }
+  }, []);
+
+  const stopVideoRecorder = useCallback(async () => {
+    const recorder = videoRecorderRef.current;
+    if (!recorder) {
+      setCameraRecording(false);
+      return;
+    }
+    if (recorder.state === "inactive") {
+      videoRecorderRef.current = null;
+      setCameraRecording(false);
+      return;
+    }
+    if (videoRecorderStopPromiseRef.current) {
+      await videoRecorderStopPromiseRef.current;
+      return;
+    }
+    videoRecorderStopPromiseRef.current = new Promise<void>((resolve) => {
+      recorder.addEventListener(
+        "stop",
+        () => {
+          videoRecorderStopPromiseRef.current = null;
+          resolve();
+        },
+        { once: true }
+      );
+    });
+    try {
+      recorder.stop();
+    } catch {
+      videoRecorderStopPromiseRef.current = null;
+    }
+    await videoRecorderStopPromiseRef.current;
+    videoRecorderRef.current = null;
+    setCameraRecording(false);
+  }, []);
+
+  const startVideoRecordingIfNeeded = useCallback(async () => {
+    if (!cameraShouldRecordRef.current) return;
+    if (!cameraEnabled) return;
+    const stream = cameraStreamRef.current;
+    if (!stream) return;
+    if (typeof MediaRecorder === "undefined") {
+      setCameraError(t("cameraNotSupported"));
+      return;
+    }
+    const existingRecorder = videoRecorderRef.current;
+    if (existingRecorder && existingRecorder.state === "recording") {
+      return;
+    }
+    let mimeType = videoMimeTypeRef.current;
+    if (!mimeType && typeof MediaRecorder.isTypeSupported === "function") {
+      mimeType =
+        VIDEO_MIME_CANDIDATES.find((candidate) =>
+          MediaRecorder.isTypeSupported(candidate)
+        ) ?? undefined;
+    }
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    } catch (error) {
+      console.error("Failed to start camera recorder", error);
+      const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
+      setCameraError(message);
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      return;
+    }
+
+    videoRecorderRef.current = recorder;
+    videoMimeTypeRef.current = recorder.mimeType || mimeType || "video/webm";
+    recorder.addEventListener("dataavailable", (event) => {
+      if (!event.data || event.data.size === 0) {
+        return;
+      }
+      const transcriptionId = transcriptionIdRef.current;
+      if (!transcriptionId) return;
+      const chunkIndex = videoChunkIndexRef.current++;
+      void event.data
+        .arrayBuffer()
+        .then((buffer) =>
+          appendVideoChunk({
+            transcriptionId,
+            chunkIndex,
+            data: buffer,
+            mimeType:
+              event.data.type ||
+              recorder.mimeType ||
+              videoMimeTypeRef.current ||
+              "video/webm",
+          })
+        )
+        .catch((error) => {
+          console.error("Failed to persist video chunk", error);
+        });
+    });
+    recorder.addEventListener("stop", () => {
+      videoRecorderRef.current = null;
+      setCameraRecording(false);
+    });
+    recorder.addEventListener("error", (event) => {
+      console.error("Camera recording error", event);
+      setCameraError(t("cameraRecordingFailed"));
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      cameraShouldRecordRef.current = false;
+      void stopVideoRecorder();
+      stopCameraStream();
+    });
+
+    try {
+      recorder.start(VIDEO_CAPTURE_TIMESLICE_MS);
+      setCameraRecording(true);
+    } catch (error) {
+      console.error("Failed to capture camera stream", error);
+      const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
+      setCameraError(message);
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+    }
+  }, [cameraEnabled, enqueueSnackbar, stopCameraStream, stopVideoRecorder, t]);
 
   const handleRuntimeSettingChange = (key: RuntimeSettingKey, value: string) => {
     setRuntimeSettings((prev) => ({
@@ -562,6 +796,10 @@ export default function RealtimeSessionPage() {
     recordedSampleRateRef.current = null;
     finalizingRef.current = false;
     finalizeReasonRef.current = "normal";
+    cameraShouldRecordRef.current = false;
+    videoChunkIndexRef.current = 0;
+    setCameraRecording(false);
+    void stopVideoRecorder();
     setSessionState("idle");
   };
 
@@ -868,6 +1106,8 @@ export default function RealtimeSessionPage() {
   const stopSession = (aborted: boolean) => {
     if (sessionState === "idle") return;
     finalizeReasonRef.current = aborted ? "aborted" : "normal";
+    cameraShouldRecordRef.current = false;
+    void stopVideoRecorder();
     if (sessionState === "countdown") {
       clearCountdown();
       finalizeReasonRef.current = "aborted";
@@ -1033,6 +1273,7 @@ export default function RealtimeSessionPage() {
         audioSampleRate: sampleRate,
         audioChannels: 1,
       });
+      videoChunkIndexRef.current = 0;
     } catch (error) {
       console.error(t("localTranscriptionRecordCreationFailed"), error);
       setErrorMessage(t("localTranscriptionRecordsCannotBeCreated"));
@@ -1045,6 +1286,10 @@ export default function RealtimeSessionPage() {
     setSegments([]);
     setPartialText(null);
     chunkIndexRef.current = 0;
+    cameraShouldRecordRef.current = true;
+    if (cameraEnabled) {
+      void startVideoRecordingIfNeeded();
+    }
     setErrorMessage(null);
     finalizeReasonRef.current = "normal";
     countdownFinishedRef.current = false;
@@ -1089,6 +1334,14 @@ export default function RealtimeSessionPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      cameraShouldRecordRef.current = false;
+      void stopVideoRecorder();
+      stopCameraStream();
+    };
+  }, [stopCameraStream, stopVideoRecorder]);
 
   const formatTimeRange = (segment: RealtimeSegment) => {
     const start = (segment.startMs / 1000).toFixed(1);
@@ -1169,6 +1422,19 @@ export default function RealtimeSessionPage() {
     stopSession(shouldAbort ? true : false);
   };
 
+  const handleToggleCamera = () => {
+    if (!cameraSupported) {
+      setCameraError(t("cameraNotSupported"));
+      enqueueSnackbar(t("cameraNotSupported"), { variant: "info" });
+      return;
+    }
+    setCameraEnabled((prev) => !prev);
+  };
+
+  const handleSwitchCamera = () => {
+    setCameraFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+  };
+
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1241,6 +1507,116 @@ export default function RealtimeSessionPage() {
                 </Card>
               )}
               <Box ref={transcriptEndRef} sx={{ height: 1 }} />
+            </Stack>
+        </CardContent>
+        </Card>
+        <Card>
+          <CardHeader
+            title={t("sessionVideoCapture")}
+            subheader={t("recordVideoAlongsideRealTimeTranscription")}
+          />
+          <CardContent>
+            <Stack spacing={2}>
+              {!cameraSupported && (
+                <Alert severity="info">{t("cameraNotSupported")}</Alert>
+              )}
+              {cameraError && <Alert severity="error">{cameraError}</Alert>}
+              <Box
+                sx={{
+                  position: "relative",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  border: 1,
+                  borderColor: "divider",
+                  aspectRatio: "16 / 9",
+                  backgroundColor: (theme) => theme.palette.grey[900],
+                }}
+              >
+                <Box
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    display: cameraEnabled ? "none" : "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "text.secondary",
+                    textAlign: "center",
+                    p: 2,
+                    backgroundColor: (theme) => theme.palette.action.hover,
+                  }}
+                >
+                  <Typography variant="body2">{t("cameraPreview")}</Typography>
+                </Box>
+                <Box
+                  component="video"
+                  ref={cameraPreviewRef}
+                  muted
+                  playsInline
+                  autoPlay
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: cameraEnabled ? "block" : "none",
+                  }}
+                />
+                {cameraRecording && (
+                  <Chip
+                    size="small"
+                    color="error"
+                    icon={<FiberManualRecordRoundedIcon fontSize="small" />}
+                    label={t("cameraRecording")}
+                    sx={{
+                      position: "absolute",
+                      top: 16,
+                      left: 16,
+                      bgcolor: "rgba(211, 47, 47, 0.85)",
+                      color: "common.white",
+                    }}
+                  />
+                )}
+                {cameraLoading && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    <CircularProgress color="inherit" />
+                  </Box>
+                )}
+              </Box>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                alignItems={{ xs: "stretch", sm: "center" }}
+              >
+                <Button
+                  variant={cameraEnabled ? "outlined" : "contained"}
+                  startIcon={cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
+                  onClick={handleToggleCamera}
+                  disabled={cameraLoading || !cameraSupported}
+                >
+                  {cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                </Button>
+                <Button
+                  variant="text"
+                  startIcon={<CameraswitchRoundedIcon />}
+                  onClick={handleSwitchCamera}
+                  disabled={!cameraEnabled || cameraLoading}
+                >
+                  {cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
+                </Button>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                {cameraEnabled
+                  ? t("cameraRecordingSavedWithSession")
+                  : t("enableCameraToCaptureVideo")}
+              </Typography>
             </Stack>
           </CardContent>
         </Card>

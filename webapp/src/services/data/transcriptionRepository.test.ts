@@ -2,15 +2,19 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { appDb } from "../../data/app-db";
 import {
   appendAudioChunk,
+  appendVideoChunk,
   createLocalTranscription,
   deleteTranscription,
   listAudioChunks,
+  listVideoChunks,
   replaceSegments,
   updateLocalTranscription,
 } from "./transcriptionRepository";
 
 const SAMPLE_PCM_A = new Int16Array([0, 128, -128, 32767, -32768]).buffer;
 const SAMPLE_PCM_B = new Int16Array([42, -42]).buffer;
+const SAMPLE_VIDEO_A = new Uint8Array([1, 2, 3, 4]).buffer;
+const SAMPLE_VIDEO_B = new Uint8Array([5, 6, 7, 8]).buffer;
 
 beforeEach(async () => {
   await appDb.delete();
@@ -75,6 +79,30 @@ describe("transcriptionRepository", () => {
     expect(Array.from(new Int16Array(chunks[0].data))).toEqual(Array.from(new Int16Array(SAMPLE_PCM_A)));
   });
 
+  it("stores video chunks in order", async () => {
+    const record = await createLocalTranscription({
+      title: "video",
+      kind: "realtime",
+    });
+
+    await appendVideoChunk({
+      transcriptionId: record.id,
+      chunkIndex: 0,
+      data: SAMPLE_VIDEO_A,
+      mimeType: "video/webm",
+    });
+    await appendVideoChunk({
+      transcriptionId: record.id,
+      chunkIndex: 1,
+      data: SAMPLE_VIDEO_B,
+    });
+
+    const chunks = await listVideoChunks(record.id);
+    expect(chunks.map((chunk) => chunk.chunkIndex)).toEqual([0, 1]);
+    expect(chunks[0].mimeType).toBe("video/webm");
+    expect(Array.from(new Uint8Array(chunks[1].data))).toEqual(Array.from(new Uint8Array(SAMPLE_VIDEO_B)));
+  });
+
   it("deletes linked segments and audio when removing transcription", async () => {
     const record = await createLocalTranscription({
       title: "삭제 대상",
@@ -95,6 +123,12 @@ describe("transcriptionRepository", () => {
         isFinal: true,
       },
     ]);
+    await appendVideoChunk({
+      transcriptionId: record.id,
+      chunkIndex: 0,
+      data: SAMPLE_VIDEO_A,
+      mimeType: "video/webm",
+    });
 
     await deleteTranscription(record.id);
 
@@ -104,5 +138,10 @@ describe("transcriptionRepository", () => {
     expect(remainingSegments).toBe(0);
     const remainingChunks = await appDb.audioChunks.where("transcriptionId").equals(record.id).count();
     expect(remainingChunks).toBe(0);
+    const remainingVideoChunks = await appDb.videoChunks
+      .where("transcriptionId")
+      .equals(record.id)
+      .count();
+    expect(remainingVideoChunks).toBe(0);
   });
 });

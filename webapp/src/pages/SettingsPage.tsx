@@ -177,6 +177,8 @@ export default function SettingsPage() {
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navOffset = (isSmallScreen ? 56 : 64) + 8;
   const { t } = useI18n();
+  const storagePermissionSupported =
+    typeof navigator !== "undefined" && Boolean(navigator.storage?.persist);
   const [activeTab, setActiveTab] = useState<SettingsTab>("file");
   const { enqueueSnackbar } = useSnackbar();
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
@@ -716,10 +718,8 @@ export default function SettingsPage() {
       const granted = await requestPersistentStoragePermission();
       await refreshPermissionStatus();
       enqueueSnackbar(
-        granted
-          ? t("storagePermissionsGranted")
-          : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
-        { variant: granted ? "success" : "error" }
+        granted ? t("storagePermissionsGranted") : t("storagePermissionBrowserManaged"),
+        { variant: granted ? "success" : "info" }
       );
     } finally {
       setRequestingStorage(false);
@@ -1164,14 +1164,22 @@ export default function SettingsPage() {
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  {renderPermissionChip(permissionStatus.storage)}
-                  <Button
-                    variant="outlined"
-                    onClick={() => void handleRequestStoragePermission()}
-                    disabled={requestingStorage || permissionLoading}
-                  >
-                    {requestingStorage ? t("requesting") : t("reRequestPermission")}
-                  </Button>
+                  {storagePermissionSupported ? (
+                    <>
+                      {renderPermissionChip(permissionStatus.storage)}
+                      <Button
+                        variant="outlined"
+                        onClick={() => void handleRequestStoragePermission()}
+                        disabled={requestingStorage || permissionLoading}
+                      >
+                        {requestingStorage ? t("requesting") : t("reRequestPermission")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      {t("storagePermissionBrowserManaged")}
+                    </Typography>
+                  )}
                 </Stack>
               </Stack>
 

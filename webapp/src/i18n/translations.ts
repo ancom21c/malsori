@@ -64,6 +64,101 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "An error occurred during recording.",
     ja: "録音中にエラーが発生しました。",
   },
+  cameraNotSupported: {
+    ko: "이 브라우저에서는 카메라 녹화를 지원하지 않습니다.",
+    en: "Camera recording is not supported in this browser.",
+    ja: "このブラウザではカメラ録画はサポートされていません。",
+  },
+  cameraAccessFailed: {
+    ko: "카메라 권한을 요청할 수 없습니다. 브라우저 설정을 확인해 주세요.",
+    en: "Unable to access the camera. Please check your browser settings.",
+    ja: "カメラにアクセスできません。ブラウザの設定を確認してください。",
+  },
+  cameraRecordingFailed: {
+    ko: "카메라 녹화를 시작할 수 없습니다.",
+    en: "Unable to start camera recording.",
+    ja: "カメラの録画を開始できません。",
+  },
+  sessionVideoCapture: {
+    ko: "세션 비디오 캡처",
+    en: "Session video capture",
+    ja: "セッション動画キャプチャ",
+  },
+  recordVideoAlongsideRealTimeTranscription: {
+    ko: "실시간 전사와 함께 카메라 영상을 기록합니다.",
+    en: "Capture camera video alongside your real-time transcription.",
+    ja: "リアルタイム文字起こしと一緒にカメラ映像を記録します。",
+  },
+  cameraPreview: {
+    ko: "카메라가 꺼져 있습니다. 카메라를 켜면 미리보기가 표시됩니다.",
+    en: "Camera is off. Turn it on to see the preview.",
+    ja: "カメラはオフです。オンにするとプレビューが表示されます。",
+  },
+  cameraRecording: {
+    ko: "카메라 녹화 중",
+    en: "Camera recording",
+    ja: "カメラ録画中",
+  },
+  enableCamera: {
+    ko: "카메라 켜기",
+    en: "Enable camera",
+    ja: "カメラをオンにする",
+  },
+  disableCamera: {
+    ko: "카메라 끄기",
+    en: "Disable camera",
+    ja: "カメラをオフにする",
+  },
+  switchToFrontCamera: {
+    ko: "전면 카메라로 전환",
+    en: "Switch to front camera",
+    ja: "フロントカメラに切り替え",
+  },
+  switchToRearCamera: {
+    ko: "후면 카메라로 전환",
+    en: "Switch to rear camera",
+    ja: "リアカメラに切り替え",
+  },
+  cameraRecordingSavedWithSession: {
+    ko: "카메라가 켜져 있는 동안 촬영된 영상이 이 세션에 함께 저장됩니다.",
+    en: "Video captured while the camera is on will be saved with this session.",
+    ja: "カメラがオンの間に撮影された動画はこのセッションに保存されます。",
+  },
+  enableCameraToCaptureVideo: {
+    ko: "카메라를 켜서 비디오 캡처를 시작할 수 있습니다.",
+    en: "Turn on the camera to start capturing video.",
+    ja: "カメラをオンにして動画のキャプチャを開始できます。",
+  },
+  sessionVideo: {
+    ko: "세션 비디오",
+    en: "Session video",
+    ja: "セッション動画",
+  },
+  recordedVideoPreview: {
+    ko: "세션 동안 녹화된 영상을 확인하고 다운로드합니다.",
+    en: "Preview and download the video recorded during the session.",
+    ja: "セッション中に録画された動画をプレビューしてダウンロードします。",
+  },
+  noVideoRecorded: {
+    ko: "이 세션에는 저장된 비디오가 없습니다.",
+    en: "No video was recorded for this session.",
+    ja: "このセッションには録画された動画がありません。",
+  },
+  downloadVideo: {
+    ko: "비디오 다운로드",
+    en: "Download video",
+    ja: "動画をダウンロード",
+  },
+  videoCannotBeLoaded: {
+    ko: "비디오를 불러올 수 없습니다.",
+    en: "Video cannot be loaded.",
+    ja: "動画を読み込めません。",
+  },
+  yourBrowserDoesNotSupportTheVideoTag: {
+    ko: "브라우저가 video 태그를 지원하지 않습니다.",
+    en: "Your browser does not support the video tag.",
+    ja: "お使いのブラウザは video タグをサポートしていません。",
+  },
   anErrorOccurredDuringStreaming: {
     ko: "스트리밍 도중 오류가 발생했습니다.",
     en: "An error occurred during streaming.",
@@ -1230,9 +1325,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "セグメントの再生に失敗しました",
   },
   selectAudioFile: {
-    ko: "음성 파일 선택",
-    en: "Select audio file",
-    ja: "音声ファイルを選択",
+    ko: "오디오/비디오 파일 선택",
+    en: "Select audio or video file",
+    ja: "音声/動画ファイルを選択",
   },
   selectFromKoJaMultiOrDetectMultiDetectIsOnlyEnabledOnWhisperFamilyModels: {
     ko: "ko, ja, multi, detect 중 선택합니다. multi/detect는 Whisper 계열 모델에서만 활성화됩니다.",
@@ -1408,6 +1503,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "저장소 권한이 허용되었습니다.",
     en: "Storage permissions granted.",
     ja: "ストレージ権限が付与されました。",
+  },
+  storagePermissionBrowserManaged: {
+    ko: "브라우저가 저장소를 자동으로 관리하므로 별도 권한이 필요하지 않습니다.",
+    en: "Your browser manages storage automatically, so no additional permission is required.",
+    ja: "ブラウザがストレージを自動管理するため、追加の権限は必要ありません。",
   },
   streamTranscriptionSettings: {
     ko: "스트리밍 전사 설정",

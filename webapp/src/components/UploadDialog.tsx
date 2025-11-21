@@ -184,7 +184,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                 {t("selectAudioFile")}
                 <input
                   type="file"
-                  accept="audio/*,video/mp4"
+                  accept="audio/*,video/*"
                   hidden
                   onChange={handleFileChange}
                 />

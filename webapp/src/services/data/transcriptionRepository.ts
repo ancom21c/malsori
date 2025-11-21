@@ -108,9 +108,11 @@ export async function deleteTranscription(id: string) {
     appDb.transcriptions,
     appDb.segments,
     appDb.audioChunks,
+    appDb.videoChunks,
     appDb.searchIndexes,
     async () => {
       await appDb.audioChunks.where("transcriptionId").equals(id).delete();
+      await appDb.videoChunks.where("transcriptionId").equals(id).delete();
       await appDb.segments.where("transcriptionId").equals(id).delete();
       await appDb.searchIndexes.delete(id);
       await appDb.transcriptions.delete(id);
@@ -120,6 +122,7 @@ export async function deleteTranscription(id: string) {
 
 export async function deleteRealtimeArtifacts(transcriptionId: string) {
   await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
+  await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
 }
 
 type ReplaceableWord = {
@@ -274,6 +277,30 @@ export async function appendAudioChunk(params: {
 
 export async function listAudioChunks(transcriptionId: string) {
   return await appDb.audioChunks
+    .where("transcriptionId")
+    .equals(transcriptionId)
+    .sortBy("chunkIndex");
+}
+
+export async function appendVideoChunk(params: {
+  transcriptionId: string;
+  chunkIndex: number;
+  data: ArrayBuffer;
+  mimeType?: string;
+}) {
+  const now = new Date().toISOString();
+  await appDb.videoChunks.put({
+    id: `${params.transcriptionId}-video-${params.chunkIndex}`,
+    transcriptionId: params.transcriptionId,
+    chunkIndex: params.chunkIndex,
+    data: params.data,
+    mimeType: params.mimeType,
+    createdAt: now,
+  });
+}
+
+export async function listVideoChunks(transcriptionId: string) {
+  return await appDb.videoChunks
     .where("transcriptionId")
     .equals(transcriptionId)
     .sortBy("chunkIndex");

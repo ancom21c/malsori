@@ -65,6 +65,15 @@ export interface LocalAudioChunk {
   createdAt: string;
 }
 
+export interface LocalVideoChunk {
+  id: string;
+  transcriptionId: string;
+  chunkIndex: number;
+  data: ArrayBuffer;
+  mimeType?: string;
+  createdAt: string;
+}
+
 export interface PresetConfig {
   id: string;
   type: "file" | "streaming";
@@ -108,6 +117,7 @@ class AppDatabase extends Dexie {
   transcriptions!: Table<LocalTranscription, string>;
   segments!: Table<LocalSegment, string>;
   audioChunks!: Table<LocalAudioChunk, string>;
+  videoChunks!: Table<LocalVideoChunk, string>;
   presets!: Table<PresetConfig, string>;
   settings!: Table<AppSetting, string>;
   backendEndpoints!: Table<BackendEndpointPreset, string>;
@@ -126,12 +136,12 @@ class AppDatabase extends Dexie {
 
     this.version(2)
       .stores({
-        transcriptions: "id, createdAt, kind, status",
-        segments: "id, transcriptionId, startMs",
-        audioChunks: "id, transcriptionId, chunkIndex",
-        presets: "id, type, isDefault",
-        settings: "key",
-      })
+      transcriptions: "id, createdAt, kind, status",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+    })
       .upgrade(async (transaction) => {
         await transaction
           .table("audioChunks")
@@ -171,14 +181,14 @@ class AppDatabase extends Dexie {
 
     this.version(5)
       .stores({
-        transcriptions: "id, createdAt, kind, status",
-        segments: "id, transcriptionId, startMs",
-        audioChunks: "id, transcriptionId, chunkIndex",
-        presets: "id, type, isDefault",
-        settings: "key",
-        backendEndpoints: "id, deployment, isDefault, createdAt",
-        searchIndexes: "transcriptionId",
-      })
+      transcriptions: "id, createdAt, kind, status",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+      backendEndpoints: "id, deployment, isDefault, createdAt",
+      searchIndexes: "transcriptionId",
+    })
       .upgrade(async (transaction) => {
         await transaction
           .table("segments")
@@ -192,6 +202,17 @@ class AppDatabase extends Dexie {
             }
           });
       });
+
+    this.version(6).stores({
+      transcriptions: "id, createdAt, kind, status",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      videoChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+      backendEndpoints: "id, deployment, isDefault, createdAt",
+      searchIndexes: "transcriptionId",
+    });
   }
 }
 
