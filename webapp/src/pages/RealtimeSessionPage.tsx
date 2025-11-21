@@ -64,7 +64,7 @@ import {
 } from "../utils/transcriptionMetadata";
 import { useI18n } from "../i18n";
 
-type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "saving";
+type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
 type RealtimeSegment = {
   id: string;
@@ -84,6 +84,7 @@ const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
   connecting: "connecting",
   recording: "sessionStateRecording",
   paused: "pause",
+  stopping: "stopping",
   saving: "saving",
 };
 
@@ -453,80 +454,7 @@ export default function RealtimeSessionPage() {
     runtimeSettingsPreviouslyOpenRef.current = runtimeSettingsOpen;
   }, [runtimeSettingsOpen]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const activateCamera = async () => {
-      if (!cameraEnabled) {
-        await stopVideoRecorder();
-        if (!cancelled) {
-          stopCameraStream();
-          setCameraError(null);
-        }
-        return;
-      }
-      if (!cameraSupported) {
-        setCameraError(t("cameraNotSupported"));
-        setCameraEnabled(false);
-        return;
-      }
-      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-        setCameraError(t("cameraNotSupported"));
-        setCameraEnabled(false);
-        return;
-      }
-      setCameraLoading(true);
-      setCameraError(null);
-      try {
-        await stopVideoRecorder();
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: cameraFacingMode },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        cameraStreamRef.current = stream;
-        const preview = cameraPreviewRef.current;
-        if (preview) {
-          preview.muted = true;
-          preview.playsInline = true;
-          preview.autoplay = true;
-          preview.controls = false;
-          preview.srcObject = stream;
-          void preview.play().catch(() => {
-            /* ignore autoplay errors */
-          });
-        }
-        if (cameraShouldRecordRef.current) {
-          await startVideoRecordingIfNeeded();
-        }
-      } catch (error) {
-        if (cancelled) return;
-        const message =
-          error instanceof Error ? error.message : t("cameraAccessFailed");
-        setCameraError(message);
-        setCameraEnabled(false);
-        stopCameraStream();
-      } finally {
-        if (!cancelled) {
-          setCameraLoading(false);
-        }
-      }
-    };
-    void activateCamera();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    cameraEnabled,
-    cameraFacingMode,
-    cameraSupported,
-    startVideoRecordingIfNeeded,
-    stopCameraStream,
-    stopVideoRecorder,
-    t,
-  ]);
+
 
   const countdownTimerRef = useRef<number | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -553,6 +481,8 @@ export default function RealtimeSessionPage() {
   const videoMimeTypeRef = useRef<string | null>(null);
   const cameraShouldRecordRef = useRef(false);
   const videoRecorderStopPromiseRef = useRef<Promise<void> | null>(null);
+  const stopSafetyTimerRef = useRef<number | null>(null);
+  const waitingForFinalRef = useRef(false);
 
   sessionStateRef.current = sessionState;
 
@@ -574,6 +504,13 @@ export default function RealtimeSessionPage() {
     if (autosaveTimerRef.current !== null) {
       window.clearInterval(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
+    }
+  };
+
+  const clearStopSafetyTimer = () => {
+    if (stopSafetyTimerRef.current !== null) {
+      window.clearTimeout(stopSafetyTimerRef.current);
+      stopSafetyTimerRef.current = null;
     }
   };
 
@@ -642,7 +579,7 @@ export default function RealtimeSessionPage() {
       mimeType =
         VIDEO_MIME_CANDIDATES.find((candidate) =>
           MediaRecorder.isTypeSupported(candidate)
-        ) ?? undefined;
+        ) ?? null;
     }
 
     let recorder: MediaRecorder;
@@ -706,6 +643,93 @@ export default function RealtimeSessionPage() {
       enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
     }
   }, [cameraEnabled, enqueueSnackbar, stopCameraStream, stopVideoRecorder, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const activateCamera = async () => {
+      if (!cameraEnabled) {
+        await stopVideoRecorder();
+        if (!cancelled) {
+          stopCameraStream();
+          setCameraError(null);
+        }
+        return;
+      }
+      if (!cameraSupported) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      setCameraLoading(true);
+      setCameraError(null);
+      try {
+        await stopVideoRecorder();
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: cameraFacingMode },
+          audio: true,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        cameraStreamRef.current = stream;
+        const preview = cameraPreviewRef.current;
+        if (preview) {
+          preview.muted = true;
+          preview.playsInline = true;
+          preview.autoplay = true;
+          preview.controls = false;
+          preview.srcObject = stream;
+          void preview.play().catch(() => {
+            /* ignore autoplay errors */
+          });
+        }
+        if (cameraShouldRecordRef.current) {
+          await startVideoRecordingIfNeeded();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error instanceof Error ? error.message : t("cameraAccessFailed");
+        setCameraError(message);
+        setCameraEnabled(false);
+        stopCameraStream();
+      } finally {
+        if (!cancelled) {
+          setCameraLoading(false);
+        }
+      }
+    };
+    void activateCamera();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cameraEnabled,
+    cameraFacingMode,
+    cameraSupported,
+    startVideoRecordingIfNeeded,
+    stopCameraStream,
+    stopVideoRecorder,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (sessionState === "recording" && cameraShouldRecordRef.current && cameraEnabled) {
+      void startVideoRecordingIfNeeded();
+    }
+  }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
+
+  useEffect(() => {
+    if (sessionState === "recording" && cameraShouldRecordRef.current && cameraEnabled) {
+      void startVideoRecordingIfNeeded();
+    }
+  }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
 
   const handleRuntimeSettingChange = (key: RuntimeSettingKey, value: string) => {
     setRuntimeSettings((prev) => ({
@@ -779,6 +803,7 @@ export default function RealtimeSessionPage() {
   const resetSessionState = () => {
     clearCountdown();
     clearAutosave();
+    clearStopSafetyTimer();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     recorderRef.current = null;
@@ -800,6 +825,7 @@ export default function RealtimeSessionPage() {
     videoChunkIndexRef.current = 0;
     setCameraRecording(false);
     void stopVideoRecorder();
+    waitingForFinalRef.current = false;
     setSessionState("idle");
   };
 
@@ -940,6 +966,13 @@ export default function RealtimeSessionPage() {
       setSegments([...segmentsRef.current]);
       setPartialText(null);
       await persistSegments();
+
+      if (waitingForFinalRef.current) {
+        waitingForFinalRef.current = false;
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+        }
+      }
       return;
     }
 
@@ -1001,6 +1034,10 @@ export default function RealtimeSessionPage() {
       },
       onClose: (event) => {
         if (finalizingRef.current) return;
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+          return;
+        }
         const reason = event.reason || t("yourStreamingConnectionHasEnded");
         setErrorMessage(reason);
         enqueueSnackbar(reason, { variant: "error" });
@@ -1029,6 +1066,10 @@ export default function RealtimeSessionPage() {
           stopSession(true);
         },
         onStop: () => {
+          if (sessionStateRef.current === "stopping") {
+            // Wait for socket close or safety timer
+            return;
+          }
           void finalizeSession(finalizeReasonRef.current === "aborted");
         },
       });
@@ -1047,6 +1088,7 @@ export default function RealtimeSessionPage() {
     finalizingRef.current = true;
     clearCountdown();
     clearAutosave();
+    clearStopSafetyTimer();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     const id = transcriptionIdRef.current;
@@ -1104,7 +1146,7 @@ export default function RealtimeSessionPage() {
   };
 
   const stopSession = (aborted: boolean) => {
-    if (sessionState === "idle") return;
+    if (sessionState === "idle" || sessionState === "saving" || sessionState === "stopping") return;
     finalizeReasonRef.current = aborted ? "aborted" : "normal";
     cameraShouldRecordRef.current = false;
     void stopVideoRecorder();
@@ -1119,12 +1161,37 @@ export default function RealtimeSessionPage() {
       return;
     }
     if (!aborted) {
+      setSessionState("stopping");
+
+      // If we have partial text, we should wait for the final result
+      if (partialText) {
+        waitingForFinalRef.current = true;
+        streamingClientRef.current?.requestFinal();
+
+        // Safety timer: if final doesn't come within 3 seconds, force stop
+        stopSafetyTimerRef.current = window.setTimeout(() => {
+          if (sessionStateRef.current === "stopping") {
+            waitingForFinalRef.current = false;
+            void finalizeSession(false);
+          }
+        }, 3000);
+        return;
+      }
+
       streamingClientRef.current?.requestFinal();
+      // Safety timer in case server doesn't close connection
+      stopSafetyTimerRef.current = window.setTimeout(() => {
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+        }
+      }, 3000);
     }
     if (recorderRef.current) {
       recorderRef.current.stop();
     } else {
-      void finalizeSession(aborted);
+      if (aborted) {
+        void finalizeSession(true);
+      }
     }
   };
 
@@ -1287,9 +1354,7 @@ export default function RealtimeSessionPage() {
     setPartialText(null);
     chunkIndexRef.current = 0;
     cameraShouldRecordRef.current = true;
-    if (cameraEnabled) {
-      void startVideoRecordingIfNeeded();
-    }
+    // Video recording will be triggered by useEffect when state becomes "recording"
     setErrorMessage(null);
     finalizeReasonRef.current = "normal";
     countdownFinishedRef.current = false;
@@ -1349,7 +1414,7 @@ export default function RealtimeSessionPage() {
     return `${start}s ~ ${end}s`;
   };
 
-  const mainButtonDisabled = sessionState === "countdown" || sessionState === "saving";
+  const mainButtonDisabled = sessionState === "countdown" || sessionState === "saving" || sessionState === "stopping";
   const mainButtonLabel = (() => {
     switch (sessionState) {
       case "idle":
@@ -1360,6 +1425,8 @@ export default function RealtimeSessionPage() {
         return t("resumption");
       case "saving":
         return t("saving");
+      case "stopping":
+        return t("stopping");
       case "connecting":
         return t("connecting");
       case "countdown":
@@ -1382,6 +1449,7 @@ export default function RealtimeSessionPage() {
       case "countdown":
         return <HourglassBottomIcon />;
       case "saving":
+      case "stopping":
         return <CircularProgress size={24} color="inherit" thickness={5} />;
       default:
         return <MicNoneRoundedIcon />;
@@ -1390,7 +1458,7 @@ export default function RealtimeSessionPage() {
   const mainButtonColor: "primary" | "secondary" | "success" =
     sessionState === "recording" || sessionState === "paused"
       ? "secondary"
-      : sessionState === "saving"
+      : sessionState === "saving" || sessionState === "stopping"
         ? "success"
         : "primary";
   const mainButtonTooltip = (() => {
@@ -1406,7 +1474,7 @@ export default function RealtimeSessionPage() {
     if (sessionState === "idle") {
       return t("realTimeTranscriptionBeginsAfterA3SecondCountdown");
     }
-    if (sessionState === "saving") {
+    if (sessionState === "saving" || sessionState === "stopping") {
       return t("savingResults");
     }
     return t("preparingForSession");
@@ -1437,194 +1505,223 @@ export default function RealtimeSessionPage() {
 
   return (
     <>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <Card>
-          <CardHeader
-            title={t("realTimeTranscription")}
-            subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
-          />
-          {sessionState !== "idle" && <LinearProgress />}
-          <CardContent>
-            <Stack spacing={2}>
-              <Typography variant="body2" color="text.secondary">
-                {t("currentlySelectedStreamingSetting", {
-                  values: {
-                    name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
-                  },
-                })}
-                {activeStreamingPreset?.description
-                  ? ` – ${activeStreamingPreset.description}`
-                  : ""}
-                <br />
-                {t("automaticTemporaryStorageCycleSeconds", {
-                  values: { seconds: realtimeAutoSaveSeconds },
-                })}
-              </Typography>
-              {!apiBaseUrl.trim() && (
-                <Alert severity="warning">
-                  {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
-                </Alert>
-              )}
-              {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-              <Divider />
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} variant="outlined" />
-                {sessionState === "countdown" && (
-                  <Typography variant="h4" color="primary">
-                    {countdown}
-                  </Typography>
-                )}
-              </Stack>
-              {segments.length === 0 && sessionState === "idle" && (
-                <Typography variant="body1" color="text.secondary">
-                  {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
-                </Typography>
-              )}
-              {segments.length > 0 && (
-                <Stack spacing={1.5}>
-                  {segments.map((segment) => (
-                    <Card key={segment.id} variant="outlined">
-                      <CardContent>
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                          <Chip label={formatTimeRange(segment)} color="success" size="small" />
-                        </Stack>
-                        <Typography variant="body1">{segment.text}</Typography>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Stack>
-              )}
-              {partialText && (
-                <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
-                  <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                      <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
-                    </Stack>
-                    <Typography variant="body1" color="secondary.main">
-                      {partialText}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              <Box ref={transcriptEndRef} sx={{ height: 1 }} />
-            </Stack>
-        </CardContent>
-        </Card>
-        <Card>
-          <CardHeader
-            title={t("sessionVideoCapture")}
-            subheader={t("recordVideoAlongsideRealTimeTranscription")}
-          />
-          <CardContent>
-            <Stack spacing={2}>
-              {!cameraSupported && (
-                <Alert severity="info">{t("cameraNotSupported")}</Alert>
-              )}
-              {cameraError && <Alert severity="error">{cameraError}</Alert>}
-              <Box
-                sx={{
-                  position: "relative",
-                  borderRadius: 2,
-                  overflow: "hidden",
-                  border: 1,
-                  borderColor: "divider",
-                  aspectRatio: "16 / 9",
-                  backgroundColor: (theme) => theme.palette.grey[900],
-                }}
-              >
-                <Box
-                  sx={{
-                    position: "absolute",
-                    inset: 0,
-                    display: cameraEnabled ? "none" : "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "text.secondary",
-                    textAlign: "center",
-                    p: 2,
-                    backgroundColor: (theme) => theme.palette.action.hover,
-                  }}
-                >
-                  <Typography variant="body2">{t("cameraPreview")}</Typography>
-                </Box>
-                <Box
-                  component="video"
-                  ref={cameraPreviewRef}
-                  muted
-                  playsInline
-                  autoPlay
-                  sx={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: cameraEnabled ? "block" : "none",
-                  }}
-                />
-                {cameraRecording && (
-                  <Chip
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100dvh",
+          overflow: "hidden",
+          position: "relative",
+          bgcolor: "background.default",
+        }}
+      >
+        {/* Fixed Video Section */}
+        <Box sx={{ flex: "0 0 auto", p: 2, pb: 0, display: "flex", flexDirection: "column", gap: 2, zIndex: 1 }}>
+          <Card>
+            <CardHeader
+              title={t("sessionVideoCapture")}
+              subheader={t("recordVideoAlongsideRealTimeTranscription")}
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Button
                     size="small"
-                    color="error"
-                    icon={<FiberManualRecordRoundedIcon fontSize="small" />}
-                    label={t("cameraRecording")}
-                    sx={{
-                      position: "absolute",
-                      top: 16,
-                      left: 16,
-                      bgcolor: "rgba(211, 47, 47, 0.85)",
-                      color: "common.white",
-                    }}
-                  />
-                )}
-                {cameraLoading && (
+                    variant={cameraEnabled ? "outlined" : "contained"}
+                    startIcon={cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
+                    onClick={handleToggleCamera}
+                    disabled={cameraLoading || !cameraSupported}
+                  >
+                    {cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="text"
+                    startIcon={<CameraswitchRoundedIcon />}
+                    onClick={handleSwitchCamera}
+                    disabled={!cameraEnabled || cameraLoading}
+                  >
+                    {cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
+                  </Button>
+                </Stack>
+              }
+            />
+            <Collapse in={cameraEnabled || cameraLoading}>
+              <CardContent>
+                <Stack spacing={2}>
+                  {!cameraSupported && (
+                    <Alert severity="info">{t("cameraNotSupported")}</Alert>
+                  )}
+                  {cameraError && <Alert severity="error">{cameraError}</Alert>}
                   <Box
                     sx={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      bgcolor: "rgba(0,0,0,0.4)",
+                      position: "relative",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                      border: 1,
+                      borderColor: "divider",
+                      aspectRatio: "16 / 9",
+                      backgroundColor: (theme) => theme.palette.grey[900],
                     }}
                   >
-                    <CircularProgress color="inherit" />
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        display: cameraEnabled ? "none" : "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "text.secondary",
+                        textAlign: "center",
+                        p: 2,
+                        backgroundColor: (theme) => theme.palette.action.hover,
+                      }}
+                    >
+                      <Typography variant="body2">{t("cameraPreview")}</Typography>
+                    </Box>
+                    <Box
+                      component="video"
+                      ref={cameraPreviewRef}
+                      muted
+                      playsInline
+                      autoPlay
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: cameraEnabled ? "block" : "none",
+                      }}
+                    />
+                    {cameraRecording && (
+                      <Chip
+                        size="small"
+                        color="error"
+                        icon={<FiberManualRecordRoundedIcon fontSize="small" />}
+                        label={t("cameraRecording")}
+                        sx={{
+                          position: "absolute",
+                          top: 16,
+                          left: 16,
+                          bgcolor: "rgba(211, 47, 47, 0.85)",
+                          color: "common.white",
+                        }}
+                      />
+                    )}
+                    {cameraLoading && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          inset: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          bgcolor: "rgba(0,0,0,0.4)",
+                        }}
+                      >
+                        <CircularProgress color="inherit" />
+                      </Box>
+                    )}
                   </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("cameraRecordingSavedWithSession")}
+                  </Typography>
+                </Stack>
+              </CardContent>
+            </Collapse>
+          </Card>
+        </Box>
+
+        {/* Scrollable Transcript Section */}
+        <Box
+          sx={{
+            flex: "1 1 auto",
+            overflowY: "auto",
+            p: 2,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            // Add padding at bottom for floating buttons + safe area
+            pb: "calc(100px + env(safe-area-inset-bottom))",
+          }}
+        >
+          <Card sx={{ minHeight: "100%" }}>
+            <CardHeader
+              title={t("realTimeTranscription")}
+              subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
+            />
+            {sessionState !== "idle" && <LinearProgress />}
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="body2" color="text.secondary">
+                  {t("currentlySelectedStreamingSetting", {
+                    values: {
+                      name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
+                    },
+                  })}
+                  {activeStreamingPreset?.description
+                    ? ` – ${activeStreamingPreset.description}`
+                    : ""}
+                  <br />
+                  {t("automaticTemporaryStorageCycleSeconds", {
+                    values: { seconds: realtimeAutoSaveSeconds },
+                  })}
+                </Typography>
+                {!apiBaseUrl.trim() && (
+                  <Alert severity="warning">
+                    {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
+                  </Alert>
                 )}
-              </Box>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ xs: "stretch", sm: "center" }}
-              >
-                <Button
-                  variant={cameraEnabled ? "outlined" : "contained"}
-                  startIcon={cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
-                  onClick={handleToggleCamera}
-                  disabled={cameraLoading || !cameraSupported}
-                >
-                  {cameraEnabled ? t("disableCamera") : t("enableCamera")}
-                </Button>
-                <Button
-                  variant="text"
-                  startIcon={<CameraswitchRoundedIcon />}
-                  onClick={handleSwitchCamera}
-                  disabled={!cameraEnabled || cameraLoading}
-                >
-                  {cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
-                </Button>
+                {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+                <Divider />
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} variant="outlined" />
+                  {sessionState === "countdown" && (
+                    <Typography variant="h4" color="primary">
+                      {countdown}
+                    </Typography>
+                  )}
+                </Stack>
+                {segments.length === 0 && sessionState === "idle" && (
+                  <Typography variant="body1" color="text.secondary">
+                    {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
+                  </Typography>
+                )}
+                {segments.length > 0 && (
+                  <Stack spacing={1.5}>
+                    {segments.map((segment) => (
+                      <Card key={segment.id} variant="outlined">
+                        <CardContent>
+                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                            <Chip label={formatTimeRange(segment)} color="success" size="small" />
+                          </Stack>
+                          <Typography variant="body1">{segment.text}</Typography>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+                {partialText && (
+                  <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
+                    <CardContent>
+                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                        <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
+                      </Stack>
+                      <Typography variant="body1" color="secondary.main">
+                        {partialText}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                )}
+                <Box ref={transcriptEndRef} sx={{ height: 1 }} />
               </Stack>
-              <Typography variant="body2" color="text.secondary">
-                {cameraEnabled
-                  ? t("cameraRecordingSavedWithSession")
-                  : t("enableCameraToCaptureVideo")}
-              </Typography>
-            </Stack>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Box>
       </Box>
+
+      {/* Floating Settings Button */}
       <Box
         sx={{
           position: "fixed",
-          bottom: { xs: 16, sm: 24 },
+          bottom: "calc(16px + env(safe-area-inset-bottom))",
           left: { xs: 16, sm: 32 },
           zIndex: (theme) => theme.zIndex.modal + 1,
         }}
@@ -1647,12 +1744,14 @@ export default function RealtimeSessionPage() {
           </Fab>
         </Tooltip>
       </Box>
+
+      {/* Floating Main Controls */}
       <Box
         sx={{
           position: "fixed",
           left: 0,
           right: 0,
-          bottom: { xs: 16, sm: 32 },
+          bottom: "calc(16px + env(safe-area-inset-bottom))",
           display: "flex",
           justifyContent: "center",
           zIndex: (theme) =>
@@ -1709,6 +1808,8 @@ export default function RealtimeSessionPage() {
           )}
         </Stack>
       </Box>
+
+      {/* Countdown Overlay */}
       {sessionState === "countdown" && countdown > 0 ? (
         <Box
           sx={{
@@ -1741,6 +1842,8 @@ export default function RealtimeSessionPage() {
           </Typography>
         </Box>
       ) : null}
+
+      {/* Settings Dialog */}
       <Dialog
         open={runtimeSettingsOpen}
         onClose={() => setRuntimeSettingsOpen(false)}

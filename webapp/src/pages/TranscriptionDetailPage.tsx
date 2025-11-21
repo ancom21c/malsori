@@ -366,7 +366,9 @@ export default function TranscriptionDetailPage() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mediaElementRef = useRef<any>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -1190,8 +1192,8 @@ export default function TranscriptionDetailPage() {
         enqueueSnackbar(t("itCannotBePlayedBecauseThereIsNoSectionInformation"), { variant: "info" });
         return;
       }
-      const audio = audioElementRef.current;
-      if (!audio) return;
+      const media = mediaElementRef.current;
+      if (!media) return;
 
       const startMs = getSegmentStartMs(segment);
       if (startMs === null) {
@@ -1203,13 +1205,13 @@ export default function TranscriptionDetailPage() {
       const hasValidEnd = typeof endMs === "number" && Number.isFinite(endMs) && endMs > startMs;
       const endSeconds = hasValidEnd ? endMs / 1000 : null;
 
-      if (!audio.paused) {
-        audio.pause();
+      if (!media.paused) {
+        media.pause();
       }
       programmaticSeekRef.current = false;
-      if (Math.abs(audio.currentTime - startSeconds) > 0.05) {
+      if (Math.abs(media.currentTime - startSeconds) > 0.05) {
         programmaticSeekRef.current = true;
-        audio.currentTime = startSeconds;
+        media.currentTime = startSeconds;
       }
 
       segmentEndRef.current = endSeconds;
@@ -1217,9 +1219,9 @@ export default function TranscriptionDetailPage() {
       updateActiveWordHighlight(segment.id, startSeconds);
 
       try {
-        const playResult = audio.play();
+        const playResult = media.play();
         if (playResult && typeof playResult.catch === "function") {
-          playResult.catch((error) => {
+          playResult.catch((error: unknown) => {
             console.error(t("segmentPlaybackFailed"), error);
             segmentEndRef.current = null;
             setActiveSegmentId(null);
@@ -1243,15 +1245,15 @@ export default function TranscriptionDetailPage() {
   );
 
   useEffect(() => {
-    const audio = audioElementRef.current;
-    if (!audio) return;
+    const media = mediaElementRef.current;
+    if (!media) return;
 
     const handleTimeUpdate = () => {
       const endBoundary = segmentEndRef.current;
       if (endBoundary !== null && Number.isFinite(endBoundary)) {
-        if (audio.currentTime >= endBoundary - 0.05) {
-          audio.pause();
-          audio.currentTime = endBoundary;
+        if (media.currentTime >= endBoundary - 0.05) {
+          media.pause();
+          media.currentTime = endBoundary;
           segmentEndRef.current = null;
           setActiveSegmentId(null);
           setActiveWordHighlight(null);
@@ -1259,7 +1261,7 @@ export default function TranscriptionDetailPage() {
           return;
         }
       }
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      syncActiveSegmentWithPlayback(media.currentTime);
     };
 
     const clearSegmentPlayback = () => {
@@ -1285,23 +1287,23 @@ export default function TranscriptionDetailPage() {
         programmaticSeekRef.current = false;
         return;
       }
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      syncActiveSegmentWithPlayback(media.currentTime);
     };
 
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleStop);
-    audio.addEventListener("pause", handleStop);
-    audio.addEventListener("seeking", handleSeeking);
-    audio.addEventListener("seeked", handleSeeked);
+    media.addEventListener("timeupdate", handleTimeUpdate);
+    media.addEventListener("ended", handleStop);
+    media.addEventListener("pause", handleStop);
+    media.addEventListener("seeking", handleSeeking);
+    media.addEventListener("seeked", handleSeeked);
 
     return () => {
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleStop);
-      audio.removeEventListener("pause", handleStop);
-      audio.removeEventListener("seeking", handleSeeking);
-      audio.removeEventListener("seeked", handleSeeked);
+      media.removeEventListener("timeupdate", handleTimeUpdate);
+      media.removeEventListener("ended", handleStop);
+      media.removeEventListener("pause", handleStop);
+      media.removeEventListener("seeking", handleSeeking);
+      media.removeEventListener("seeked", handleSeeked);
     };
-  }, [audioUrl, syncActiveSegmentWithPlayback]);
+  }, [audioUrl, videoUrl, syncActiveSegmentWithPlayback]);
 
   if (transcription === undefined) {
     return (
@@ -1351,12 +1353,25 @@ export default function TranscriptionDetailPage() {
               {transcription.errorMessage ? (
                 <Alert severity="error">{transcription.errorMessage}</Alert>
               ) : null}
-              {audioLoading && <LinearProgress color="secondary" />}
+              {(audioLoading || videoLoading) && <LinearProgress color="secondary" />}
               {audioError ? <Alert severity="warning">{audioError}</Alert> : null}
-              {audioUrl ? (
+              {videoError ? <Alert severity="warning">{videoError}</Alert> : null}
+              {videoUrl ? (
+                <Box sx={{ mt: 1 }}>
+                  <video
+                    ref={mediaElementRef}
+                    controls
+                    src={videoUrl}
+                    style={{ width: "100%", maxHeight: "50vh", backgroundColor: "black" }}
+                    aria-label={t("recordingPlayback")}
+                  >
+                    {t("yourBrowserDoesNotSupportTheVideoTag")}
+                  </video>
+                </Box>
+              ) : audioUrl ? (
                 <Box sx={{ mt: 1 }}>
                   <audio
-                    ref={audioElementRef}
+                    ref={mediaElementRef}
                     controls
                     src={audioUrl}
                     style={{ width: "100%" }}
@@ -1396,6 +1411,17 @@ export default function TranscriptionDetailPage() {
               >
                 {t("audio")}
               </Button>
+              {videoUrl || videoBlobRef.current ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<VideocamIcon />}
+                  onClick={handleDownloadVideo}
+                  fullWidth
+                  sx={{ maxWidth: { sm: 200 } }}
+                >
+                  {t("downloadVideo")}
+                </Button>
+              ) : null}
               <Button
                 variant="outlined"
                 color="error"
@@ -1424,59 +1450,7 @@ export default function TranscriptionDetailPage() {
           </Stack>
         </CardContent>
       </Card>
-      {transcription?.kind === "realtime" && (
-        <Card sx={{ mt: 3 }}>
-          <CardHeader
-            title={t("sessionVideo")}
-            subheader={t("recordedVideoPreview")}
-          />
-          <CardContent>
-            <Stack spacing={2}>
-              {videoLoading && <LinearProgress color="secondary" />}
-              {videoError ? <Alert severity="warning">{videoError}</Alert> : null}
-              {videoUrl ? (
-                <Box
-                  sx={{
-                    borderRadius: 2,
-                    overflow: "hidden",
-                    border: 1,
-                    borderColor: "divider",
-                  }}
-                >
-                  <Box
-                    component="video"
-                    src={videoUrl}
-                    controls
-                    sx={{
-                      width: "100%",
-                      display: "block",
-                      backgroundColor: "black",
-                    }}
-                  >
-                    {t("yourBrowserDoesNotSupportTheVideoTag")}
-                  </Box>
-                </Box>
-              ) : (
-                !videoLoading &&
-                !videoError && (
-                  <Typography variant="body2" color="text.secondary">
-                    {t("noVideoRecorded")}
-                  </Typography>
-                )
-              )}
-              <Button
-                variant="outlined"
-                startIcon={<VideocamIcon />}
-                onClick={handleDownloadVideo}
-                disabled={!videoUrl && !videoBlobRef.current}
-                sx={{ maxWidth: { sm: 240 } }}
-              >
-                {t("downloadVideo")}
-              </Button>
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
+
       <Dialog
         open={shareDialogOpen}
         onClose={handleShareDialogClose}
@@ -1817,6 +1791,6 @@ export default function TranscriptionDetailPage() {
           </Card>
         )}
       </Stack>
-    </Box>
+    </Box >
   );
 }

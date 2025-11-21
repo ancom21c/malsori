@@ -105,11 +105,13 @@ export async function updateLocalTranscription(
 export async function deleteTranscription(id: string) {
   await appDb.transaction(
     "rw",
-    appDb.transcriptions,
-    appDb.segments,
-    appDb.audioChunks,
-    appDb.videoChunks,
-    appDb.searchIndexes,
+    [
+      appDb.transcriptions,
+      appDb.segments,
+      appDb.audioChunks,
+      appDb.videoChunks,
+      appDb.searchIndexes,
+    ],
     async () => {
       await appDb.audioChunks.where("transcriptionId").equals(id).delete();
       await appDb.videoChunks.where("transcriptionId").equals(id).delete();
