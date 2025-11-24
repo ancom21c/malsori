@@ -34,6 +34,7 @@ import { useSnackbar } from "notistack";
 import { useI18n, useLocaleOptions } from "../i18n";
 import type { Locale } from "../i18n/translations";
 import TranslateIcon from "@mui/icons-material/Translate";
+import { CloudSyncStatus } from "../components/CloudSyncStatus";
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -207,7 +208,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
           >
             MalSori
           </Typography>
-          import {CloudSyncStatus} from "../components/CloudSyncStatus";
 
           // ... (existing imports)
 
