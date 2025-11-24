@@ -207,6 +207,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
           >
             MalSori
           </Typography>
+          import {CloudSyncStatus} from "../components/CloudSyncStatus";
+
+          // ... (existing imports)
+
+          // ... (inside MainLayout component)
+
           {canInstall ? (
             <Tooltip title={t("installMalsoriAsAnApp")}>
               <Button
@@ -228,6 +234,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
               </Button>
             </Tooltip>
           ) : null}
+          <Box sx={{ ml: 1 }}>
+            <CloudSyncStatus />
+          </Box>
           <Tooltip title={t("selectLanguage", { defaultValue: "언어 선택" })}>
             <Button
               color="inherit"

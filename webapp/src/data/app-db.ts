@@ -30,6 +30,9 @@ export interface LocalTranscription {
   backendApiBaseUrl?: string;
   searchTitle?: string;
   searchTranscript?: string;
+  isCloudSynced?: boolean;
+  downloadStatus?: "not_downloaded" | "downloading" | "downloaded";
+  lastSyncedAt?: string;
 }
 
 export interface LocalWordTiming {
@@ -136,12 +139,12 @@ class AppDatabase extends Dexie {
 
     this.version(2)
       .stores({
-      transcriptions: "id, createdAt, kind, status",
-      segments: "id, transcriptionId, startMs",
-      audioChunks: "id, transcriptionId, chunkIndex",
-      presets: "id, type, isDefault",
-      settings: "key",
-    })
+        transcriptions: "id, createdAt, kind, status",
+        segments: "id, transcriptionId, startMs",
+        audioChunks: "id, transcriptionId, chunkIndex",
+        presets: "id, type, isDefault",
+        settings: "key",
+      })
       .upgrade(async (transaction) => {
         await transaction
           .table("audioChunks")
@@ -181,14 +184,14 @@ class AppDatabase extends Dexie {
 
     this.version(5)
       .stores({
-      transcriptions: "id, createdAt, kind, status",
-      segments: "id, transcriptionId, startMs",
-      audioChunks: "id, transcriptionId, chunkIndex",
-      presets: "id, type, isDefault",
-      settings: "key",
-      backendEndpoints: "id, deployment, isDefault, createdAt",
-      searchIndexes: "transcriptionId",
-    })
+        transcriptions: "id, createdAt, kind, status",
+        segments: "id, transcriptionId, startMs",
+        audioChunks: "id, transcriptionId, chunkIndex",
+        presets: "id, type, isDefault",
+        settings: "key",
+        backendEndpoints: "id, deployment, isDefault, createdAt",
+        searchIndexes: "transcriptionId",
+      })
       .upgrade(async (transaction) => {
         await transaction
           .table("segments")
@@ -205,6 +208,17 @@ class AppDatabase extends Dexie {
 
     this.version(6).stores({
       transcriptions: "id, createdAt, kind, status",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      videoChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+      backendEndpoints: "id, deployment, isDefault, createdAt",
+      searchIndexes: "transcriptionId",
+    });
+
+    this.version(7).stores({
+      transcriptions: "id, createdAt, kind, status, isCloudSynced",
       segments: "id, transcriptionId, startMs",
       audioChunks: "id, transcriptionId, chunkIndex",
       videoChunks: "id, transcriptionId, chunkIndex",
