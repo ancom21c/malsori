@@ -8,10 +8,8 @@ import {
   CardHeader,
   Chip,
   Divider,
-  FormControl,
   FormControlLabel,
   FormHelperText,
-  InputLabel,
   LinearProgress,
   MenuItem,
   Stack,
@@ -644,27 +642,24 @@ export default function LabPage() {
         />
         <CardContent>
           <Stack spacing={2}>
-            <FormControl fullWidth>
-              <InputLabel id="lab-streaming-preset-label">{t("settingsPresets")}</InputLabel>
-              <TextField
-                select
-                labelId="lab-streaming-preset-label"
-                label={t("settingsPresets")}
-                value={selectedPresetId ?? ""}
-                onChange={(event) => setSelectedPresetId(event.target.value || null)}
-                helperText={
-                  presetOptions.length === 0
-                    ? t("pleaseAddStreamingPresetsInSettingsManageTranscriptionSettings")
-                    : undefined
-                }
-              >
-                {presetOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </FormControl>
+            <TextField
+              select
+              fullWidth
+              label={t("settingsPresets")}
+              value={selectedPresetId ?? ""}
+              onChange={(event) => setSelectedPresetId(event.target.value || null)}
+              helperText={
+                presetOptions.length === 0
+                  ? t("pleaseAddStreamingPresetsInSettingsManageTranscriptionSettings")
+                  : undefined
+              }
+            >
+              {presetOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
             <TextField
               label={t("settingsJson")}
