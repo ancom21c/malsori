@@ -1164,6 +1164,71 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Ready to start ({{seconds}}s)",
     ja: "開始する準備ができました ({{seconds}}s)",
   },
+  lab: {
+    ko: "실험실",
+    en: "Lab",
+    ja: "ラボ",
+  },
+  labRealtimeUploadTitle: {
+    ko: "실시간 STT 파일 업로드",
+    en: "Realtime STT file upload",
+    ja: "リアルタイムSTTファイルアップロード",
+  },
+  labRealtimeUploadDescription: {
+    ko: "오디오 파일을 실시간 STT API로 전송하고 응답을 확인합니다.",
+    en: "Send an audio file to the realtime STT API and watch the responses.",
+    ja: "音声ファイルをリアルタイム STT API に送り、応答を確認します。",
+  },
+  realtimeSimulationOption: {
+    ko: "realtime simulation (0.1~0.2초 전송)",
+    en: "Realtime simulation (0.1–0.2s pacing)",
+    ja: "リアルタイムシミュレーション（0.1〜0.2秒間隔）",
+  },
+  realtimeSimulationHelper: {
+    ko: "선택 시 오디오 길이에 맞춰 0.1~0.2초씩 지연해 전송합니다.",
+    en: "When enabled, chunks are throttled to match real time, sending only 0.1–0.2s of audio at a time.",
+    ja: "有効にすると、0.1〜0.2秒分の音声だけをリアルタイムに合わせて送信します。",
+  },
+  startRealtimeUpload: {
+    ko: "전송 시작",
+    en: "Start upload",
+    ja: "アップロード開始",
+  },
+  stopRealtimeUpload: {
+    ko: "전송 중단",
+    en: "Stop upload",
+    ja: "アップロード停止",
+  },
+  streamingUploadStatus: {
+    ko: "전송 상태",
+    en: "Upload status",
+    ja: "アップロード状態",
+  },
+  streamingUploadProgress: {
+    ko: "전송 진행률",
+    en: "Upload progress",
+    ja: "アップロード進行状況",
+  },
+  streamingResponse: {
+    ko: "실시간 응답",
+    en: "Realtime response",
+    ja: "リアルタイム応答",
+  },
+  recentPartialResult: {
+    ko: "현재 인식 중",
+    en: "Current partial",
+    ja: "現在の暫定結果",
+  },
+  noStreamingResultsYet: {
+    ko: "아직 수신된 실시간 결과가 없습니다.",
+    en: "No realtime results yet.",
+    ja: "まだリアルタイム結果がありません。",
+  },
+  duration: {
+    ko: "재생 시간",
+    en: "Duration",
+    ja: "再生時間",
+  },
   realTimeRecognition: {
     ko: "실시간 인식 중",
     en: "Real-time recognition",

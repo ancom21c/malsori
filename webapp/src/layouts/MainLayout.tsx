@@ -35,6 +35,7 @@ import { useI18n, useLocaleOptions } from "../i18n";
 import type { Locale } from "../i18n/translations";
 import TranslateIcon from "@mui/icons-material/Translate";
 import { CloudSyncStatus } from "../components/CloudSyncStatus";
+import ScienceIcon from "@mui/icons-material/Science";
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -75,6 +76,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
         label: t("realTimeTranscription"),
         path: "/realtime",
         icon: <GraphicEqIcon fontSize="small" />,
+      },
+      {
+        key: "lab",
+        label: t("lab"),
+        path: "/lab",
+        icon: <ScienceIcon fontSize="small" />,
       },
       {
         key: "history",

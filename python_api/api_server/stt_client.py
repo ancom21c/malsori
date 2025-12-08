@@ -10,7 +10,7 @@ import inspect
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
-import requests
+import httpx
 import websockets
 from websockets.client import WebSocketClientProtocol
 
@@ -36,8 +36,7 @@ class RTZRClient:
     """Thin wrapper for RTZR STT REST endpoints with token caching."""
 
     def __init__(self, settings: Settings):
-        self._session = requests.Session()
-        self._session.verify = settings.verify_ssl
+        self._session = httpx.Client(verify=settings.verify_ssl, http2=True)
         self._client_id = settings.pronaia_client_id or ""
         self._client_secret = settings.pronaia_client_secret or ""
         self._api_base = settings.pronaia_api_base.rstrip("/")

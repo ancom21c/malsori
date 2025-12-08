@@ -19,6 +19,7 @@ const RealtimeSessionPage = lazy(
   () => import("../pages/RealtimeSessionPage")
 );
 const HelpPage = lazy(() => import("../pages/HelpPage"));
+const LabPage = lazy(() => import("../pages/LabPage"));
 
 function Loader() {
   return (
@@ -49,6 +50,7 @@ export default function AppRouter() {
             />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/realtime" element={<RealtimeSessionPage />} />
+            <Route path="/lab" element={<LabPage />} />
             <Route path="/help" element={<HelpPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
