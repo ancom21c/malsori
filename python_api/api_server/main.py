@@ -33,6 +33,7 @@ from websockets.exceptions import (
     ConnectionClosedError,
     ConnectionClosedOK,
 )
+from google.protobuf import json_format
 
 from .config import (
     Settings,
@@ -49,6 +50,7 @@ from .models import (
     STTReturnObject,
 )
 from .stt_client import RTZRClient
+from .protos import vito_stt_client_pb2 as stt_pb2
 
 
 def _env_flag(name: str) -> bool:
@@ -692,6 +694,195 @@ async def download_transcription_audio(transcribe_id: str):
     )
 
 
+def _normalize_message_type(payload: Dict[str, Any]) -> str:
+    for key in ("type", "event", "state", "event_type"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped.lower()
+    return ""
+
+
+def _extract_decoder_config_from_start(
+    payload: Dict[str, Any]
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    config = data.get("decoder_config") or payload.get("decoder_config") or {}
+    if not isinstance(config, dict):
+        config = {}
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return config, metadata
+
+
+def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
+    payload = json_format.MessageToDict(
+        message, preserving_proto_field_name=True
+    )
+    event_value = message.speech_event_type
+    try:
+        event_name = stt_pb2.DecoderResponse.SpeechEventType.Name(event_value)
+    except ValueError:
+        event_name = f"UNKNOWN_{event_value}"
+        logger.debug("Unknown gRPC speech event type: %s", event_value)
+    payload.setdefault("event_type", event_name)
+
+    # Heuristic mapping so the web client can treat final/partial results consistently.
+    results = payload.get("results")
+    is_final_flag = None
+    first_text = None
+    if isinstance(results, list) and results:
+        first_result = results[0]
+        if isinstance(first_result, dict):
+            is_final_flag = first_result.get("is_final")
+            alternatives = first_result.get("alternatives")
+            if isinstance(alternatives, list) and alternatives:
+                first_alt = alternatives[0]
+                if isinstance(first_alt, dict):
+                    text_candidate = first_alt.get("text")
+                    if isinstance(text_candidate, str):
+                        first_text = text_candidate
+    result_type = None
+    if is_final_flag is True:
+        result_type = "final"
+    elif is_final_flag is False:
+        result_type = "partial"
+
+    if result_type:
+        payload["type"] = result_type
+        payload["is_final"] = is_final_flag
+        payload.setdefault("partial", not is_final_flag)
+    else:
+        payload.setdefault("type", str(event_name).lower())
+    if first_text and "text" not in payload:
+        payload["text"] = first_text
+    return payload
+
+
+async def _handle_onprem_streaming(
+    websocket: WebSocket, client: RTZRClient, settings: Settings
+) -> None:
+    """Bridge client websocket messages to the on-prem gRPC streaming API."""
+    try:
+        first = await websocket.receive()
+    except WebSocketDisconnect:
+        return
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("온프렘 스트리밍 start 수신 실패", exc_info=exc)
+        await websocket.close(code=1011, reason="Invalid start message")
+        return
+
+    start_text = first.get("text")
+    if not start_text:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Missing start message."}))
+        await websocket.close(code=1007, reason="Missing start message")
+        return
+
+    try:
+        start_payload = json.loads(start_text)
+    except json.JSONDecodeError:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Invalid start payload."}))
+        await websocket.close(code=1007, reason="Invalid start payload")
+        return
+
+    if not isinstance(start_payload, dict):
+        await websocket.send_text(json.dumps({"type": "error", "message": "Invalid start payload."}))
+        await websocket.close(code=1007, reason="Invalid start payload")
+        return
+
+    msg_type = _normalize_message_type(start_payload)
+    if msg_type and msg_type not in {"start", "session", "start_request"}:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Start message is required first."}))
+        await websocket.close(code=1007, reason="Start message required")
+        return
+
+    decoder_config, metadata = _extract_decoder_config_from_start(start_payload)
+
+    try:
+        grpc_session = await client.connect_grpc_streaming(
+            config=decoder_config,
+            metadata=metadata,
+        )
+    except Exception as exc:  # pragma: no cover - upstream failures
+        logger.exception(
+            "온프렘 gRPC 스트리밍 연결 실패 (api_base=%s)",
+            settings.pronaia_api_base,
+            exc_info=exc,
+        )
+        await websocket.send_text(
+            json.dumps({"type": "error", "message": "Failed to connect upstream gRPC streaming session."})
+        )
+        await websocket.close(code=1011, reason="Upstream gRPC connection failed")
+        return
+
+    # Signal handshake ready to the browser client.
+    await websocket.send_text(json.dumps({"type": "ready"}))
+
+    async def relay_client_to_grpc():
+        try:
+            while True:
+                message = await websocket.receive()
+                if message.get("type") == "websocket.disconnect":
+                    break
+                binary = message.get("bytes")
+                if binary is not None:
+                    await grpc_session.send_audio(bytes(binary))
+                    continue
+                text = message.get("text")
+                if text is None:
+                    continue
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(parsed, dict):
+                    continue
+                parsed_type = _normalize_message_type(parsed)
+                if parsed_type in {"final", "stop", "eos"}:
+                    await grpc_session.finish()
+                    break
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("온프렘 스트리밍 client->grpc 오류", exc_info=exc)
+            raise
+
+    async def relay_grpc_to_client():
+        try:
+            while True:
+                response = await grpc_session.recv()
+                if response is None:
+                    break
+                await websocket.send_text(
+                    json.dumps(_grpc_response_payload(response), ensure_ascii=False)
+                )
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("온프렘 스트리밍 grpc->client 오류", exc_info=exc)
+            raise
+
+    tasks = [
+        asyncio.create_task(relay_client_to_grpc()),
+        asyncio.create_task(relay_grpc_to_client()),
+    ]
+
+    try:
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        for task in done:
+            with contextlib.suppress(asyncio.CancelledError):
+                task.result()
+    finally:
+        with contextlib.suppress(Exception):
+            await grpc_session.close()
+        with contextlib.suppress(Exception):
+            await websocket.close()
+
+
 @app.websocket("/v1/streaming")
 async def streaming_proxy(websocket: WebSocket):
     try:
@@ -706,10 +897,22 @@ async def streaming_proxy(websocket: WebSocket):
 
     await websocket.accept()
 
+    if settings.deployment == "onprem":
+        await _handle_onprem_streaming(websocket, client, settings)
+        return
+
+    streaming_url = None
     try:
+        streaming_url = client.get_streaming_url()
         upstream = await client.connect_streaming()
     except Exception as exc:  # pragma: no cover - upstream connection failure
-        logger.exception("실시간 스트리밍 upstream 연결 실패", exc_info=exc)
+        logger.exception(
+            "실시간 스트리밍 upstream 연결 실패 (deployment=%s, api_base=%s, streaming_url=%s)",
+            settings.deployment,
+            settings.pronaia_api_base,
+            streaming_url or "unknown",
+            exc_info=exc,
+        )
         await websocket.send_text(
             json.dumps({"type": "error", "message": "Failed to connect upstream streaming session."})
         )

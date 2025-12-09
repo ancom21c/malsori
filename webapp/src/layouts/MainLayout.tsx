@@ -216,10 +216,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
             MalSori
           </Typography>
 
-          // ... (existing imports)
-
-          // ... (inside MainLayout component)
-
           {canInstall ? (
             <Tooltip title={t("installMalsoriAsAnApp")}>
               <Button
