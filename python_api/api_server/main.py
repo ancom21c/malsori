@@ -758,6 +758,28 @@ def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
         payload.setdefault("type", str(event_name).lower())
     if first_text and "text" not in payload:
         payload["text"] = first_text
+    # Preserve a raw word-level concatenation so downstream can show both ITN text and
+    # timing-aligned tokens (which may be non-ITN).
+    if isinstance(results, list) and results:
+        words_text_fragments: list[str] = []
+        first_result = results[0]
+        if isinstance(first_result, dict):
+            alternatives = first_result.get("alternatives")
+            if isinstance(alternatives, list):
+                for alt in alternatives:
+                    if not isinstance(alt, dict):
+                        continue
+                    words = alt.get("words")
+                    if not isinstance(words, list):
+                        continue
+                    for word in words:
+                        if isinstance(word, dict):
+                            text_val = word.get("text")
+                            if isinstance(text_val, str) and text_val.strip():
+                                words_text_fragments.append(text_val.strip())
+        if words_text_fragments:
+            joined = " ".join(words_text_fragments)
+            payload.setdefault("raw_text", joined)
     return payload
 
 

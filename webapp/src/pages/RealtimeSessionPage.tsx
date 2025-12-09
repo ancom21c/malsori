@@ -69,6 +69,7 @@ type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused"
 type RealtimeSegment = {
   id: string;
   text: string;
+  rawText?: string;
   startMs: number;
   endMs: number;
   isFinal: boolean;
@@ -161,6 +162,7 @@ const RUNTIME_SETTING_FIELDS: Array<{
 
 type NormalizedRealtimeSegmentPayload = {
   text: string;
+  rawText?: string;
   startMs?: number;
   endMs?: number;
   spk?: string;
@@ -348,9 +350,13 @@ function normalizeRealtimeSegmentPayload(payload: unknown): NormalizedRealtimeSe
   const speakerLabel = pickFirstString(candidateRecords, ["speaker_label", "speaker_name"]);
   const language = pickFirstString(candidateRecords, ["language", "lang"]);
   const words = collectWordTimings(candidateRecords);
+  const rawText =
+    pickFirstString(candidateRecords, ["raw_text", "rawText"]) ||
+    (words ? words.map((word) => word.text).join(" ") : undefined);
 
   return {
     text,
+    rawText,
     startMs: normalizedStart,
     endMs: normalizedEnd,
     spk,
@@ -872,6 +878,7 @@ export default function RealtimeSessionPage() {
       id,
       segmentsRef.current.map((segment) => ({
         text: segment.text,
+        rawText: segment.rawText,
         startMs: segment.startMs,
         endMs: segment.endMs,
         isFinal: segment.isFinal,
@@ -954,6 +961,7 @@ export default function RealtimeSessionPage() {
       const segment: RealtimeSegment = {
         id: `${Date.now()}-${segmentsRef.current.length}`,
         text: normalized.text,
+        rawText: normalized.rawText,
         startMs,
         endMs,
         isFinal: true,

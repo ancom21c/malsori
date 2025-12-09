@@ -51,6 +51,7 @@ export interface LocalSegment {
   startMs: number;
   endMs: number;
   text: string;
+  rawText?: string;
   correctedText?: string;
   isPartial?: boolean;
   isFinal?: boolean;

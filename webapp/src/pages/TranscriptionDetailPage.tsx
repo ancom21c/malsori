@@ -1697,6 +1697,11 @@ export default function TranscriptionDetailPage() {
                         <Typography variant="caption" color="text.secondary">
                           {t("text")}: {segment.text}
                         </Typography>
+                        {segment.rawText && segment.rawText !== segment.text ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {t("raw")}: {segment.rawText}
+                          </Typography>
+                        ) : null}
                         <Stack direction="row" spacing={1} justifyContent="flex-end">
                           <Button onClick={handleCancelEdit} disabled={savingEdit}>
                             {t("cancellation")}
@@ -1719,12 +1724,18 @@ export default function TranscriptionDetailPage() {
                     >
                       {showWordHighlight ? (
                         <Stack spacing={hasCorrection ? 0.75 : 0.5}>
+                          <Typography variant="body1">{displayText}</Typography>
                           {hasCorrection ? (
                             <Typography variant="body1">{segment.correctedText}</Typography>
                           ) : null}
                           {hasCorrection ? (
                             <Typography variant="caption" color="text.secondary">
                               {t("text")}
+                            </Typography>
+                          ) : null}
+                          {segment.rawText && segment.rawText !== displayText ? (
+                            <Typography variant="caption" color="text.secondary">
+                              {t("raw")}: {segment.rawText}
                             </Typography>
                           ) : null}
                           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
@@ -1771,6 +1782,11 @@ export default function TranscriptionDetailPage() {
                           {hasCorrection ? (
                             <Typography variant="caption" color="text.secondary">
                               원본: {segment.text}
+                            </Typography>
+                          ) : null}
+                          {segment.rawText && segment.rawText !== displayText ? (
+                            <Typography variant="caption" color="text.secondary">
+                              {t("raw")}: {segment.rawText}
                             </Typography>
                           ) : null}
                         </>
