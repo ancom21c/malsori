@@ -394,7 +394,7 @@ export default function LabPage() {
 
   const handleStreamingMessage = (event: MessageEvent) => {
     if (!event.data) return;
-    let payload: unknown = event.data;
+    let payload: unknown;
     try {
       payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
     } catch {

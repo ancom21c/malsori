@@ -90,7 +90,7 @@ export class SyncManager {
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const localRecords = await appDb.transcriptions
             .where("isCloudSynced")
-            .equals(true as any)
+            .equals(true)
             .toArray();
 
         for (const record of localRecords) {

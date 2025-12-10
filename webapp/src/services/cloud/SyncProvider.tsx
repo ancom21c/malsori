@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useGoogleAuth } from "../auth/GoogleAuthProvider";
 import { GoogleDriveService } from "./googleDriveService";
 import { SyncManager } from "./syncManager";
@@ -12,14 +12,6 @@ interface SyncContextType {
 
 const SyncContext = createContext<SyncContextType | null>(null);
 
-export function useSync() {
-    const context = useContext(SyncContext);
-    if (!context) {
-        throw new Error("useSync must be used within a SyncProvider");
-    }
-    return context;
-}
-
 import { ConflictResolutionDialog } from "../../components/ConflictResolutionDialog";
 import { appDb } from "../../data/app-db";
 
@@ -31,6 +23,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
     const [pendingSyncManager, setPendingSyncManager] = useState<SyncManager | null>(null);
     const syncIntervalRef = useRef<number | null>(null);
+    const isSyncingRef = useRef(false);
 
     useEffect(() => {
         const initSync = async () => {
@@ -93,9 +86,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         signOut(); // Disconnect the conflicting account
     };
 
-    const syncNow = async () => {
-        if (!syncManager || isSyncing) return;
+    const syncNow = useCallback(async () => {
+        if (!syncManager || isSyncingRef.current) return;
 
+        isSyncingRef.current = true;
         setIsSyncing(true);
         try {
             await syncManager.pullUpdates();
@@ -105,8 +99,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             console.error("Sync failed:", error);
         } finally {
             setIsSyncing(false);
+            isSyncingRef.current = false;
         }
-    };
+    }, [syncManager]);
 
     // Auto-sync loop
     useEffect(() => {
@@ -126,7 +121,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 syncIntervalRef.current = null;
             }
         };
-    }, [syncManager]);
+    }, [syncManager, syncNow]);
 
     return (
         <SyncContext.Provider value={{ syncManager, isSyncing, lastSyncedAt, syncNow }}>
@@ -139,4 +134,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             />
         </SyncContext.Provider>
     );
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useSync() {
+    const context = useContext(SyncContext);
+    if (!context) {
+        throw new Error("useSync must be used within a SyncProvider");
+    }
+    return context;
 }

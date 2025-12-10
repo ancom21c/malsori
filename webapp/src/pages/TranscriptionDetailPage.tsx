@@ -192,6 +192,20 @@ function segmentHasTiming(segment: LocalSegment): boolean {
   );
 }
 
+function computeNextSpeakerId(segments: LocalSegment[] | undefined): string {
+  if (!segments || segments.length === 0) {
+    return "1";
+  }
+  const maxNumericId = segments.reduce((max, segment) => {
+    const parsed = Number.parseInt(segment.spk ?? "0", 10);
+    if (Number.isFinite(parsed) && parsed > max) {
+      return parsed;
+    }
+    return max;
+  }, 0);
+  return String(maxNumericId + 1);
+}
+
 const WORD_TIMING_RELATIVE_TOLERANCE_MS = 250;
 const SEGMENT_MATCH_TOLERANCE_MS = 200;
 
@@ -443,14 +457,15 @@ export default function TranscriptionDetailPage() {
   const handleSpeakerUpdateSingle = useCallback(async () => {
     if (!speakerEditTarget) return;
     try {
-      await updateSingleSegmentSpeakerLabel(speakerEditTarget.segmentId, speakerEditName);
+      const nextSpkId = computeNextSpeakerId(segments);
+      await updateSingleSegmentSpeakerLabel(speakerEditTarget.segmentId, speakerEditName, nextSpkId);
       enqueueSnackbar(t("speakerUpdateSuccess"), { variant: "success" });
       handleSpeakerEditClose();
     } catch (error) {
       console.error("Failed to update speaker", error);
       enqueueSnackbar(t("failedToSaveCorrections"), { variant: "error" });
     }
-  }, [speakerEditTarget, speakerEditName, enqueueSnackbar, t, handleSpeakerEditClose]);
+  }, [speakerEditTarget, speakerEditName, segments, enqueueSnackbar, t, handleSpeakerEditClose]);
 
   const handleNavigateBack = useCallback(() => {
     const fromList = Boolean((location.state as { fromList?: boolean } | null)?.fromList);

@@ -866,7 +866,7 @@ async def _handle_onprem_streaming(
                     await grpc_session.finish()
                     break
         except WebSocketDisconnect:
-            pass
+            logger.info("온프렘 스트리밍: 브라우저 연결 종료 (client->grpc)")
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("온프렘 스트리밍 client->grpc 오류", exc_info=exc)
             raise
@@ -881,7 +881,7 @@ async def _handle_onprem_streaming(
                     json.dumps(_grpc_response_payload(response), ensure_ascii=False)
                 )
         except WebSocketDisconnect:
-            pass
+            logger.info("온프렘 스트리밍: 브라우저 연결 종료 (grpc->client)")
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("온프렘 스트리밍 grpc->client 오류", exc_info=exc)
             raise

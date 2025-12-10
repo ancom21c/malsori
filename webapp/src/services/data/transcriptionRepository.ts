@@ -254,10 +254,14 @@ export async function updateSegmentSpeakerLabel(
   });
 }
 
-export async function updateSingleSegmentSpeakerLabel(segmentId: string, newLabel: string) {
+export async function updateSingleSegmentSpeakerLabel(
+  segmentId: string,
+  newLabel: string,
+  newSpkId: string
+) {
   const normalizedNewLabel = newLabel.trim();
   if (!normalizedNewLabel) return;
-  await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel });
+  await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
 }
 
 export async function appendAudioChunk(params: {
