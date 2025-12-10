@@ -7,7 +7,6 @@ import contextlib
 import json
 import logging
 import time
-from threading import Lock
 import inspect
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlparse
@@ -139,7 +138,7 @@ class RTZRClient:
     """Thin wrapper for RTZR STT REST endpoints with token caching."""
 
     def __init__(self, settings: Settings):
-        self._session = httpx.Client(verify=settings.verify_ssl, http2=True)
+        self._session = httpx.AsyncClient(verify=settings.verify_ssl, http2=True)
         self._client_id = settings.pronaia_client_id or ""
         self._client_secret = settings.pronaia_client_secret or ""
         self._api_base = settings.pronaia_api_base.rstrip("/")
@@ -150,19 +149,19 @@ class RTZRClient:
         self._streaming_path = settings.streaming_path
         self._auth_enabled = settings.auth_enabled
         self._verify_ssl = settings.verify_ssl
-        self._lock = Lock()
+        self._token_lock = asyncio.Lock()
 
         self._access_token: Optional[str] = None
         self._token_expiry: float = 0.0
 
-    def _refresh_token(self) -> None:
+    async def _refresh_token(self) -> None:
         """Obtain a fresh access token from the authentication endpoint."""
         if not self._auth_enabled:
             raise RuntimeError(
                 "Attempted to refresh token while authentication is disabled."
             )
         logger.debug("Refreshing RTZR access token.")
-        resp = self._session.post(
+        resp = await self._session.post(
             f"{self._api_base}/v1/authenticate",
             data={"client_id": self._client_id, "client_secret": self._client_secret},
             timeout=30,
@@ -197,7 +196,7 @@ class RTZRClient:
         self._access_token = access_token
         self._token_expiry = expiry
 
-    def _ensure_token(self) -> str:
+    async def _ensure_token(self) -> str:
         """Return a valid access token, refreshing if needed."""
         if self._manual_token:
             return self._manual_token
@@ -209,16 +208,16 @@ class RTZRClient:
         if self._access_token and now < self._token_expiry - 5:
             return self._access_token
 
-        with self._lock:
+        async with self._token_lock:
             now = time.time()
             if self._access_token and now < self._token_expiry - 5:
                 return self._access_token
-            self._refresh_token()
+            await self._refresh_token()
             if not self._access_token:
                 raise RuntimeError("Unable to obtain RTZR access token.")
             return self._access_token
 
-    def _resolve_access_token(self) -> Optional[str]:
+    async def _resolve_access_token(self) -> Optional[str]:
         """Return a usable access token if credentials or manual token are configured."""
         if self._deployment == "onprem":
             return self._manual_token or None
@@ -226,7 +225,7 @@ class RTZRClient:
             return self._manual_token
         if not self._auth_enabled:
             return None
-        return self._ensure_token()
+        return await self._ensure_token()
 
     def _grpc_target(self) -> tuple[str, bool]:
         """Return target host:port and whether TLS should be used."""
@@ -379,7 +378,7 @@ class RTZRClient:
     ) -> GrpcStreamingSession:
         """Establish an upstream gRPC streaming session."""
         target, use_tls = self._grpc_target()
-        token = self._resolve_access_token()
+        token = await self._resolve_access_token()
         meta: Dict[str, str] = dict(metadata or {})
         if token:
             meta.setdefault("authorization", f"bearer {token}")
@@ -394,7 +393,7 @@ class RTZRClient:
         await session.start(decoder_config)
         return session
 
-    def submit_transcription(
+    async def submit_transcription(
         self,
         audio_bytes: bytes,
         config: Optional[Dict[str, Any]] = None,
@@ -402,7 +401,7 @@ class RTZRClient:
     ) -> Dict[str, Any]:
         """Submit an audio file for transcription and return the raw response payload."""
         headers: Dict[str, str] = {}
-        token = self._resolve_access_token()
+        token = await self._resolve_access_token()
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
@@ -410,7 +409,7 @@ class RTZRClient:
         if title:
             data["title"] = title
         files = {"file": ("audio.wav", audio_bytes)}
-        resp = self._session.post(
+        resp = await self._session.post(
             self._build_url(self._transcribe_path),
             headers=headers,
             data=data,
@@ -426,14 +425,14 @@ class RTZRClient:
             payload["transcribe_id"] = job_id
         return payload
 
-    def get_transcription(self, job_id: str) -> Dict[str, Any]:
+    async def get_transcription(self, job_id: str) -> Dict[str, Any]:
         """Fetch the current status for a transcription job."""
         headers: Dict[str, str] = {}
-        token = self._resolve_access_token()
+        token = await self._resolve_access_token()
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        resp = self._session.get(
+        resp = await self._session.get(
             self._build_url(self._transcribe_status_path.format(transcribe_id=job_id)),
             headers=headers,
             timeout=30,
@@ -488,7 +487,7 @@ class RTZRClient:
     ) -> WebSocketClientProtocol:
         """Establish an upstream streaming WebSocket connection."""
         url = self.get_streaming_url(config=config)
-        token = self._resolve_access_token()
+        token = await self._resolve_access_token()
         headers: Dict[str, str] = {}
         if token:
             headers["Authorization"] = f"bearer {token}"
@@ -509,3 +508,7 @@ class RTZRClient:
             url,
             **connect_kwargs,
         )
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._session.aclose()

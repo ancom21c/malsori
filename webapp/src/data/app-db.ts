@@ -194,16 +194,30 @@ class AppDatabase extends Dexie {
         searchIndexes: "transcriptionId",
       })
       .upgrade(async (transaction) => {
+        const speakerMap = new Map<string, string>();
+        let nextSpkId = 1;
+
         await transaction
           .table("segments")
           .toCollection()
           .modify((segment) => {
             const oldSpeaker = (segment as { speaker?: string }).speaker;
-            if (oldSpeaker !== undefined) {
-              (segment as LocalSegment).speaker_label = oldSpeaker;
-              (segment as LocalSegment).spk = "0";
-              delete (segment as { speaker?: string }).speaker;
+            if (oldSpeaker === undefined) {
+              return;
             }
+
+            const transcriptionId = (segment as LocalSegment).transcriptionId;
+            const mapKey = `${transcriptionId || "unknown"}::${oldSpeaker}`;
+
+            let spkId = speakerMap.get(mapKey);
+            if (!spkId) {
+              spkId = String(nextSpkId++);
+              speakerMap.set(mapKey, spkId);
+            }
+
+            (segment as LocalSegment).speaker_label = oldSpeaker;
+            (segment as LocalSegment).spk = spkId;
+            delete (segment as { speaker?: string }).speaker;
           });
       });
 

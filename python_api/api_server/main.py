@@ -490,9 +490,7 @@ async def _poll_until_complete(
     deadline = asyncio.get_running_loop().time() + settings.poll_timeout_seconds
 
     while True:
-        result: Dict[str, Any] = await asyncio.to_thread(
-            client.get_transcription, transcribe_id
-        )
+        result: Dict[str, Any] = await client.get_transcription(transcribe_id)
         status = result.get("status")
         if status in {"completed", "failed"}:
             return result
@@ -623,8 +621,7 @@ async def proxy_transcribe(
         config_payload = {}
 
     try:
-        upstream_response = await asyncio.to_thread(
-            client.submit_transcription,
+        upstream_response = await client.submit_transcription(
             file_bytes,
             config_payload,
             title,
@@ -652,10 +649,7 @@ async def proxy_transcription_status(transcribe_id: str):
     client = _get_client(settings)
 
     try:
-        status_payload = await asyncio.to_thread(
-            client.get_transcription,
-            transcribe_id,
-        )
+        status_payload = await client.get_transcription(transcribe_id)
     except Exception as exc:  # pragma: no cover - upstream failure
         logger.exception("전사 상태 조회 프록시 오류 (%s)", transcribe_id, exc_info=exc)
         raise HTTPException(
@@ -717,19 +711,15 @@ def _extract_decoder_config_from_start(
     return config, metadata
 
 
-def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
-    payload = json_format.MessageToDict(
-        message, preserving_proto_field_name=True
-    )
-    event_value = message.speech_event_type
+def _speech_event_name(event_value: int) -> str:
     try:
-        event_name = stt_pb2.DecoderResponse.SpeechEventType.Name(event_value)
+        return stt_pb2.DecoderResponse.SpeechEventType.Name(event_value)
     except ValueError:
-        event_name = f"UNKNOWN_{event_value}"
         logger.debug("Unknown gRPC speech event type: %s", event_value)
-    payload.setdefault("event_type", event_name)
+        return f"UNKNOWN_{event_value}"
 
-    # Heuristic mapping so the web client can treat final/partial results consistently.
+
+def _infer_result_flags(payload: Dict[str, Any]) -> tuple[Optional[bool], Optional[str]]:
     results = payload.get("results")
     is_final_flag = None
     first_text = None
@@ -744,6 +734,15 @@ def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
                     text_candidate = first_alt.get("text")
                     if isinstance(text_candidate, str):
                         first_text = text_candidate
+    return is_final_flag, first_text
+
+
+def _apply_result_annotations(
+    payload: Dict[str, Any],
+    is_final_flag: Optional[bool],
+    event_name: str,
+    first_text: Optional[str],
+) -> None:
     result_type = None
     if is_final_flag is True:
         result_type = "final"
@@ -756,8 +755,22 @@ def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
         payload.setdefault("partial", not is_final_flag)
     else:
         payload.setdefault("type", str(event_name).lower())
+
     if first_text and "text" not in payload:
         payload["text"] = first_text
+
+
+def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
+    payload = json_format.MessageToDict(
+        message, preserving_proto_field_name=True
+    )
+    event_name = _speech_event_name(message.speech_event_type)
+    payload.setdefault("event_type", event_name)
+
+    is_final_flag, first_text = _infer_result_flags(payload)
+    _apply_result_annotations(payload, is_final_flag, event_name, first_text)
+
+    results = payload.get("results")
     # Preserve a raw word-level concatenation so downstream can show both ITN text and
     # timing-aligned tokens (which may be non-ITN).
     if isinstance(results, list) and results:
@@ -1045,9 +1058,7 @@ async def stt_api(payload: STTRequest) -> STTResponse:
     config["language"] = payload.argument.language_code
 
     try:
-        submission = await asyncio.to_thread(
-            client.submit_transcription, audio_bytes, config, None
-        )
+        submission = await client.submit_transcription(audio_bytes, config, None)
     except Exception as exc:  # pragma: no cover - network/SDK failure paths
         return _build_failure_response(f"Failed to submit transcription job: {exc}")
 
