@@ -89,8 +89,7 @@ export class SyncManager {
     async pushUpdates() {
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const localRecords = await appDb.transcriptions
-            .where("isCloudSynced")
-            .equals(true)
+            .filter((record) => record.isCloudSynced === true)
             .toArray();
 
         for (const record of localRecords) {

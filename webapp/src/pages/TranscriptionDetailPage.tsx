@@ -422,6 +422,19 @@ export default function TranscriptionDetailPage() {
   } | null>(null);
   const [speakerEditName, setSpeakerEditName] = useState("");
 
+  const transcription = useLiveQuery(async () => {
+    if (!transcriptionId) return null;
+    return await appDb.transcriptions.get(transcriptionId);
+  }, [transcriptionId]);
+
+  const segments = useLiveQuery(async () => {
+    if (!transcriptionId) return [];
+    return await appDb.segments
+      .where("transcriptionId")
+      .equals(transcriptionId)
+      .sortBy("startMs");
+  }, [transcriptionId]);
+
   const handleSpeakerClick = useCallback((segment: LocalSegment) => {
     setSpeakerEditTarget({
       segmentId: segment.id,
@@ -488,19 +501,6 @@ export default function TranscriptionDetailPage() {
   const handleShareDialogClose = useCallback(() => {
     setShareDialogOpen(false);
   }, []);
-
-  const transcription = useLiveQuery(async () => {
-    if (!transcriptionId) return null;
-    return await appDb.transcriptions.get(transcriptionId);
-  }, [transcriptionId]);
-
-  const segments = useLiveQuery(async () => {
-    if (!transcriptionId) return [];
-    return await appDb.segments
-      .where("transcriptionId")
-      .equals(transcriptionId)
-      .sortBy("startMs");
-  }, [transcriptionId]);
 
   const noteModeText = useMemo(() => {
     const aggregated = aggregateSegmentText(segments, true);
