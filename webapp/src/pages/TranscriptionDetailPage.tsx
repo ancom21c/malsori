@@ -392,6 +392,7 @@ export default function TranscriptionDetailPage() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [audioTranscoding, setAudioTranscoding] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [wordDetailsVisibility, setWordDetailsVisibility] = useState<Record<string, boolean>>({});
   const userToggledAudioRef = useRef(false);
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
@@ -524,8 +525,28 @@ export default function TranscriptionDetailPage() {
     element.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeSegmentId]);
 
+  const isWordDetailsVisible = useCallback(
+    (segmentId: string) => Boolean(wordDetailsVisibility[segmentId]),
+    [wordDetailsVisibility]
+  );
+
+  useEffect(() => {
+    const current = activeWordHighlightRef.current;
+    if (current && !isWordDetailsVisible(current.segmentId)) {
+      setActiveWordHighlight(null);
+      activeWordHighlightRef.current = null;
+    }
+  }, [isWordDetailsVisible]);
+
   const updateActiveWordHighlight = useCallback(
     (segmentId: string, currentSeconds: number) => {
+      if (!isWordDetailsVisible(segmentId)) {
+        if (activeWordHighlightRef.current !== null) {
+          setActiveWordHighlight(null);
+          activeWordHighlightRef.current = null;
+        }
+        return;
+      }
       const segment = segmentsRef.current.find((entry) => entry.id === segmentId);
       if (!segment || !segment.words || segment.words.length === 0) {
         if (activeWordHighlightRef.current !== null) {
@@ -550,7 +571,7 @@ export default function TranscriptionDetailPage() {
         activeWordHighlightRef.current = nextHighlight;
       }
     },
-    []
+    [isWordDetailsVisible]
   );
 
   const handleSegmentCardRef = useCallback((segmentId: string, node: HTMLDivElement | null) => {
@@ -1188,12 +1209,21 @@ export default function TranscriptionDetailPage() {
         enqueueSnackbar(t("theAudioIsNotReadyYet"), { variant: "info" });
         return;
       }
+      const media = mediaElementRef.current;
+      if (!media) return;
+      const currentActiveId = activeSegmentIdRef.current;
+      if (currentActiveId === segment.id && !media.paused) {
+        media.pause();
+        segmentEndRef.current = null;
+        setActiveSegmentId(null);
+        setActiveWordHighlight(null);
+        activeWordHighlightRef.current = null;
+        return;
+      }
       if (!segmentHasTiming(segment)) {
         enqueueSnackbar(t("itCannotBePlayedBecauseThereIsNoSectionInformation"), { variant: "info" });
         return;
       }
-      const media = mediaElementRef.current;
-      if (!media) return;
 
       const startMs = getSegmentStartMs(segment);
       if (startMs === null) {
@@ -1582,9 +1612,14 @@ export default function TranscriptionDetailPage() {
               : t("noTimeInformation");
             const playDisabled = !audioReady || !hasTimingInfo;
             const isActiveSegment = activeSegmentId === segment.id;
-            const showWordHighlight = !isEditing && Boolean(segment.words && segment.words.length > 0);
+            const showWordHighlight =
+              isWordDetailsVisible(segment.id) &&
+              !isEditing &&
+              Boolean(segment.words && segment.words.length > 0);
             const activeWordIndex =
-              activeWordHighlight?.segmentId === segment.id ? activeWordHighlight.index : null;
+              isWordDetailsVisible(segment.id) && activeWordHighlight?.segmentId === segment.id
+                ? activeWordHighlight.index
+                : null;
             const hasEditableWords =
               Boolean(
                 editingWordInputs &&
@@ -1631,6 +1666,32 @@ export default function TranscriptionDetailPage() {
                     >
                       {isActiveSegment ? t("playing") : <PlayArrowIcon fontSize="small" />}
                     </Button>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          size="small"
+                          checked={isWordDetailsVisible(segment.id)}
+                          onChange={() => {
+                            setWordDetailsVisibility((prev) => {
+                              const nextVisible = !(prev[segment.id] ?? false);
+                              if (
+                                !nextVisible &&
+                                activeWordHighlightRef.current?.segmentId === segment.id
+                              ) {
+                                setActiveWordHighlight(null);
+                                activeWordHighlightRef.current = null;
+                              }
+                              return {
+                                ...prev,
+                                [segment.id]: nextVisible,
+                              };
+                            });
+                          }}
+                        />
+                      }
+                      label={t("showWordDetails")}
+                      sx={{ ml: "auto" }}
+                    />
                   </Stack>
                   <Divider sx={{ mb: 1 }} />
                   {isEditing ? (

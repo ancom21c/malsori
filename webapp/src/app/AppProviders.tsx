@@ -30,7 +30,11 @@ export function AppProviders({ children }: AppProvidersProps) {
     <I18nProvider>
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
-        <SnackbarProvider maxSnack={3} autoHideDuration={4000}>
+        <SnackbarProvider
+          maxSnack={3}
+          autoHideDuration={4000}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
           <QueryClientProvider client={queryClient}>
             <ApiClientProvider>
               <GoogleAuthProvider>

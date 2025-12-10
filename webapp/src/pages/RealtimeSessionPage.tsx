@@ -492,12 +492,20 @@ export default function RealtimeSessionPage() {
 
   sessionStateRef.current = sessionState;
 
+  const sessionActive =
+    sessionState === "recording" ||
+    sessionState === "paused" ||
+    sessionState === "connecting" ||
+    sessionState === "countdown" ||
+    sessionState === "stopping" ||
+    sessionState === "saving";
+
   useEffect(() => {
-    setFloatingActionsVisible(true);
+    setFloatingActionsVisible(!sessionActive);
     return () => {
       setFloatingActionsVisible(true);
     };
-  }, [setFloatingActionsVisible]);
+  }, [sessionActive, setFloatingActionsVisible]);
 
   const clearCountdown = () => {
     if (countdownTimerRef.current !== null) {
@@ -1511,6 +1519,8 @@ export default function RealtimeSessionPage() {
     setCameraFacingMode((prev) => (prev === "user" ? "environment" : "user"));
   };
 
+  const showVideoSection = cameraEnabled || cameraLoading;
+
   return (
     <>
       <Box
@@ -1523,235 +1533,280 @@ export default function RealtimeSessionPage() {
           bgcolor: "background.default",
         }}
       >
-        {/* Fixed Video Section */}
-        <Box sx={{ flex: "0 0 auto", p: 2, pb: 0, display: "flex", flexDirection: "column", gap: 2, zIndex: 1 }}>
-          <Card>
-            <CardHeader
-              title={t("sessionVideoCapture")}
-              subheader={t("recordVideoAlongsideRealTimeTranscription")}
-              action={
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    size="small"
-                    variant={cameraEnabled ? "outlined" : "contained"}
-                    startIcon={cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
-                    onClick={handleToggleCamera}
-                    disabled={cameraLoading || !cameraSupported}
-                  >
-                    {cameraEnabled ? t("disableCamera") : t("enableCamera")}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="text"
-                    startIcon={<CameraswitchRoundedIcon />}
-                    onClick={handleSwitchCamera}
-                    disabled={!cameraEnabled || cameraLoading}
-                  >
-                    {cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
-                  </Button>
-                </Stack>
-              }
-            />
-            <Collapse in={cameraEnabled || cameraLoading}>
-              <CardContent>
-                <Stack spacing={2}>
-                  {!cameraSupported && (
-                    <Alert severity="info">{t("cameraNotSupported")}</Alert>
-                  )}
-                  {cameraError && <Alert severity="error">{cameraError}</Alert>}
-                  <Box
-                    sx={{
-                      position: "relative",
-                      borderRadius: 2,
-                      overflow: "hidden",
-                      border: 1,
-                      borderColor: "divider",
-                      aspectRatio: "16 / 9",
-                      backgroundColor: (theme) => theme.palette.grey[900],
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        inset: 0,
-                        display: cameraEnabled ? "none" : "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "text.secondary",
-                        textAlign: "center",
-                        p: 2,
-                        backgroundColor: (theme) => theme.palette.action.hover,
-                      }}
-                    >
-                      <Typography variant="body2">{t("cameraPreview")}</Typography>
-                    </Box>
-                    <Box
-                      component="video"
-                      ref={cameraPreviewRef}
-                      muted
-                      playsInline
-                      autoPlay
-                      sx={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: cameraEnabled ? "block" : "none",
-                      }}
-                    />
-                    {cameraRecording && (
-                      <Chip
-                        size="small"
-                        color="error"
-                        icon={<FiberManualRecordRoundedIcon fontSize="small" />}
-                        label={t("cameraRecording")}
-                        sx={{
-                          position: "absolute",
-                          top: 16,
-                          left: 16,
-                          bgcolor: "rgba(211, 47, 47, 0.85)",
-                          color: "common.white",
-                        }}
-                      />
-                    )}
-                    {cameraLoading && (
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          inset: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          bgcolor: "rgba(0,0,0,0.4)",
-                        }}
-                      >
-                        <CircularProgress color="inherit" />
-                      </Box>
-                    )}
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {t("cameraRecordingSavedWithSession")}
-                  </Typography>
-                </Stack>
-              </CardContent>
-            </Collapse>
-          </Card>
-        </Box>
-
-        {/* Scrollable Transcript Section */}
         <Box
           sx={{
-            flex: "1 1 auto",
-            overflowY: "auto",
-            p: 2,
+            position: "fixed",
+            top: "calc(12px + env(safe-area-inset-top))",
+            right: { xs: 12, sm: 16 },
+            zIndex: (theme) => theme.zIndex.modal + 3,
             display: "flex",
-            flexDirection: "column",
-            gap: 2,
-            // Add padding at bottom for floating buttons + safe area
-            pb: "calc(100px + env(safe-area-inset-bottom))",
+            alignItems: "center",
+            gap: 1,
           }}
         >
-          <Card sx={{ minHeight: "100%" }}>
-            <CardHeader
-              title={t("realTimeTranscription")}
-              subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
-            />
-            {sessionState !== "idle" && <LinearProgress />}
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="body2" color="text.secondary">
-                  {t("currentlySelectedStreamingSetting", {
-                    values: {
-                      name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
-                    },
-                  })}
-                  {activeStreamingPreset?.description
-                    ? ` – ${activeStreamingPreset.description}`
-                    : ""}
-                  <br />
-                  {t("automaticTemporaryStorageCycleSeconds", {
-                    values: { seconds: realtimeAutoSaveSeconds },
-                  })}
-                </Typography>
-                {!apiBaseUrl.trim() && (
-                  <Alert severity="warning">
-                    {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
-                  </Alert>
-                )}
-                {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-                <Divider />
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} variant="outlined" />
-                  {sessionState === "countdown" && (
-                    <Typography variant="h4" color="primary">
-                      {countdown}
+          <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} color="primary" />
+          {sessionState === "countdown" && (
+            <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
+              {countdown}
+            </Typography>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            "@media (orientation: landscape)": showVideoSection
+              ? {
+                flexDirection: "row",
+                alignItems: "stretch",
+                gap: 2,
+              }
+              : undefined,
+          }}
+        >
+          {/* Fixed Video Section */}
+          {showVideoSection && (
+            <Box
+              sx={{
+                flex: "0 0 auto",
+                p: 2,
+                pb: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                zIndex: 1,
+                "@media (orientation: landscape)": {
+                  flexBasis: "50%",
+                  maxWidth: "50%",
+                  pb: 2,
+                  pr: 1,
+                },
+              }}
+            >
+              <Card>
+                <CardHeader
+                  title={t("sessionVideoCapture")}
+                  subheader={t("recordVideoAlongsideRealTimeTranscription")}
+                />
+                <Collapse in={showVideoSection} unmountOnExit>
+                  <CardContent>
+                    <Stack spacing={2}>
+                      {!cameraSupported && (
+                        <Alert severity="info">{t("cameraNotSupported")}</Alert>
+                      )}
+                      {cameraError && <Alert severity="error">{cameraError}</Alert>}
+                      <Box
+                        sx={{
+                          position: "relative",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                          border: 1,
+                          borderColor: "divider",
+                          aspectRatio: "16 / 9",
+                          backgroundColor: (theme) => theme.palette.grey[900],
+                          width: "100%",
+                          maxHeight: "50vh",
+                          maxWidth: "100%",
+                          "@media (orientation: landscape)": {
+                            maxWidth: "100%",
+                            maxHeight: "100vh",
+                            marginLeft: 0,
+                            marginRight: "auto",
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: 0,
+                            display: cameraEnabled ? "none" : "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "text.secondary",
+                            textAlign: "center",
+                            p: 2,
+                            backgroundColor: (theme) => theme.palette.action.hover,
+                          }}
+                        >
+                          <Typography variant="body2">{t("cameraPreview")}</Typography>
+                        </Box>
+                        <Box
+                          component="video"
+                          ref={cameraPreviewRef}
+                          muted
+                          playsInline
+                          autoPlay
+                          sx={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: cameraEnabled ? "block" : "none",
+                          }}
+                        />
+                        {cameraRecording && (
+                          <Chip
+                            size="small"
+                            color="error"
+                            icon={<FiberManualRecordRoundedIcon fontSize="small" />}
+                            label={t("cameraRecording")}
+                            sx={{
+                              position: "absolute",
+                              top: 16,
+                              left: 16,
+                              bgcolor: "rgba(211, 47, 47, 0.85)",
+                              color: "common.white",
+                            }}
+                          />
+                        )}
+                        {cameraLoading && (
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              bgcolor: "rgba(0,0,0,0.4)",
+                            }}
+                          >
+                            <CircularProgress color="inherit" />
+                          </Box>
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("cameraRecordingSavedWithSession")}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Collapse>
+              </Card>
+            </Box>
+          )}
+
+          {/* Scrollable Transcript Section */}
+          <Box
+            sx={{
+              flex: "1 1 auto",
+              overflowY: "auto",
+              p: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              // Add padding at bottom for floating buttons + safe area
+              pb: "calc(100px + env(safe-area-inset-bottom))",
+              minHeight: 0,
+              "@media (orientation: landscape)": showVideoSection
+                ? {
+                  pr: 2,
+                  pl: 1,
+                }
+                : undefined,
+            }}
+          >
+            <Card sx={{ minHeight: "100%" }}>
+              {!sessionActive && (
+                <CardHeader
+                  title={t("realTimeTranscription")}
+                  subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
+                />
+              )}
+              {sessionState !== "idle" && <LinearProgress />}
+              <CardContent>
+                <Stack spacing={2}>
+                  {!sessionActive && (
+                    <Typography variant="body2" color="text.secondary">
+                      {t("currentlySelectedStreamingSetting", {
+                        values: {
+                          name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
+                        },
+                      })}
+                      {activeStreamingPreset?.description
+                        ? ` – ${activeStreamingPreset.description}`
+                        : ""}
+                      <br />
+                      {t("automaticTemporaryStorageCycleSeconds", {
+                        values: { seconds: realtimeAutoSaveSeconds },
+                      })}
                     </Typography>
                   )}
+                  {!apiBaseUrl.trim() && (
+                    <Alert severity="warning">
+                      {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
+                    </Alert>
+                  )}
+                  {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+                  <Divider />
+                  {segments.length === 0 && sessionState === "idle" && (
+                    <Typography variant="body1" color="text.secondary">
+                      {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
+                    </Typography>
+                  )}
+                  {segments.length > 0 && (
+                    <Stack spacing={1.5}>
+                      {segments.map((segment) => (
+                        <Card key={segment.id} variant="outlined">
+                          <CardContent>
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                              <Chip label={formatTimeRange(segment)} color="success" size="small" />
+                            </Stack>
+                            <Typography variant="body1">{segment.text}</Typography>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  )}
+                  {partialText && (
+                    <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
+                      <CardContent>
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                          <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
+                        </Stack>
+                        <Typography variant="body1" color="secondary.main">
+                          {partialText}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  )}
+                  <Box ref={transcriptEndRef} sx={{ height: 1 }} />
                 </Stack>
-                {segments.length === 0 && sessionState === "idle" && (
-                  <Typography variant="body1" color="text.secondary">
-                    {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
-                  </Typography>
-                )}
-                {segments.length > 0 && (
-                  <Stack spacing={1.5}>
-                    {segments.map((segment) => (
-                      <Card key={segment.id} variant="outlined">
-                        <CardContent>
-                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                            <Chip label={formatTimeRange(segment)} color="success" size="small" />
-                          </Stack>
-                          <Typography variant="body1">{segment.text}</Typography>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </Stack>
-                )}
-                {partialText && (
-                  <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
-                    <CardContent>
-                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                        <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
-                      </Stack>
-                      <Typography variant="body1" color="secondary.main">
-                        {partialText}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                )}
-                <Box ref={transcriptEndRef} sx={{ height: 1 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Box>
         </Box>
       </Box>
 
       {/* Floating Settings Button */}
-      <Box
-        sx={{
-          position: "fixed",
-          bottom: "calc(16px + env(safe-area-inset-bottom))",
-          left: { xs: 16, sm: 32 },
-          zIndex: (theme) => theme.zIndex.modal + 1,
-        }}
-      >
-        <Tooltip
-          title={runtimeSettingsOpen ? t("closeSettings") : t("openRealTimeTranscriptionSettings")}
-          placement="right"
+      {!sessionActive && (
+        <Box
+          sx={{
+            position: "fixed",
+            bottom: "calc(16px + env(safe-area-inset-bottom))",
+            left: { xs: 16, sm: 32 },
+            zIndex: (theme) => theme.zIndex.modal + 1,
+          }}
         >
-          <Fab
-            size="small"
-            color={runtimeSettingsOpen ? "secondary" : "default"}
-            onClick={() => {
-              runtimeSettingsFabRef.current?.blur();
-              setRuntimeSettingsOpen((prev) => !prev);
-            }}
-            aria-label={runtimeSettingsOpen ? t("closeStreamingSettings") : t("openStreamingSettings")}
-            ref={runtimeSettingsFabRef}
+          <Tooltip
+            title={runtimeSettingsOpen ? t("closeSettings") : t("openRealTimeTranscriptionSettings")}
+            placement="right"
           >
-            <SettingsRoundedIcon />
-          </Fab>
-        </Tooltip>
-      </Box>
+            <Fab
+              size="small"
+              color={runtimeSettingsOpen ? "secondary" : "default"}
+              onClick={() => {
+                runtimeSettingsFabRef.current?.blur();
+                setRuntimeSettingsOpen((prev) => !prev);
+              }}
+              aria-label={runtimeSettingsOpen ? t("closeStreamingSettings") : t("openStreamingSettings")}
+              ref={runtimeSettingsFabRef}
+            >
+              <SettingsRoundedIcon />
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Floating Main Controls */}
       <Box
@@ -1769,7 +1824,7 @@ export default function RealtimeSessionPage() {
           pointerEvents: "none",
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ pointerEvents: "auto" }}>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ pointerEvents: "auto", flexWrap: "wrap", justifyContent: "center" }}>
           <Tooltip title={mainButtonTooltip}>
             <span>
               <Fab
@@ -1814,6 +1869,38 @@ export default function RealtimeSessionPage() {
               </Fab>
             </Tooltip>
           )}
+          <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+            <span>
+              <Fab
+                color={cameraEnabled ? "secondary" : "default"}
+                size="medium"
+                onClick={handleToggleCamera}
+                disabled={cameraLoading || !cameraSupported}
+                aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+              >
+                {cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
+              </Fab>
+            </span>
+          </Tooltip>
+          <Tooltip
+            title={
+              cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")
+            }
+          >
+            <span>
+              <Fab
+                color="default"
+                size="medium"
+                onClick={handleSwitchCamera}
+                disabled={!cameraEnabled || cameraLoading}
+                aria-label={cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
+                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+              >
+                <CameraswitchRoundedIcon />
+              </Fab>
+            </span>
+          </Tooltip>
         </Stack>
       </Box>
 

@@ -1904,6 +1904,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "When you start a session, recognized sentences will appear in this area in order.",
     ja: "セッションを開始すると、認識された文章がこの領域に順番に表示されます。",
   },
+  showWordDetails: {
+    ko: "단어 정보 표시",
+    en: "Show word details",
+    ja: "単語の詳細を表示",
+  },
   word: {
     ko: "단어 {{index}}",
     en: "word {{index}}",
