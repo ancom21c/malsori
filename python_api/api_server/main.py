@@ -760,6 +760,30 @@ def _apply_result_annotations(
         payload["text"] = first_text
 
 
+def _extract_words_from_results(results: list[Any]) -> list[str]:
+    """Flatten word texts from all alternatives across results."""
+    words_text_fragments: list[str] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        alternatives = result.get("alternatives")
+        if not isinstance(alternatives, list):
+            continue
+        for alt in alternatives:
+            if not isinstance(alt, dict):
+                continue
+            words = alt.get("words")
+            if not isinstance(words, list):
+                continue
+            for word in words:
+                if not isinstance(word, dict):
+                    continue
+                text_val = word.get("text")
+                if isinstance(text_val, str) and text_val.strip():
+                    words_text_fragments.append(text_val.strip())
+    return words_text_fragments
+
+
 def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
     payload = json_format.MessageToDict(
         message, preserving_proto_field_name=True
@@ -774,25 +798,9 @@ def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
     # Preserve a raw word-level concatenation so downstream can show both ITN text and
     # timing-aligned tokens (which may be non-ITN).
     if isinstance(results, list) and results:
-        words_text_fragments: list[str] = []
-        first_result = results[0]
-        if isinstance(first_result, dict):
-            alternatives = first_result.get("alternatives")
-            if isinstance(alternatives, list):
-                for alt in alternatives:
-                    if not isinstance(alt, dict):
-                        continue
-                    words = alt.get("words")
-                    if not isinstance(words, list):
-                        continue
-                    for word in words:
-                        if isinstance(word, dict):
-                            text_val = word.get("text")
-                            if isinstance(text_val, str) and text_val.strip():
-                                words_text_fragments.append(text_val.strip())
-        if words_text_fragments:
-            joined = " ".join(words_text_fragments)
-            payload.setdefault("raw_text", joined)
+        word_fragments = _extract_words_from_results(results)
+        if word_fragments:
+            payload.setdefault("raw_text", " ".join(word_fragments))
     return payload
 
 
