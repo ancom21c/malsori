@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent as ReactChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Alert,
@@ -392,6 +392,7 @@ export default function TranscriptionDetailPage() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [audioTranscoding, setAudioTranscoding] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [noteMode, setNoteMode] = useState(false);
   const [wordDetailsVisibility, setWordDetailsVisibility] = useState<Record<string, boolean>>({});
   const userToggledAudioRef = useRef(false);
   const segmentsRef = useRef<LocalSegment[]>([]);
@@ -486,6 +487,15 @@ export default function TranscriptionDetailPage() {
       .sortBy("startMs");
   }, [transcriptionId]);
 
+  const noteModeText = useMemo(() => {
+    const aggregated = aggregateSegmentText(segments, true);
+    if (aggregated && aggregated.trim().length > 0) {
+      return aggregated;
+    }
+    const fallback = transcription?.transcriptText?.trim();
+    return fallback && fallback.length > 0 ? fallback : "";
+  }, [segments, transcription]);
+
   useEffect(() => {
     segmentsRef.current = segments ?? [];
   }, [segments]);
@@ -498,6 +508,7 @@ export default function TranscriptionDetailPage() {
   useEffect(() => {
     userToggledAudioRef.current = false;
     setIncludeAudioInShare(true);
+    setNoteMode(false);
   }, [transcriptionId]);
 
   useEffect(() => {
@@ -1595,7 +1606,32 @@ export default function TranscriptionDetailPage() {
       </Dialog>
 
       <Stack spacing={2}>
-        {segments && segments.length > 0 ? (
+        <Stack spacing={0.5}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={noteMode}
+                onChange={(event) => setNoteMode(event.target.checked)}
+              />
+            }
+            label={t("noteMode")}
+          />
+          <Typography variant="caption" color="text.secondary">
+            {t("noteModeHelper")}
+          </Typography>
+        </Stack>
+
+        {noteMode ? (
+          <TextField
+            multiline
+            minRows={8}
+            fullWidth
+            label={t("noteModeTextAreaLabel")}
+            placeholder={t("noteModePlaceholder")}
+            value={noteModeText}
+            InputProps={{ readOnly: true }}
+          />
+        ) : segments && segments.length > 0 ? (
           segments.map((segment) => {
             const isEditing = editingSegmentId === segment.id;
             const displayText = resolveSegmentText(segment, true);

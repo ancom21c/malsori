@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  FormControlLabel,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   ListItemText,
   LinearProgress,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -421,6 +423,7 @@ export default function RealtimeSessionPage() {
   const [countdown, setCountdown] = useState(3);
   const [segments, setSegments] = useState<RealtimeSegment[]>([]);
   const [partialText, setPartialText] = useState<string | null>(null);
+  const [noteMode, setNoteMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
   const [streamingJsonEditorOpen, setStreamingJsonEditorOpen] = useState(false);
@@ -826,6 +829,7 @@ export default function RealtimeSessionPage() {
     segmentsRef.current = [];
     setSegments([]);
     setPartialText(null);
+    setNoteMode(false);
     setCountdown(3);
     sessionStartRef.current = null;
     sessionConnectedRef.current = false;
@@ -1424,6 +1428,18 @@ export default function RealtimeSessionPage() {
     };
   }, [stopCameraStream, stopVideoRecorder]);
 
+  const noteModeText = useMemo(() => {
+    const lines = segments
+      .map((segment) => segment.text?.trim())
+      .filter((text): text is string => Boolean(text && text.length));
+    const base = lines.join("\n");
+    const partial = partialText?.trim();
+    if (partial) {
+      return base ? `${base}\n${partial}` : partial;
+    }
+    return base;
+  }, [segments, partialText]);
+
   const formatTimeRange = (segment: RealtimeSegment) => {
     const start = (segment.startMs / 1000).toFixed(1);
     const end = (segment.endMs / 1000).toFixed(1);
@@ -1739,36 +1755,64 @@ export default function RealtimeSessionPage() {
                   )}
                   {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
                   <Divider />
-                  {segments.length === 0 && sessionState === "idle" && (
-                    <Typography variant="body1" color="text.secondary">
-                      {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
+                  <Stack spacing={0.5}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={noteMode}
+                          onChange={(event) => setNoteMode(event.target.checked)}
+                        />
+                      }
+                      label={t("noteMode")}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {t("noteModeHelper")}
                     </Typography>
-                  )}
-                  {segments.length > 0 && (
-                    <Stack spacing={1.5}>
-                      {segments.map((segment) => (
-                        <Card key={segment.id} variant="outlined">
+                  </Stack>
+                  {noteMode ? (
+                    <TextField
+                      multiline
+                      minRows={6}
+                      fullWidth
+                      label={t("noteModeTextAreaLabel")}
+                      placeholder={t("noteModePlaceholder")}
+                      value={noteModeText}
+                      InputProps={{ readOnly: true }}
+                    />
+                  ) : (
+                    <>
+                      {segments.length === 0 && sessionState === "idle" && (
+                        <Typography variant="body1" color="text.secondary">
+                          {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
+                        </Typography>
+                      )}
+                      {segments.length > 0 && (
+                        <Stack spacing={1.5}>
+                          {segments.map((segment) => (
+                            <Card key={segment.id} variant="outlined">
+                              <CardContent>
+                                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                                  <Chip label={formatTimeRange(segment)} color="success" size="small" />
+                                </Stack>
+                                <Typography variant="body1">{segment.text}</Typography>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      )}
+                      {partialText && (
+                        <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
                           <CardContent>
                             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                              <Chip label={formatTimeRange(segment)} color="success" size="small" />
+                              <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
                             </Stack>
-                            <Typography variant="body1">{segment.text}</Typography>
+                            <Typography variant="body1" color="secondary.main">
+                              {partialText}
+                            </Typography>
                           </CardContent>
                         </Card>
-                      ))}
-                    </Stack>
-                  )}
-                  {partialText && (
-                    <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
-                      <CardContent>
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                          <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
-                        </Stack>
-                        <Typography variant="body1" color="secondary.main">
-                          {partialText}
-                        </Typography>
-                      </CardContent>
-                    </Card>
+                      )}
+                    </>
                   )}
                   <Box ref={transcriptEndRef} sx={{ height: 1 }} />
                 </Stack>

@@ -969,6 +969,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "No words were entered.",
     ja: "言葉は入力されませんでした。",
   },
+  noteMode: {
+    ko: "노트 모드",
+    en: "Note mode",
+    ja: "ノートモード",
+  },
+  noteModeHelper: {
+    ko: "발화 시간/말풍선 없이 한 줄씩 이어 붙여 보여줍니다.",
+    en: "Show everything in one text area without timestamps or bubbles.",
+    ja: "時間や吹き出しを省き、1つのテキスト欄にまとめて表示します。",
+  },
+  noteModePlaceholder: {
+    ko: "말풍선마다 줄바꿈되어 노트처럼 표시됩니다.",
+    en: "Each utterance is placed on a new line, like a note.",
+    ja: "各発話が改行され、ノートのように表示されます。",
+  },
+  noteModeTextAreaLabel: {
+    ko: "노트 보기",
+    en: "Note view",
+    ja: "ノート表示",
+  },
   numberOfSpeakersMaximum: {
     ko: "화자 수 (최대값)",
     en: "Number of speakers (maximum)",
