@@ -64,6 +64,101 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "An error occurred during recording.",
     ja: "録音中にエラーが発生しました。",
   },
+  cameraNotSupported: {
+    ko: "이 브라우저에서는 카메라 녹화를 지원하지 않습니다.",
+    en: "Camera recording is not supported in this browser.",
+    ja: "このブラウザではカメラ録画はサポートされていません。",
+  },
+  cameraAccessFailed: {
+    ko: "카메라 권한을 요청할 수 없습니다. 브라우저 설정을 확인해 주세요.",
+    en: "Unable to access the camera. Please check your browser settings.",
+    ja: "カメラにアクセスできません。ブラウザの設定を確認してください。",
+  },
+  cameraRecordingFailed: {
+    ko: "카메라 녹화를 시작할 수 없습니다.",
+    en: "Unable to start camera recording.",
+    ja: "カメラの録画を開始できません。",
+  },
+  sessionVideoCapture: {
+    ko: "세션 비디오 캡처",
+    en: "Session video capture",
+    ja: "セッション動画キャプチャ",
+  },
+  recordVideoAlongsideRealTimeTranscription: {
+    ko: "실시간 전사와 함께 카메라 영상을 기록합니다.",
+    en: "Capture camera video alongside your real-time transcription.",
+    ja: "リアルタイム文字起こしと一緒にカメラ映像を記録します。",
+  },
+  cameraPreview: {
+    ko: "카메라가 꺼져 있습니다. 카메라를 켜면 미리보기가 표시됩니다.",
+    en: "Camera is off. Turn it on to see the preview.",
+    ja: "カメラはオフです。オンにするとプレビューが表示されます。",
+  },
+  cameraRecording: {
+    ko: "카메라 녹화 중",
+    en: "Camera recording",
+    ja: "カメラ録画中",
+  },
+  enableCamera: {
+    ko: "카메라 켜기",
+    en: "Enable camera",
+    ja: "カメラをオンにする",
+  },
+  disableCamera: {
+    ko: "카메라 끄기",
+    en: "Disable camera",
+    ja: "カメラをオフにする",
+  },
+  switchToFrontCamera: {
+    ko: "전면 카메라로 전환",
+    en: "Switch to front camera",
+    ja: "フロントカメラに切り替え",
+  },
+  switchToRearCamera: {
+    ko: "후면 카메라로 전환",
+    en: "Switch to rear camera",
+    ja: "リアカメラに切り替え",
+  },
+  cameraRecordingSavedWithSession: {
+    ko: "카메라가 켜져 있는 동안 촬영된 영상이 이 세션에 함께 저장됩니다.",
+    en: "Video captured while the camera is on will be saved with this session.",
+    ja: "カメラがオンの間に撮影された動画はこのセッションに保存されます。",
+  },
+  enableCameraToCaptureVideo: {
+    ko: "카메라를 켜서 비디오 캡처를 시작할 수 있습니다.",
+    en: "Turn on the camera to start capturing video.",
+    ja: "カメラをオンにして動画のキャプチャを開始できます。",
+  },
+  sessionVideo: {
+    ko: "세션 비디오",
+    en: "Session video",
+    ja: "セッション動画",
+  },
+  recordedVideoPreview: {
+    ko: "세션 동안 녹화된 영상을 확인하고 다운로드합니다.",
+    en: "Preview and download the video recorded during the session.",
+    ja: "セッション中に録画された動画をプレビューしてダウンロードします。",
+  },
+  noVideoRecorded: {
+    ko: "이 세션에는 저장된 비디오가 없습니다.",
+    en: "No video was recorded for this session.",
+    ja: "このセッションには録画された動画がありません。",
+  },
+  downloadVideo: {
+    ko: "비디오 다운로드",
+    en: "Download video",
+    ja: "動画をダウンロード",
+  },
+  videoCannotBeLoaded: {
+    ko: "비디오를 불러올 수 없습니다.",
+    en: "Video cannot be loaded.",
+    ja: "動画を読み込めません。",
+  },
+  yourBrowserDoesNotSupportTheVideoTag: {
+    ko: "브라우저가 video 태그를 지원하지 않습니다.",
+    en: "Your browser does not support the video tag.",
+    ja: "お使いのブラウザは video タグをサポートしていません。",
+  },
   anErrorOccurredDuringStreaming: {
     ko: "스트리밍 도중 오류가 발생했습니다.",
     en: "An error occurred during streaming.",
@@ -219,6 +314,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Cancel",
     ja: "キャンセル",
   },
+  changeAllSpeakers: {
+    ko: "모든 구간 변경",
+    en: "Change all segments",
+    ja: "すべてのセグメントを変更",
+  },
   checkFileTranscriptionAndRealTimeTranscriptionResultsInChronologicalOrder: {
     ko: "파일 전사와 실시간 전사 결과를 시간 순으로 확인합니다.",
     en: "Check file transcription and real-time transcription results in chronological order.",
@@ -309,6 +409,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Creation time",
     ja: "作成時間",
   },
+  createNewSpeaker: {
+    ko: "이 구간만 변경 (새 화자)",
+    en: "Change for this segment only (New Speaker)",
+    ja: "このセグメントのみ変更（新しい話者）",
+  },
   credentialsNotUsed: {
     ko: "자격증명 미사용",
     en: "Credentials not used",
@@ -338,6 +443,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "기본 설정",
     en: "Default settings",
     ja: "デフォルト設定",
+  },
+  defaultSpeakerName: {
+    ko: "기본 화자 이름",
+    en: "Default Speaker Name",
+    ja: "デフォルトの話者名",
+  },
+  defaultSpeakerNameHelper: {
+    ko: "전사 결과에서 화자가 식별되지 않았을 때 사용할 기본 이름입니다.",
+    en: "The default name to use when the speaker is not identified in the transcription results.",
+    ja: "文字起こし結果で話者が特定されなかった場合に使用するデフォルトの名前です。",
   },
   delete: {
     ko: "삭제",
@@ -373,6 +488,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "JSON 직접 편집",
     en: "Edit JSON directly",
     ja: "JSONを直接編集する",
+  },
+  editSpeaker: {
+    ko: "화자 편집",
+    en: "Edit Speaker",
+    ja: "話者の編集",
   },
   editQuicklyWithKeyboardShortcutsIncludingWordByWordProofreadingAndVimStyleNavigationHJKL: {
     ko: "단어 단위 교정, Vim 스타일 이동(h/j/k/l) 등 키보드 단축키로 빠르게 편집합니다.",
@@ -849,6 +969,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "No words were entered.",
     ja: "言葉は入力されませんでした。",
   },
+  noteMode: {
+    ko: "노트 모드",
+    en: "Note mode",
+    ja: "ノートモード",
+  },
+  noteModeHelper: {
+    ko: "발화 시간/말풍선 없이 한 줄씩 이어 붙여 보여줍니다.",
+    en: "Show everything in one text area without timestamps or bubbles.",
+    ja: "時間や吹き出しを省き、1つのテキスト欄にまとめて表示します。",
+  },
+  noteModePlaceholder: {
+    ko: "말풍선마다 줄바꿈되어 노트처럼 표시됩니다.",
+    en: "Each utterance is placed on a new line, like a note.",
+    ja: "各発話が改行され、ノートのように表示されます。",
+  },
+  noteModeTextAreaLabel: {
+    ko: "노트 보기",
+    en: "Note view",
+    ja: "ノート表示",
+  },
   numberOfSpeakersMaximum: {
     ko: "화자 수 (최대값)",
     en: "Number of speakers (maximum)",
@@ -1044,6 +1184,71 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Ready to start ({{seconds}}s)",
     ja: "開始する準備ができました ({{seconds}}s)",
   },
+  lab: {
+    ko: "실험실",
+    en: "Lab",
+    ja: "ラボ",
+  },
+  labRealtimeUploadTitle: {
+    ko: "실시간 STT 파일 업로드",
+    en: "Realtime STT file upload",
+    ja: "リアルタイムSTTファイルアップロード",
+  },
+  labRealtimeUploadDescription: {
+    ko: "오디오 파일을 실시간 STT API로 전송하고 응답을 확인합니다.",
+    en: "Send an audio file to the realtime STT API and watch the responses.",
+    ja: "音声ファイルをリアルタイム STT API に送り、応答を確認します。",
+  },
+  realtimeSimulationOption: {
+    ko: "realtime simulation (0.1~0.2초 전송)",
+    en: "Realtime simulation (0.1–0.2s pacing)",
+    ja: "リアルタイムシミュレーション（0.1〜0.2秒間隔）",
+  },
+  realtimeSimulationHelper: {
+    ko: "선택 시 오디오 길이에 맞춰 0.1~0.2초씩 지연해 전송합니다.",
+    en: "When enabled, chunks are throttled to match real time, sending only 0.1–0.2s of audio at a time.",
+    ja: "有効にすると、0.1〜0.2秒分の音声だけをリアルタイムに合わせて送信します。",
+  },
+  startRealtimeUpload: {
+    ko: "전송 시작",
+    en: "Start upload",
+    ja: "アップロード開始",
+  },
+  stopRealtimeUpload: {
+    ko: "전송 중단",
+    en: "Stop upload",
+    ja: "アップロード停止",
+  },
+  streamingUploadStatus: {
+    ko: "전송 상태",
+    en: "Upload status",
+    ja: "アップロード状態",
+  },
+  streamingUploadProgress: {
+    ko: "전송 진행률",
+    en: "Upload progress",
+    ja: "アップロード進行状況",
+  },
+  streamingResponse: {
+    ko: "실시간 응답",
+    en: "Realtime response",
+    ja: "リアルタイム応答",
+  },
+  recentPartialResult: {
+    ko: "현재 인식 중",
+    en: "Current partial",
+    ja: "現在の暫定結果",
+  },
+  noStreamingResultsYet: {
+    ko: "아직 수신된 실시간 결과가 없습니다.",
+    en: "No realtime results yet.",
+    ja: "まだリアルタイム結果がありません。",
+  },
+  duration: {
+    ko: "재생 시간",
+    en: "Duration",
+    ja: "再生時間",
+  },
   realTimeRecognition: {
     ko: "실시간 인식 중",
     en: "Real-time recognition",
@@ -1205,9 +1410,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "セグメントの再生に失敗しました",
   },
   selectAudioFile: {
-    ko: "음성 파일 선택",
-    en: "Select audio file",
-    ja: "音声ファイルを選択",
+    ko: "오디오/비디오 파일 선택",
+    en: "Select audio or video file",
+    ja: "音声/動画ファイルを選択",
   },
   selectFromKoJaMultiOrDetectMultiDetectIsOnlyEnabledOnWhisperFamilyModels: {
     ko: "ko, ja, multi, detect 중 선택합니다. multi/detect는 Whisper 계열 모델에서만 활성화됩니다.",
@@ -1259,16 +1464,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Terminate Session",
     ja: "セッション終了",
   },
-sessionStateCountdown: {
-  ko: "카운트다운",
-  en: "Countdown",
-  ja: "カウントダウン",
-},
-sessionStateRecording: {
-  ko: "녹음 중",
-  en: "Recording",
-  ja: "録音中",
-},
+  sessionStateCountdown: {
+    ko: "카운트다운",
+    en: "Countdown",
+    ja: "カウントダウン",
+  },
+  sessionStateRecording: {
+    ko: "녹음 중",
+    en: "Recording",
+    ja: "録音中",
+  },
   setAsDefaultPreset: {
     ko: "기본 프리셋으로 지정",
     en: "Set as default preset",
@@ -1308,6 +1513,16 @@ sessionStateRecording: {
     ko: "화자 {{speaker}}",
     en: "Speaker {{speaker}}",
     ja: "スピーカー {{speaker}}",
+  },
+  speakerUpdateSuccess: {
+    ko: "화자 정보가 업데이트되었습니다.",
+    en: "Speaker updated successfully.",
+    ja: "話者情報が更新されました。",
+  },
+  speakerName: {
+    ko: "화자 이름",
+    en: "Speaker Name",
+    ja: "話者名",
   },
   speakerNotSpecified: {
     ko: "화자 미지정",
@@ -1373,6 +1588,11 @@ sessionStateRecording: {
     ko: "저장소 권한이 허용되었습니다.",
     en: "Storage permissions granted.",
     ja: "ストレージ権限が付与されました。",
+  },
+  storagePermissionBrowserManaged: {
+    ko: "브라우저가 저장소를 자동으로 관리하므로 별도 권한이 필요하지 않습니다.",
+    en: "Your browser manages storage automatically, so no additional permission is required.",
+    ja: "ブラウザがストレージを自動管理するため、追加の権限は必要ありません。",
   },
   streamTranscriptionSettings: {
     ko: "스트리밍 전사 설정",
@@ -1704,6 +1924,11 @@ sessionStateRecording: {
     en: "When you start a session, recognized sentences will appear in this area in order.",
     ja: "セッションを開始すると、認識された文章がこの領域に順番に表示されます。",
   },
+  showWordDetails: {
+    ko: "단어 정보 표시",
+    en: "Show word details",
+    ja: "単語の詳細を表示",
+  },
   word: {
     ko: "단어 {{index}}",
     en: "word {{index}}",
@@ -1828,6 +2053,181 @@ sessionStateRecording: {
     ko: "전사 요청을 전송했습니다.",
     en: "Your transcription request has been sent.",
     ja: "文字起こしリクエストが送信されました。",
+  },
+  sharePageTitle: {
+    ko: "전사 결과 공유",
+    en: "Transcription share view",
+    ja: "文字起こし共有ビュー",
+  },
+  sharePageSubtitle: {
+    ko: "링크를 열면 앱 접속 없이 결과를 확인할 수 있습니다.",
+    en: "Open the link to view the transcription without visiting the app.",
+    ja: "リンクを開くとアプリにアクセスせずに結果を確認できます。",
+  },
+  sharePayloadMissing: {
+    ko: "공유 링크에 전사 데이터가 포함되어 있지 않습니다.",
+    en: "No transcription data was included in the share link.",
+    ja: "共有リンクに文字起こしデータが含まれていません。",
+  },
+  sharePayloadInvalid: {
+    ko: "공유 링크를 읽을 수 없거나 손상되었습니다.",
+    en: "The share link is invalid or corrupted.",
+    ja: "共有リンクが無効か破損しています。",
+  },
+  sharePasswordPrompt: {
+    ko: "암호를 입력하여 전사 결과를 확인하세요.",
+    en: "Enter the password to view the transcription.",
+    ja: "文字起こしを表示するにはパスワードを入力してください。",
+  },
+  sharePasswordPlaceholder: {
+    ko: "암호 (선택)",
+    en: "Password (optional)",
+    ja: "パスワード（任意）",
+  },
+  shareUnlock: {
+    ko: "열기",
+    en: "Unlock",
+    ja: "開く",
+  },
+  shareAudioIncluded: {
+    ko: "오디오가 포함되어 있습니다.",
+    en: "Audio is included in this share.",
+    ja: "音声が含まれています。",
+  },
+  shareRemoteAudioAvailable: {
+    ko: "원본 오디오를 아래 버튼에서 재생합니다.",
+    en: "You can play the original audio via the button below.",
+    ja: "以下のボタンで元の音声を再生できます。",
+  },
+  sharePlayRemoteAudio: {
+    ko: "원본 오디오 재생",
+    en: "Play original audio",
+    ja: "元の音声を再生",
+  },
+  shareAudioUnavailable: {
+    ko: "오디오가 포함되지 않은 공유입니다.",
+    en: "This share does not include audio.",
+    ja: "この共有には音声が含まれていません。",
+  },
+  shareAggregatedText: {
+    ko: "전체 전사",
+    en: "Aggregated transcript",
+    ja: "集約された文字起こし",
+  },
+  shareSegmentsTitle: {
+    ko: "구간",
+    en: "Segments",
+    ja: "セグメント",
+  },
+  shareSegmentsSubTitle: {
+    ko: "{{count}}개 구간",
+    en: "{{count}} segments",
+    ja: "{{count}}セグメント",
+  },
+  shareNoSegments: {
+    ko: "저장된 구간이 없습니다.",
+    en: "There are no saved segments.",
+    ja: "保存されたセグメントはありません。",
+  },
+  shareSegmentTextEmpty: {
+    ko: "내용이 없습니다.",
+    en: "No text available.",
+    ja: "テキストがありません。",
+  },
+  untitledTranscription: {
+    ko: "제목 없음",
+    en: "Untitled transcription",
+    ja: "タイトルなし",
+  },
+  shareSectionTitle: {
+    ko: "공유 링크 생성",
+    en: "Share link",
+    ja: "共有リンク",
+  },
+  shareIncludeAudioLabel: {
+    ko: "이 링크에 오디오 포함",
+    en: "Include audio in this link",
+    ja: "このリンクに音声を含める",
+  },
+  shareIncludeAudioHelper: {
+    ko: "오디오를 포함하면 URL이 길어질 수 있습니다.",
+    en: "Including audio makes the URL longer.",
+    ja: "音声を含めるとURLが長くなります。",
+  },
+  shareIncludeAudioUnavailable: {
+    ko: "현재 오디오가 없어 포함할 수 없습니다.",
+    en: "Audio is not available right now.",
+    ja: "現在音声は利用できません。",
+  },
+  shareButtonLabel: {
+    ko: "공유하기",
+    en: "Share",
+    ja: "共有",
+  },
+  shareTranscoding: {
+    ko: "오디오 변환 중...",
+    en: "Transcoding audio...",
+    ja: "音声を変換中…",
+  },
+  sharePlaySegment: {
+    ko: "구간 재생",
+    en: "Play segment",
+    ja: "セグメントを再生",
+  },
+  shareAudioDecodingFailed: {
+    ko: "공유된 오디오를 복호화할 수 없습니다.",
+    en: "Unable to decode the shared audio.",
+    ja: "共有された音声を復号できません。",
+  },
+  sharePasswordLabel: {
+    ko: "공유 암호",
+    en: "Share password",
+    ja: "共有パスワード",
+  },
+  sharePasswordHelper: {
+    ko: "선택 사항입니다. 입력하면 링크가 암호화됩니다.",
+    en: "Optional. Entering a password encrypts the link.",
+    ja: "任意。パスワードを入力するとリンクが暗号化されます。",
+  },
+  shareGenerating: {
+    ko: "링크 생성 중...",
+    en: "Generating link...",
+    ja: "リンクを生成中...",
+  },
+  shareCreateLinkButton: {
+    ko: "공유 링크 만들기",
+    en: "Create share link",
+    ja: "共有リンクを作成",
+  },
+  shareCopyLink: {
+    ko: "링크 복사",
+    en: "Copy link",
+    ja: "リンクをコピー",
+  },
+  shareLinkCreated: {
+    ko: "공유 링크를 생성했습니다.",
+    en: "Share link created.",
+    ja: "共有リンクが生成されました。",
+  },
+  shareGenerateFailed: {
+    ko: "공유 링크 생성에 실패했습니다.",
+    en: "Failed to generate share link.",
+    ja: "共有リンクの生成に失敗しました。",
+  },
+  shareAudioIncludeFailed: {
+    ko: "오디오를 가져올 수 없어 포함하지 않습니다.",
+    en: "Unable to fetch audio to include in the share.",
+    ja: "音声を取得できず、共有に含めることができません。",
+  },
+  shareLinkCopied: {
+    ko: "링크가 복사되었습니다.",
+    en: "Link copied.",
+    ja: "リンクがコピーされました。",
+  },
+  shareLinkCopyFailed: {
+    ko: "자동 복사에 실패했습니다. 수동으로 복사하세요.",
+    en: "Automatic copy failed; please copy manually.",
+    ja: "自動コピーに失敗しました。手動でコピーしてください。",
   },
 };
 

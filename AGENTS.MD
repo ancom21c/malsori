@@ -52,6 +52,15 @@
 - **Data Persistence Agent**
   - IndexedDB 스키마 설계(Transcription, Segments, Settings, AudioBlobs).
   - 마이그레이션/정리 전략, 용량 관리, 파일 다운로드 구현.
+- **Sharing & Security Agent**
+  - 공유 페이지를 그대로 보고 듣는 UX 설계, 오디오 포함 여부 토글 및 로컬 뷰 재현 흐름 설계.
+  - 공유 토큰/URL 관리, 암호 설정/해제 흐름, 콘텐츠 암호화(IndexedDB/Blob 암호화 키) 및 복호화 UX.
+  - 공유 콘텐츠를 내 목록에 추가하는 퍼블리셔-신규 레코드 생성, 실시간 공유(WebRTC 멀티미디어 방) 연결 관리.
+  - 화면 녹화/캡처된 세션 또는 실시간 세션에 대한 공유와 보안 정책 일관성 확보.
+- **Model & Device Agent**
+  - 온디바이스/인브라우저 모델(Whisper, Gemma3n 등) 실행 전략, WebWorker/WebAssembly 기반 추론 흐름, 메모리/성능 예측.
+  - 폴백/우선순위 정책(로컬 모델 vs 클라우드 STT) 및 폼/환경 설정 반영.
+  - 스크린 녹화나 영상/멀티채널 입력이 들어올 때 로컬 모델과 서버 모델 전환 시나리오 정의.
 - **Frontend Engineer Agent**
   - 페이지/컴포넌트 구현, 상태 연동, 접근성(A11y) 체크.
   - MUI 테마, 반응형, 다국어(ko/en) 토글 여부 결정.
@@ -64,7 +73,16 @@
   - 사용자 가이드(토큰 입력, 설정 프리셋 내보내기/가져오기) 작성 계획.
   - 릴리즈 체크리스트 및 버전 태깅 방안.
 
-## 6. 협업 플로우
+## 6. 확장 기능 & 기술 검토
+- **레코드별 고유 ID**: 꼭 필요한 메타데이터(ShareToken, SourceType, CreatedAt)를 포함한 GUID/ULID를 도입해 IndexedDB, 공유 URL, 동기화 파이프라인에서 참조 및 병합 기준으로 활용.
+- **공유 UX & 보안**: 공유된 페이지는 원본 뷰를 그대로 재현하되 오디오 포함 여부를 토글 가능하게 하고, 공유 토큰은 pageId+version을 포함. 공유 받으면 로컬 목록에 레코드 복제와 사용자 동기화, 암호 설정 시 AES-GCM/LKDF로 콘텐츠(텍스트+audio blob)를 암호화/복호화하고 키는 사용자가 입력한 패스워드로 유도.
+- **실시간 공유(공유 WebRTC 룸)**: 방송자/참여자를 WebRTC SFU(Room)로 묶고, Audio/Data 채널을 실시간 스트림에 연결. 실시간 공유 방은 STT 스트림과 Playback 스트림을 동시에 구독하며, 기존 실시간 전사 세션을 그대로 링크하여 말풍선·타임라인 재생.
+- **비디오 파일 지원**: 업로드/실시간 세션에 영상(예: mp4)을 허용하고, 트랙 추출(오디오/비디오)과 연결된 Waveform/Canvas 재생기 구성, 메타데이터에는 비디오 속성(프레임레이트, orientation) 저장.
+- **화자 이름 관리**: 설정에서 "기본 화자 이름"을 정의할 수 있도록 하고, 전사 결과에서 화자 구분/추가 UI를 열어 실시간/파일 전사 모두에서 이름 수정·추가·삭제 가능하도록. 변경사항은 동기화 및 공유된 세션에도 반영.
+- **화면 녹화/캡처**: 화면+오디오 캡처 옵션을 추가해 MediaStream을 받아 전사/공유, WebRTC 실시간 공유 및 공유 페이지 재생용 소스로 연결. 캡처 세션은 IndexedDB에 segment 단위로 저장해 끊어진 세션 복구.
+- **온디바이스/인브라우저 모델(Whisper, Gemma3n)**: WebAssembly/WebWorker 기반 Whisper/Gemma3n 런타임을 도입해 네트워크가 없을 때에도 전사 처리. 대용량 멀티채널은 클라이언트 병렬 워커로 분산하고, 인증/속도 제약에 따라 로컬 모델 vs 서버 STT 자동 판별. 모델 상태는 설정 프리셋에 노출해 사용자가 선택할 수 있게 함.
+
+## 7. 협업 플로우
 1. **Discovery**: Product/UX + Architect가 요구사항 세부화, 정보구조 설계.
 2. **Architecture Sign-off**: Architect → API/Audio/Data 에이전트가 기술 검증, 프로토타입 계획.
 3. **Design & Spec**: UX → 컴포넌트 스펙, API Integrator → OpenAPI/WS payload 문서화.
@@ -75,14 +93,14 @@
 5. **Stabilization**: QA Agent가 테스트, 버그 이슈 정리. Audio/Data Agent와 함께 복구/에러 플로우 점검.
 6. **Delivery**: Documentation Agent가 사용자 가이드 배포, Product가 최종 리뷰.
 
-## 7. 기술 리스크 & 오픈 이슈
+## 8. 기술 리스크 & 오픈 이슈
 - API WebSocket 프로토콜 상세(메시지 포맷, 인증, keepalive) 추가 확인 필요.
 - 브라우저에서 JWT 보관 시 보안 리스크 → 안전한 저장 UX 옵션(세션만 저장 vs 암호화) 결정.
 - 긴 실시간 세션(>1h) 저장 시 IndexedDB 용량 및 메모리 관리 전략 수립.
 - 모바일(안드로이드 크롬) 마이크 권한, 화면 꺼짐 시 녹음 지속 여부 테스트 필요.
 - 오디오 구간 재생 구현 방식(HTMLAudioElement vs Web Audio) 선택 및 성능 검증.
 
-## 8. 다음 산출물 제안
+## 9. 다음 산출물 제안
 - `REQUIREMENTS.md`: 사용자 요구사항/유스케이스 명세.
 - `ARCHITECTURE.md`: 모듈 구조, 데이터 플로우, 상태 다이어그램.
 - `UX-FLOWS.md` 또는 피그마 링크: 화면 전환/상호작용.

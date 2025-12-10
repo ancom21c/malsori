@@ -9,6 +9,9 @@ import { appTheme } from "./theme";
 import { ApiClientProvider } from "../services/api/ApiClientProvider";
 import { I18nProvider } from "../i18n";
 
+import { GoogleAuthProvider } from "../services/auth/GoogleAuthProvider";
+import { SyncProvider } from "../services/cloud/SyncProvider";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -27,9 +30,17 @@ export function AppProviders({ children }: AppProvidersProps) {
     <I18nProvider>
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
-        <SnackbarProvider maxSnack={3} autoHideDuration={4000}>
+        <SnackbarProvider
+          maxSnack={3}
+          autoHideDuration={4000}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
           <QueryClientProvider client={queryClient}>
-            <ApiClientProvider>{children}</ApiClientProvider>
+            <ApiClientProvider>
+              <GoogleAuthProvider>
+                <SyncProvider>{children}</SyncProvider>
+              </GoogleAuthProvider>
+            </ApiClientProvider>
           </QueryClientProvider>
         </SnackbarProvider>
       </ThemeProvider>

@@ -4,14 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 REGISTRY="${REGISTRY:?Set REGISTRY to the target container registry (e.g. ghcr.io/your-org)}"
 DEV_BUILD="${DEV_BUILD:-0}"
-NEXT_PUBLIC_API_BASE="${NEXT_PUBLIC_API_BASE:-https://miminance.ancom.duckdns.org}"
 
 pushd "${ROOT_DIR}" >/dev/null
 
 SHORT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo "workspace")"
 FULL_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo "workspace")"
 
-if [[ "${DEV_BUILD}" == "1" ]]; then
+if [[ "${DEV_BUILD}" == "1" || "${DEV_BUILD}" == "2" ]]; then
   USER_PART="${USER:-local}"
   TIMESTAMP="$(date -u +"%Y%m%d")"
   if git rev-parse HEAD >/dev/null 2>&1; then
@@ -31,8 +30,10 @@ NEXT_PUBLIC_APP_VERSION="${NEXT_PUBLIC_APP_VERSION:-${TAG}}"
 
 PYTHON_IMAGE="${REGISTRY}/malsori/api-server:${TAG}"
 PYTHON_LATEST="${REGISTRY}/malsori/api-server:latest"
+PYTHON_DEV="${REGISTRY}/malsori/api-server:dev"
 WEBAPP_IMAGE="${REGISTRY}/malsori/webapp:${TAG}"
 WEBAPP_LATEST="${REGISTRY}/malsori/webapp:latest"
+WEBAPP_DEV="${REGISTRY}/malsori/webapp:dev"
 
 echo "Building python_api image -> ${PYTHON_IMAGE}"
 docker build \
@@ -43,7 +44,6 @@ docker build \
 
 echo "Building webapp image -> ${WEBAPP_IMAGE}"
 docker build \
-  --build-arg NEXT_PUBLIC_API_BASE="${NEXT_PUBLIC_API_BASE}" \
   --build-arg NEXT_PUBLIC_APP_VERSION="${NEXT_PUBLIC_APP_VERSION}" \
   --build-arg BUILD_SHA="${BUILD_TOKEN}" \
   -f webapp/Dockerfile \
@@ -57,13 +57,20 @@ docker push "${PYTHON_IMAGE}"
 echo "Pushing ${WEBAPP_IMAGE}"
 docker push "${WEBAPP_IMAGE}"
 
-if [[ "${DEV_BUILD}" != "1" ]]; then
+if [[ "${DEV_BUILD}" == "1" ]]; then
+  echo "DEV_BUILD=1 detected; skipping latest tag."
+elif [[ "${DEV_BUILD}" == "2" ]]; then
+  echo "Tagging dev images"
+  docker tag "${PYTHON_IMAGE}" "${PYTHON_DEV}"
+  docker tag "${WEBAPP_IMAGE}" "${WEBAPP_DEV}"
+  docker push "${PYTHON_DEV}"
+  docker push "${WEBAPP_DEV}"
+  echo "Tagged and pushed ${PYTHON_DEV} and ${WEBAPP_DEV}"
+else
   echo "Tagging latest images"
   docker tag "${PYTHON_IMAGE}" "${PYTHON_LATEST}"
   docker tag "${WEBAPP_IMAGE}" "${WEBAPP_LATEST}"
   docker push "${PYTHON_LATEST}"
   docker push "${WEBAPP_LATEST}"
   echo "Tagged and pushed ${PYTHON_LATEST} and ${WEBAPP_LATEST}"
-else
-  echo "DEV_BUILD=1 detected; skipping latest tag."
 fi

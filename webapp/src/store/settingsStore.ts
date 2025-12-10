@@ -11,12 +11,14 @@ const DEFAULT_API_BASE_URL =
 export type SettingKey =
   | "apiBaseUrl"
   | "realtimeAutoSaveSeconds"
-  | "activeBackendPresetId";
+  | "activeBackendPresetId"
+  | "defaultSpeakerName";
 
 type SettingsState = {
   apiBaseUrl: string;
   realtimeAutoSaveSeconds: number;
   activeBackendPresetId: string | null;
+  defaultSpeakerName: string;
   hydrated: boolean;
   hydrate: () => Promise<void>;
   updateSetting: <T extends SettingKey>(
@@ -43,13 +45,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiBaseUrl: DEFAULT_API_BASE_URL,
   realtimeAutoSaveSeconds: 10,
   activeBackendPresetId: null,
+  defaultSpeakerName: "Speaker",
   hydrated: false,
   hydrate: async () => {
     if (get().hydrated) return;
-    const [apiBaseUrl, autoSave, activeBackendPresetId] = await Promise.all([
+    const [apiBaseUrl, autoSave, activeBackendPresetId, defaultSpeakerName] = await Promise.all([
       loadSetting("apiBaseUrl"),
       loadSetting("realtimeAutoSaveSeconds"),
       loadSetting("activeBackendPresetId"),
+      loadSetting("defaultSpeakerName"),
     ]);
     set({
       apiBaseUrl: apiBaseUrl ?? DEFAULT_API_BASE_URL,
@@ -58,6 +62,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         activeBackendPresetId && activeBackendPresetId.trim().length > 0
           ? activeBackendPresetId
           : null,
+      defaultSpeakerName: defaultSpeakerName ?? "Speaker",
       hydrated: true,
     });
   },
@@ -68,10 +73,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       key === "realtimeAutoSaveSeconds"
         ? String(value)
         : typeof value === "string"
-        ? value
-        : value === null
-        ? ""
-        : String(value)
+          ? value
+          : value === null
+            ? ""
+            : String(value)
     );
   },
 }));

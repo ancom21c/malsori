@@ -105,12 +105,16 @@ export async function updateLocalTranscription(
 export async function deleteTranscription(id: string) {
   await appDb.transaction(
     "rw",
-    appDb.transcriptions,
-    appDb.segments,
-    appDb.audioChunks,
-    appDb.searchIndexes,
+    [
+      appDb.transcriptions,
+      appDb.segments,
+      appDb.audioChunks,
+      appDb.videoChunks,
+      appDb.searchIndexes,
+    ],
     async () => {
       await appDb.audioChunks.where("transcriptionId").equals(id).delete();
+      await appDb.videoChunks.where("transcriptionId").equals(id).delete();
       await appDb.segments.where("transcriptionId").equals(id).delete();
       await appDb.searchIndexes.delete(id);
       await appDb.transcriptions.delete(id);
@@ -120,6 +124,7 @@ export async function deleteTranscription(id: string) {
 
 export async function deleteRealtimeArtifacts(transcriptionId: string) {
   await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
+  await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
 }
 
 type ReplaceableWord = {
@@ -130,7 +135,8 @@ type ReplaceableWord = {
 };
 
 type ReplaceableSegment = {
-  speaker?: string;
+  spk?: string;
+  speaker_label?: string;
   language?: string;
   startMs?: number | null;
   endMs?: number | null;
@@ -180,9 +186,9 @@ export async function replaceSegments(
           const words =
             segment.words && segment.words.length > 0
               ? segment.words
-                  .map((word) => normalizeWordTiming(word))
-                  .filter((word): word is LocalWordTiming => Boolean(word))
-                  .sort((a, b) => a.startMs - b.startMs)
+                .map((word) => normalizeWordTiming(word))
+                .filter((word): word is LocalWordTiming => Boolean(word))
+                .sort((a, b) => a.startMs - b.startMs)
               : undefined;
           const fallbackStartFromWords = words && words.length > 0 ? words[0].startMs : undefined;
           const fallbackEndFromWords = words && words.length > 0 ? words[words.length - 1].endMs : undefined;
@@ -195,7 +201,8 @@ export async function replaceSegments(
           return {
             id: `${transcriptionId}-segment-${index}`,
             transcriptionId,
-            speaker: segment.speaker,
+            spk: segment.spk,
+            speaker_label: segment.speaker_label,
             language: segment.language,
             startMs: derivedStart,
             endMs: derivedEnd,
@@ -226,6 +233,37 @@ export async function updateSegmentCorrection(
   await appDb.segments.update(segmentId, patch);
 }
 
+export async function updateSegmentSpeakerLabel(
+  transcriptionId: string,
+  targetSpk: string,
+  newLabel: string
+) {
+  const normalizedNewLabel = newLabel.trim();
+  if (!normalizedNewLabel) return;
+
+  await appDb.transaction("rw", appDb.segments, async () => {
+    const segments = await appDb.segments
+      .where("transcriptionId")
+      .equals(transcriptionId)
+      .toArray();
+
+    const targets = segments.filter((s) => (s.spk ?? "0") === targetSpk);
+    for (const segment of targets) {
+      await appDb.segments.update(segment.id, { speaker_label: normalizedNewLabel });
+    }
+  });
+}
+
+export async function updateSingleSegmentSpeakerLabel(
+  segmentId: string,
+  newLabel: string,
+  newSpkId: string
+) {
+  const normalizedNewLabel = newLabel.trim();
+  if (!normalizedNewLabel) return;
+  await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
+}
+
 export async function appendAudioChunk(params: {
   transcriptionId: string;
   chunkIndex: number;
@@ -245,6 +283,30 @@ export async function appendAudioChunk(params: {
 
 export async function listAudioChunks(transcriptionId: string) {
   return await appDb.audioChunks
+    .where("transcriptionId")
+    .equals(transcriptionId)
+    .sortBy("chunkIndex");
+}
+
+export async function appendVideoChunk(params: {
+  transcriptionId: string;
+  chunkIndex: number;
+  data: ArrayBuffer;
+  mimeType?: string;
+}) {
+  const now = new Date().toISOString();
+  await appDb.videoChunks.put({
+    id: `${params.transcriptionId}-video-${params.chunkIndex}`,
+    transcriptionId: params.transcriptionId,
+    chunkIndex: params.chunkIndex,
+    data: params.data,
+    mimeType: params.mimeType,
+    createdAt: now,
+  });
+}
+
+export async function listVideoChunks(transcriptionId: string) {
+  return await appDb.videoChunks
     .where("transcriptionId")
     .equals(transcriptionId)
     .sortBy("chunkIndex");

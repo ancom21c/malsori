@@ -177,11 +177,14 @@ export default function SettingsPage() {
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navOffset = (isSmallScreen ? 56 : 64) + 8;
   const { t } = useI18n();
+  const storagePermissionSupported =
+    typeof navigator !== "undefined" && Boolean(navigator.storage?.persist);
   const [activeTab, setActiveTab] = useState<SettingsTab>("file");
   const { enqueueSnackbar } = useSnackbar();
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
   const realtimeAutoSaveSeconds = useSettingsStore((state) => state.realtimeAutoSaveSeconds);
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
+  const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const updateSetting = useSettingsStore((state) => state.updateSetting);
   const presetType: PresetConfig["type"] = activeTab === "file" ? "file" : "streaming";
   const presets = usePresets(presetType);
@@ -324,9 +327,9 @@ export default function SettingsPage() {
     if (nextPreset) {
       handleBackendPresetSelect(nextPreset);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     backendPresets,
-    selectedBackendPresetId,
     activeBackendPresetId,
     handleBackendPresetSelect,
   ]);
@@ -496,10 +499,10 @@ export default function SettingsPage() {
         enqueueSnackbar(t("addedBackendPresets"), { variant: "success" });
       }
     } catch (error) {
-        enqueueSnackbar(
-          error instanceof Error ? error.message : t("failedToSaveBackendPreset"),
-          { variant: "error" }
-        );
+      enqueueSnackbar(
+        error instanceof Error ? error.message : t("failedToSaveBackendPreset"),
+        { variant: "error" }
+      );
     }
   };
 
@@ -580,8 +583,8 @@ export default function SettingsPage() {
         typeof preset.apiBaseUrl === "string"
           ? preset.apiBaseUrl
           : typeof preset.api_base_url === "string"
-          ? preset.api_base_url
-          : "";
+            ? preset.api_base_url
+            : "";
       const apiBaseUrl = apiBaseRaw.trim();
       if (!name || !apiBaseUrl) {
         throw new Error(t("youWillNeedAPresetNameAndApiBaseUrl"));
@@ -597,20 +600,20 @@ export default function SettingsPage() {
           typeof preset.clientId === "string"
             ? preset.clientId
             : typeof preset.client_id === "string"
-            ? preset.client_id
-            : undefined,
+              ? preset.client_id
+              : undefined,
         clientSecret:
           typeof preset.clientSecret === "string"
             ? preset.clientSecret
             : typeof preset.client_secret === "string"
-            ? preset.client_secret
-            : undefined,
+              ? preset.client_secret
+              : undefined,
         isDefault:
           typeof preset.isDefault === "boolean"
             ? preset.isDefault
             : typeof preset.is_default === "boolean"
-            ? preset.is_default
-            : false,
+              ? preset.is_default
+              : false,
       });
       handleBackendPresetSelect(created);
       enqueueSnackbar(t("backendPresetsHaveBeenLoaded"), { variant: "success" });
@@ -715,10 +718,8 @@ export default function SettingsPage() {
       const granted = await requestPersistentStoragePermission();
       await refreshPermissionStatus();
       enqueueSnackbar(
-        granted
-          ? t("storagePermissionsGranted")
-          : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
-        { variant: granted ? "success" : "error" }
+        granted ? t("storagePermissionsGranted") : t("storagePermissionBrowserManaged"),
+        { variant: granted ? "success" : "info" }
       );
     } finally {
       setRequestingStorage(false);
@@ -789,8 +790,8 @@ export default function SettingsPage() {
           typeof entry.name === "string"
             ? entry.name.trim()
             : typeof entry.title === "string"
-            ? entry.title.trim()
-            : "";
+              ? entry.title.trim()
+              : "";
         const configSource =
           entry.configJson ?? entry.config_json ?? entry.config ?? "{}";
         if (!name) continue;
@@ -808,8 +809,8 @@ export default function SettingsPage() {
           typeof entry.name === "string"
             ? entry.name.trim()
             : typeof entry.title === "string"
-            ? entry.title.trim()
-            : "";
+              ? entry.title.trim()
+              : "";
         const configSource =
           entry.configJson ?? entry.config_json ?? entry.config ?? "{}";
         if (!name) continue;
@@ -956,350 +957,62 @@ export default function SettingsPage() {
             title={t("manageTranscriptionSettings")}
             subheader={t("addEditPresetsToUseForApiCallsAndPreviewSamples")}
           />
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
-          sx={{ px: 3 }}
-        >
-          <Tab label={t("generalStt")} value="file" />
-          <Tab label={t("streamingStt")} value="streaming" />
-        </Tabs>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            sx={{ mb: 2 }}
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            indicatorColor="primary"
+            textColor="primary"
+            sx={{ px: 3 }}
           >
-            <Button variant="outlined" onClick={() => void handleDownloadTranscriptionPresets()}>
-              {t("exportTranscriptionSettingsJson")}
-            </Button>
-            <Button variant="outlined" onClick={handleImportTranscriptionPresetsRequest}>
-              {t("loadTranscriptionSettingsJson")}
-            </Button>
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {presetHint}
-          </Typography>
-          <Stack
-            direction={{ xs: "column", lg: "row" }}
-            spacing={3}
-            alignItems={{ xs: "stretch", lg: "flex-start" }}
-          >
-            <Stack spacing={3} sx={{ flexBasis: { lg: "50%" }, flexGrow: 1, width: "100%" }}>
-              <Stack spacing={1.5}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  {t("presetList")}
-                </Typography>
-                <List
-                  dense
-                  disablePadding
-                  sx={{ border: 1, borderColor: "divider", borderRadius: 2 }}
-                >
-                  {presets.length === 0 ? (
-                    <Box sx={{ p: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {t("thereAreNoRegisteredPresets")}
-                      </Typography>
-                      <Typography variant="caption" color="text.disabled">
-                        {t("pleaseAddANewPreset")}
-                      </Typography>
-                    </Box>
-                  ) : (
-                    presets.map((preset) => (
-                      <ListItemButton
-                        key={preset.id}
-                        selected={preset.id === selectedPresetId}
-                        onClick={() => handlePresetSelect(preset)}
-                      >
-                        <ListItemText
-                          primary={preset.name}
-                          secondary={preset.isDefault ? t("basic") : undefined}
-                        />
-                      </ListItemButton>
-                    ))
-                  )}
-                </List>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <Button variant="outlined" onClick={handleNewPreset} fullWidth>
-                    {t("newPreset")}
-                  </Button>
-                  <Button variant="outlined" onClick={handleLoadTemplate} fullWidth>
-                    {t("defaultLoad")}
-                  </Button>
-                </Stack>
-              </Stack>
-
-              <Stack spacing={2}>
-                <TextField
-                  label={t("presetName")}
-                  fullWidth
-                  value={presetForm.name}
-                  onChange={(event) => handlePresetFieldChange("name", event.target.value)}
-                  placeholder={t("exampleBasicKoreanSpeakerSeparation")}
-                />
-                <TextField
-                  label={t("explanation")}
-                  fullWidth
-                  value={presetForm.description}
-                  onChange={(event) => handlePresetFieldChange("description", event.target.value)}
-                  placeholder={t("pleaseLeaveANoteAboutTranscriptionOptions")}
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={presetForm.isDefault}
-                      onChange={(event) => handlePresetDefaultToggle(event.target.checked)}
-                      color="primary"
-                    />
-                  }
-                  label={t("setAsDefaultPreset")}
-                />
-              </Stack>
-
-              <TranscriptionConfigQuickOptions
-                type={activeTab === "file" ? "file" : "streaming"}
-                configJson={presetForm.configJson}
-                onChange={(nextJson) => handlePresetFieldChange("configJson", nextJson)}
-                backendDeploymentMode={backendDeploymentMode}
-                collapsible
-              />
-
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                justifyContent="flex-end"
-              >
-                <Button variant="contained" color="primary" onClick={handleSavePreset}>
-                  {t("savePreset")}
-                </Button>
-                <Button variant="outlined" color="error" onClick={handleDeletePreset}>
-                  {t("deletePreset")}
-                </Button>
-              </Stack>
-            </Stack>
-
-            <Box
-              sx={{
-                flexBasis: { lg: "50%" },
-                flexGrow: 1,
-                width: "100%",
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                {t("sourceSettingsJson")}
+            <Tab label={t("generalStt")} value="file" />
+            <Tab label={t("streamingStt")} value="streaming" />
+          </Tabs>
+          <CardContent>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                {t("defaultSettings")}
               </Typography>
               <TextField
-                label={t("settingsJson")}
+                label={t("defaultSpeakerName")}
+                value={defaultSpeakerName}
+                onChange={(e) => updateSetting("defaultSpeakerName", e.target.value)}
+                helperText={t("defaultSpeakerNameHelper")}
                 fullWidth
-                multiline
-                minRows={16}
-                value={presetForm.configJson}
-                onChange={(event) => handlePresetFieldChange("configJson", event.target.value)}
+                margin="normal"
               />
             </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card ref={permissionsSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
-        <CardHeader
-          title={t("browserPermissions")}
-          subheader={t("youCanCheckTheStatusOfMicrophoneAndStoragePermissionsAndReRequestThem")}
-        />
-        <CardContent>
-          <Stack spacing={2}>
+            <Divider sx={{ mb: 3 }} />
             <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={1.5}
-              alignItems={{ xs: "flex-start", md: "center" }}
-              justifyContent="space-between"
-              sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{ mb: 2 }}
             >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2">{t("microphonePermission")}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                {renderPermissionChip(permissionStatus.microphone)}
-                <Button
-                  variant="outlined"
-                  onClick={() => void handleRequestMicrophonePermission()}
-                  disabled={requestingMicrophone || permissionLoading}
-                >
-                  {requestingMicrophone ? t("requesting") : t("reRequestPermission")}
-                </Button>
-              </Stack>
-            </Stack>
-
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={1.5}
-              alignItems={{ xs: "flex-start", md: "center" }}
-              justifyContent="space-between"
-              sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2">{t("storagePermissions")}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {t("permissionToReliablyStoreSessionLogsAndTemporaryTranscriptionData")}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                {renderPermissionChip(permissionStatus.storage)}
-                <Button
-                  variant="outlined"
-                  onClick={() => void handleRequestStoragePermission()}
-                  disabled={requestingStorage || permissionLoading}
-                >
-                  {requestingStorage ? t("requesting") : t("reRequestPermission")}
-                </Button>
-              </Stack>
-            </Stack>
-
-            <Box>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => void refreshPermissionStatus()}
-                disabled={permissionLoading}
-              >
-                {permissionLoading ? t("checking") : t("refreshStatus")}
+              <Button variant="outlined" onClick={() => void handleDownloadTranscriptionPresets()}>
+                {t("exportTranscriptionSettingsJson")}
               </Button>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
-        <CardHeader
-          title={t("backendSettings")}
-          subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
-        />
-        <CardContent>
-          <Stack spacing={3}>
-            <Stack spacing={2}>
-              <TextField
-                label="Python API Base URL"
-                value={apiBaseUrl}
-                onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
-                placeholder="http://localhost:8000"
-                helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
-              />
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-              >
-                <Button
-                  variant="outlined"
-                  onClick={() => void handleRefreshBackendState()}
-                  disabled={backendStateLoading || !apiBaseUrl.trim()}
-                >
-                  {backendStateLoading ? t("checking") : t("refreshServerStatus")}
-                </Button>
-                <Button
-                  variant="text"
-                  color="secondary"
-                  onClick={() => void handleResetBackendEndpoint()}
-                  disabled={backendStateLoading || !apiBaseUrl.trim()}
-                >
-                  {t("returnToServerDefault")}
-                </Button>
-              </Stack>
-              {backendStateError && <Alert severity="error">{backendStateError}</Alert>}
-              {backendState && (
-                <Alert severity="info" variant="outlined">
-                  <Stack spacing={1}>
-                    <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      <Chip
-                        label={
-                          backendState.deployment === "cloud" ? "RTZR API" : "On-prem"
-                        }
-                        size="small"
-                      />
-                      <Chip
-                        label={
-                          backendState.source === "override" ? t("custom") : t("serverDefault")
-                        }
-                        size="small"
-                        color={backendState.source === "override" ? "primary" : "default"}
-                      />
-                      <Chip
-                        label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
-                        size="small"
-                        color={backendState.verifySsl ? "success" : "warning"}
-                      />
-                      <Chip
-                        label={
-                          backendState.authEnabled
-                            ? t("useClientCredentials")
-                            : t("credentialsNotUsed")
-                        }
-                        size="small"
-                        color={backendState.authEnabled ? "success" : "default"}
-                      />
-                    </Stack>
-                    <Typography variant="body2">{`API Base: ${backendState.apiBaseUrl}`}</Typography>
-                  </Stack>
-                </Alert>
-              )}
+              <Button variant="outlined" onClick={handleImportTranscriptionPresetsRequest}>
+                {t("loadTranscriptionSettingsJson")}
+              </Button>
             </Stack>
-            <TextField
-              label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
-              type="number"
-              value={realtimeAutoSaveSeconds}
-              onChange={(event) => {
-                const value = Number(event.target.value) || 0;
-                if (value <= 0) {
-                  enqueueSnackbar(t("theAutoSaveIntervalMustBeAtLeast1Second"), {
-                    variant: "warning",
-                  });
-                  return;
-                }
-                void updateSetting("realtimeAutoSaveSeconds", value);
-              }}
-              helperText={t("localTemporaryStorageCycleDuringRealTimeSessionsDefaultIs10Seconds")}
-            />
-            <Divider />
-            <Stack spacing={1}>
-              <Typography variant="subtitle1">{t("backendApiEndpointPresets")}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {t("theRtzrOnPremEndpointAndCredentialsThatThePythonApiWillInteractWithCanBeSavedAsPresetsAndAppliedWhenNeeded")}
-              </Typography>
-            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              {presetHint}
+            </Typography>
             <Stack
               direction={{ xs: "column", lg: "row" }}
-              spacing={2}
-              alignItems="stretch"
+              spacing={3}
+              alignItems={{ xs: "stretch", lg: "flex-start" }}
             >
-              <Box
-                sx={{
-                  flex: { xs: "1 1 auto", lg: "0 0 320px" },
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 2,
-                  minHeight: 0,
-                }}
-              >
-                <Stack spacing={1}>
+              <Stack spacing={3} sx={{ flexBasis: { lg: "50%" }, flexGrow: 1, width: "100%" }}>
+                <Stack spacing={1.5}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    {t("presetList")}
+                  </Typography>
                   <List
                     dense
                     disablePadding
-                    sx={{
-                      border: 1,
-                      borderColor: "divider",
-                      borderRadius: 2,
-                      overflow: "hidden",
-                      minHeight: 200,
-                    }}
+                    sx={{ border: 1, borderColor: "divider", borderRadius: 2 }}
                   >
-                    {backendPresets.length === 0 ? (
+                    {presets.length === 0 ? (
                       <Box sx={{ p: 2 }}>
                         <Typography variant="body2" color="text.secondary">
                           {t("thereAreNoRegisteredPresets")}
@@ -1309,241 +1022,551 @@ export default function SettingsPage() {
                         </Typography>
                       </Box>
                     ) : (
-                      backendPresets.map((preset) => (
+                      presets.map((preset) => (
                         <ListItemButton
                           key={preset.id}
-                          selected={preset.id === selectedBackendPresetId}
-                          onClick={() => handleBackendPresetSelect(preset)}
+                          selected={preset.id === selectedPresetId}
+                          onClick={() => handlePresetSelect(preset)}
                         >
                           <ListItemText
                             primary={preset.name}
-                            secondary={
-                              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                                <Chip
-                                  label={preset.deployment === "cloud" ? "RTZR API" : "On-prem"}
-                                  size="small"
-                                />
-                                {preset.isDefault && (
-                                  <Chip label={t("basic")} size="small" color="default" />
-                                )}
-                                {activeBackendPresetId === preset.id && (
-                                  <Chip label={t("applyingToServer2")} size="small" color="success" />
-                                )}
-                              </Stack>
-                            }
+                            secondary={preset.isDefault ? t("basic") : undefined}
                           />
                         </ListItemButton>
                       ))
                     )}
                   </List>
-                  <Stack spacing={1}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <Button variant="outlined" onClick={handleNewBackendPreset} fullWidth>
-                        {t("newPreset")}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={handleBackendPresetExport}
-                        fullWidth
-                        disabled={!selectedBackendPreset}
-                      >
-                        {t("jsonExport")}
-                      </Button>
-                    </Stack>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <Button
-                        variant="outlined"
-                        onClick={handleBackendPresetImportRequest}
-                        fullWidth
-                      >
-                        {t("loadJson")}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="success"
-                        onClick={() => void handleApplyBackendPreset()}
-                        fullWidth
-                        disabled={!selectedBackendPreset || backendStateLoading}
-                      >
-                        {t("applyToServer")}
-                      </Button>
-                    </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <Button variant="outlined" onClick={handleNewPreset} fullWidth>
+                      {t("newPreset")}
+                    </Button>
+                    <Button variant="outlined" onClick={handleLoadTemplate} fullWidth>
+                      {t("defaultLoad")}
+                    </Button>
                   </Stack>
                 </Stack>
-              </Box>
-              <Box
-                sx={{
-                  flex: 1,
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 2,
-                  bgcolor: "background.paper",
-                }}
-              >
+
                 <Stack spacing={2}>
                   <TextField
                     label={t("presetName")}
-                    value={backendPresetForm.name}
-                    onChange={(event) =>
-                      setBackendPresetForm((prev) => ({ ...prev, name: event.target.value }))
-                    }
+                    fullWidth
+                    value={presetForm.name}
+                    onChange={(event) => handlePresetFieldChange("name", event.target.value)}
+                    placeholder={t("exampleBasicKoreanSpeakerSeparation")}
                   />
                   <TextField
                     label={t("explanation")}
-                    value={backendPresetForm.description}
-                    onChange={(event) =>
-                      setBackendPresetForm((prev) => ({
-                        ...prev,
-                        description: event.target.value,
-                      }))
-                    }
-                    placeholder={t("pleaseLeaveAnEndpointNote")}
-                  />
-                  <FormControl component="fieldset">
-                    <FormLabel>{t("endpointType")}</FormLabel>
-                    <ToggleButtonGroup
-                      exclusive
-                      value={backendPresetForm.deployment}
-                      onChange={(_, value) => {
-                        if (!value) return;
-                        setBackendPresetForm((prev) => ({ ...prev, deployment: value }));
-                      }}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    >
-                      <ToggleButton value="cloud" sx={{ textTransform: "none" }}>
-                        RTZR API
-                      </ToggleButton>
-                      <ToggleButton value="onprem" sx={{ textTransform: "none" }}>
-                        On-prem
-                      </ToggleButton>
-                    </ToggleButtonGroup>
-                  </FormControl>
-                  <TextField
-                    label="API Base URL"
-                    value={backendPresetForm.apiBaseUrl}
-                    onChange={(event) =>
-                      setBackendPresetForm((prev) => ({
-                        ...prev,
-                        apiBaseUrl: event.target.value,
-                      }))
-                    }
-                    placeholder="https://openapi.vito.ai"
+                    fullWidth
+                    value={presetForm.description}
+                    onChange={(event) => handlePresetFieldChange("description", event.target.value)}
+                    placeholder={t("pleaseLeaveANoteAboutTranscriptionOptions")}
                   />
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={backendPresetForm.verifySsl}
-                        onChange={(event) =>
-                          setBackendPresetForm((prev) => ({
-                            ...prev,
-                            verifySsl: event.target.checked,
-                          }))
-                        }
-                      />
-                    }
-                    label={t("sslCertificateVerification")}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={backendPresetForm.isDefault}
-                        onChange={(event) =>
-                          setBackendPresetForm((prev) => ({
-                            ...prev,
-                            isDefault: event.target.checked,
-                          }))
-                        }
+                        checked={presetForm.isDefault}
+                        onChange={(event) => handlePresetDefaultToggle(event.target.checked)}
+                        color="primary"
                       />
                     }
                     label={t("setAsDefaultPreset")}
                   />
-                  {backendPresetForm.deployment === "cloud" && (
-                    <Stack spacing={1.5}>
-                      <Stack spacing={0.5}>
-                        <TextField
-                          label="Client ID"
-                          type="password"
-                          value={backendPresetForm.clientIdInput}
-                          onChange={(event) =>
-                            setBackendPresetForm((prev) => ({
-                              ...prev,
-                              clientIdInput: event.target.value,
-                            }))
-                          }
-                          placeholder={t("requiredForCloudDeployment")}
-                          helperText={
-                            backendPresetForm.storedClientId
-                              ? t("thereIsASavedClientIdEnteringANewValueWillOverwriteIt")
-                              : t("requiredForRtzrCloudDeployments")
-                          }
-                        />
-                        {backendPresetForm.storedClientId && (
-                          <Button
-                            variant="text"
-                            size="small"
-                            onClick={() => handleBackendCredentialClear("storedClientId")}
-                            sx={{ alignSelf: "flex-end" }}
-                          >
-                            {t("clearSavedClientId")}
-                          </Button>
-                        )}
-                      </Stack>
-                      <Stack spacing={0.5}>
-                        <TextField
-                          label="Client Secret"
-                          type="password"
-                          value={backendPresetForm.clientSecretInput}
-                          onChange={(event) =>
-                            setBackendPresetForm((prev) => ({
-                              ...prev,
-                              clientSecretInput: event.target.value,
-                            }))
-                          }
-                          helperText={
-                            backendPresetForm.storedClientSecret
-                              ? t("thereIsASavedClientSecretEnteringANewValueWillOverwriteIt")
-                              : t("requiredForRtzrCloudDeployments")
-                          }
-                        />
-                        {backendPresetForm.storedClientSecret && (
-                          <Button
-                            variant="text"
-                            size="small"
-                            onClick={() => handleBackendCredentialClear("storedClientSecret")}
-                            sx={{ alignSelf: "flex-end" }}
-                          >
-                            {t("clearSavedClientSecret")}
-                          </Button>
-                        )}
-                      </Stack>
-                    </Stack>
-                  )}
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={1}
-                    alignItems="stretch"
-                  >
-                    <Button variant="contained" onClick={() => void handleBackendPresetSave()} fullWidth>
-                      {t("savePreset")}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      onClick={() => void handleBackendPresetDelete()}
-                      disabled={!backendPresetForm.id}
-                      fullWidth
-                    >
-                      {t("deletePreset")}
-                    </Button>
-                  </Stack>
                 </Stack>
+
+                <TranscriptionConfigQuickOptions
+                  type={activeTab === "file" ? "file" : "streaming"}
+                  configJson={presetForm.configJson}
+                  onChange={(nextJson) => handlePresetFieldChange("configJson", nextJson)}
+                  backendDeploymentMode={backendDeploymentMode}
+                  collapsible
+                />
+
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  justifyContent="flex-end"
+                >
+                  <Button variant="contained" color="primary" onClick={handleSavePreset}>
+                    {t("savePreset")}
+                  </Button>
+                  <Button variant="outlined" color="error" onClick={handleDeletePreset}>
+                    {t("deletePreset")}
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Box
+                sx={{
+                  flexBasis: { lg: "50%" },
+                  flexGrow: 1,
+                  width: "100%",
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  {t("sourceSettingsJson")}
+                </Typography>
+                <TextField
+                  label={t("settingsJson")}
+                  fullWidth
+                  multiline
+                  minRows={16}
+                  value={presetForm.configJson}
+                  onChange={(event) => handlePresetFieldChange("configJson", event.target.value)}
+                />
               </Box>
             </Stack>
-          </Stack>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card ref={permissionsSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
+          <CardHeader
+            title={t("browserPermissions")}
+            subheader={t("youCanCheckTheStatusOfMicrophoneAndStoragePermissionsAndReRequestThem")}
+          />
+          <CardContent>
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                alignItems={{ xs: "flex-start", md: "center" }}
+                justifyContent="space-between"
+                sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2">{t("microphonePermission")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  {renderPermissionChip(permissionStatus.microphone)}
+                  <Button
+                    variant="outlined"
+                    onClick={() => void handleRequestMicrophonePermission()}
+                    disabled={requestingMicrophone || permissionLoading}
+                  >
+                    {requestingMicrophone ? t("requesting") : t("reRequestPermission")}
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                alignItems={{ xs: "flex-start", md: "center" }}
+                justifyContent="space-between"
+                sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2">{t("storagePermissions")}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {t("permissionToReliablyStoreSessionLogsAndTemporaryTranscriptionData")}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  {storagePermissionSupported ? (
+                    <>
+                      {renderPermissionChip(permissionStatus.storage)}
+                      <Button
+                        variant="outlined"
+                        onClick={() => void handleRequestStoragePermission()}
+                        disabled={requestingStorage || permissionLoading}
+                      >
+                        {requestingStorage ? t("requesting") : t("reRequestPermission")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      {t("storagePermissionBrowserManaged")}
+                    </Typography>
+                  )}
+                </Stack>
+              </Stack>
+
+              <Box>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() => void refreshPermissionStatus()}
+                  disabled={permissionLoading}
+                >
+                  {permissionLoading ? t("checking") : t("refreshStatus")}
+                </Button>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
+          <CardHeader
+            title={t("backendSettings")}
+            subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
+          />
+          <CardContent>
+            <Stack spacing={3}>
+              <Stack spacing={2}>
+                <TextField
+                  label="Python API Base URL"
+                  value={apiBaseUrl}
+                  onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
+                  placeholder="http://localhost:8000"
+                  helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
+                />
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ xs: "flex-start", sm: "center" }}
+                >
+                  <Button
+                    variant="outlined"
+                    onClick={() => void handleRefreshBackendState()}
+                    disabled={backendStateLoading || !apiBaseUrl.trim()}
+                  >
+                    {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                  </Button>
+                  <Button
+                    variant="text"
+                    color="secondary"
+                    onClick={() => void handleResetBackendEndpoint()}
+                    disabled={backendStateLoading || !apiBaseUrl.trim()}
+                  >
+                    {t("returnToServerDefault")}
+                  </Button>
+                </Stack>
+                {backendStateError && <Alert severity="error">{backendStateError}</Alert>}
+                {backendState && (
+                  <Alert severity="info" variant="outlined">
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Chip
+                          label={
+                            backendState.deployment === "cloud" ? "RTZR API" : "On-prem"
+                          }
+                          size="small"
+                        />
+                        <Chip
+                          label={
+                            backendState.source === "override" ? t("custom") : t("serverDefault")
+                          }
+                          size="small"
+                          color={backendState.source === "override" ? "primary" : "default"}
+                        />
+                        <Chip
+                          label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
+                          size="small"
+                          color={backendState.verifySsl ? "success" : "warning"}
+                        />
+                        <Chip
+                          label={
+                            backendState.authEnabled
+                              ? t("useClientCredentials")
+                              : t("credentialsNotUsed")
+                          }
+                          size="small"
+                          color={backendState.authEnabled ? "success" : "default"}
+                        />
+                      </Stack>
+                      <Typography variant="body2">{`API Base: ${backendState.apiBaseUrl}`}</Typography>
+                    </Stack>
+                  </Alert>
+                )}
+              </Stack>
+              <TextField
+                label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
+                type="number"
+                value={realtimeAutoSaveSeconds}
+                onChange={(event) => {
+                  const value = Number(event.target.value) || 0;
+                  if (value <= 0) {
+                    enqueueSnackbar(t("theAutoSaveIntervalMustBeAtLeast1Second"), {
+                      variant: "warning",
+                    });
+                    return;
+                  }
+                  void updateSetting("realtimeAutoSaveSeconds", value);
+                }}
+                helperText={t("localTemporaryStorageCycleDuringRealTimeSessionsDefaultIs10Seconds")}
+              />
+              <Divider />
+              <Stack spacing={1}>
+                <Typography variant="subtitle1">{t("backendApiEndpointPresets")}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t("theRtzrOnPremEndpointAndCredentialsThatThePythonApiWillInteractWithCanBeSavedAsPresetsAndAppliedWhenNeeded")}
+                </Typography>
+              </Stack>
+              <Stack
+                direction={{ xs: "column", lg: "row" }}
+                spacing={2}
+                alignItems="stretch"
+              >
+                <Box
+                  sx={{
+                    flex: { xs: "1 1 auto", lg: "0 0 320px" },
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                    minHeight: 0,
+                  }}
+                >
+                  <Stack spacing={1}>
+                    <List
+                      dense
+                      disablePadding
+                      sx={{
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        minHeight: 200,
+                      }}
+                    >
+                      {backendPresets.length === 0 ? (
+                        <Box sx={{ p: 2 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {t("thereAreNoRegisteredPresets")}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled">
+                            {t("pleaseAddANewPreset")}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        backendPresets.map((preset) => (
+                          <ListItemButton
+                            key={preset.id}
+                            selected={preset.id === selectedBackendPresetId}
+                            onClick={() => handleBackendPresetSelect(preset)}
+                          >
+                            <ListItemText
+                              primary={preset.name}
+                              secondary={
+                                <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                                  <Chip
+                                    label={preset.deployment === "cloud" ? "RTZR API" : "On-prem"}
+                                    size="small"
+                                  />
+                                  {preset.isDefault && (
+                                    <Chip label={t("basic")} size="small" color="default" />
+                                  )}
+                                  {activeBackendPresetId === preset.id && (
+                                    <Chip label={t("applyingToServer2")} size="small" color="success" />
+                                  )}
+                                </Stack>
+                              }
+                            />
+                          </ListItemButton>
+                        ))
+                      )}
+                    </List>
+                    <Stack spacing={1}>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                        <Button variant="outlined" onClick={handleNewBackendPreset} fullWidth>
+                          {t("newPreset")}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={handleBackendPresetExport}
+                          fullWidth
+                          disabled={!selectedBackendPreset}
+                        >
+                          {t("jsonExport")}
+                        </Button>
+                      </Stack>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                        <Button
+                          variant="outlined"
+                          onClick={handleBackendPresetImportRequest}
+                          fullWidth
+                        >
+                          {t("loadJson")}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="success"
+                          onClick={() => void handleApplyBackendPreset()}
+                          fullWidth
+                          disabled={!selectedBackendPreset || backendStateLoading}
+                        >
+                          {t("applyToServer")}
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Stack>
+                </Box>
+                <Box
+                  sx={{
+                    flex: 1,
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <TextField
+                      label={t("presetName")}
+                      value={backendPresetForm.name}
+                      onChange={(event) =>
+                        setBackendPresetForm((prev) => ({ ...prev, name: event.target.value }))
+                      }
+                    />
+                    <TextField
+                      label={t("explanation")}
+                      value={backendPresetForm.description}
+                      onChange={(event) =>
+                        setBackendPresetForm((prev) => ({
+                          ...prev,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder={t("pleaseLeaveAnEndpointNote")}
+                    />
+                    <FormControl component="fieldset">
+                      <FormLabel>{t("endpointType")}</FormLabel>
+                      <ToggleButtonGroup
+                        exclusive
+                        value={backendPresetForm.deployment}
+                        onChange={(_, value) => {
+                          if (!value) return;
+                          setBackendPresetForm((prev) => ({ ...prev, deployment: value }));
+                        }}
+                        size="small"
+                        sx={{ mt: 1 }}
+                      >
+                        <ToggleButton value="cloud" sx={{ textTransform: "none" }}>
+                          RTZR API
+                        </ToggleButton>
+                        <ToggleButton value="onprem" sx={{ textTransform: "none" }}>
+                          On-prem
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    </FormControl>
+                    <TextField
+                      label="API Base URL"
+                      value={backendPresetForm.apiBaseUrl}
+                      onChange={(event) =>
+                        setBackendPresetForm((prev) => ({
+                          ...prev,
+                          apiBaseUrl: event.target.value,
+                        }))
+                      }
+                      placeholder="https://openapi.vito.ai"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={backendPresetForm.verifySsl}
+                          onChange={(event) =>
+                            setBackendPresetForm((prev) => ({
+                              ...prev,
+                              verifySsl: event.target.checked,
+                            }))
+                          }
+                        />
+                      }
+                      label={t("sslCertificateVerification")}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={backendPresetForm.isDefault}
+                          onChange={(event) =>
+                            setBackendPresetForm((prev) => ({
+                              ...prev,
+                              isDefault: event.target.checked,
+                            }))
+                          }
+                        />
+                      }
+                      label={t("setAsDefaultPreset")}
+                    />
+                    {backendPresetForm.deployment === "cloud" && (
+                      <Stack spacing={1.5}>
+                        <Stack spacing={0.5}>
+                          <TextField
+                            label="Client ID"
+                            type="password"
+                            value={backendPresetForm.clientIdInput}
+                            onChange={(event) =>
+                              setBackendPresetForm((prev) => ({
+                                ...prev,
+                                clientIdInput: event.target.value,
+                              }))
+                            }
+                            placeholder={t("requiredForCloudDeployment")}
+                            helperText={
+                              backendPresetForm.storedClientId
+                                ? t("thereIsASavedClientIdEnteringANewValueWillOverwriteIt")
+                                : t("requiredForRtzrCloudDeployments")
+                            }
+                          />
+                          {backendPresetForm.storedClientId && (
+                            <Button
+                              variant="text"
+                              size="small"
+                              onClick={() => handleBackendCredentialClear("storedClientId")}
+                              sx={{ alignSelf: "flex-end" }}
+                            >
+                              {t("clearSavedClientId")}
+                            </Button>
+                          )}
+                        </Stack>
+                        <Stack spacing={0.5}>
+                          <TextField
+                            label="Client Secret"
+                            type="password"
+                            value={backendPresetForm.clientSecretInput}
+                            onChange={(event) =>
+                              setBackendPresetForm((prev) => ({
+                                ...prev,
+                                clientSecretInput: event.target.value,
+                              }))
+                            }
+                            helperText={
+                              backendPresetForm.storedClientSecret
+                                ? t("thereIsASavedClientSecretEnteringANewValueWillOverwriteIt")
+                                : t("requiredForRtzrCloudDeployments")
+                            }
+                          />
+                          {backendPresetForm.storedClientSecret && (
+                            <Button
+                              variant="text"
+                              size="small"
+                              onClick={() => handleBackendCredentialClear("storedClientSecret")}
+                              sx={{ alignSelf: "flex-end" }}
+                            >
+                              {t("clearSavedClientSecret")}
+                            </Button>
+                          )}
+                        </Stack>
+                      </Stack>
+                    )}
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1}
+                      alignItems="stretch"
+                    >
+                      <Button variant="contained" onClick={() => void handleBackendPresetSave()} fullWidth>
+                        {t("savePreset")}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        onClick={() => void handleBackendPresetDelete()}
+                        disabled={!backendPresetForm.id}
+                        fullWidth
+                      >
+                        {t("deletePreset")}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Box>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
       </Box>
       <input
         type="file"

@@ -3,7 +3,8 @@ version: "3.9"
 services:
   python-api:
     build:
-      context: ../../python_api
+      context: ../..
+      dockerfile: python_api/Dockerfile
     container_name: malsori-python-api
     environment:
       STT_STORAGE_BASE_DIR: /data
@@ -13,7 +14,7 @@ services:
       STT_DEPLOYMENT: ${STT_DEPLOYMENT:-cloud}
       STT_VERIFY_SSL: ${STT_VERIFY_SSL:-1}
     ports:
-      - "8000:8000"
+      - "8173:8000"
     volumes:
       - python_api_data:/data
 
@@ -21,12 +22,12 @@ services:
     build:
       context: ../../webapp
       args:
-        NEXT_PUBLIC_API_BASE: http://python-api:8000
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
     container_name: malsori-webapp
     depends_on:
       - python-api
     environment:
-      NEXT_PUBLIC_API_BASE: http://python-api:8000
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
     ports:
       - "4173:80"
 

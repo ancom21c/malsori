@@ -1,28 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  Chip,
-  CircularProgress,
-  Divider,
-  LinearProgress,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import ArticleIcon from "@mui/icons-material/Article";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import AudiotrackIcon from "@mui/icons-material/Audiotrack";
-import DeleteIcon from "@mui/icons-material/Delete";
-import DescriptionIcon from "@mui/icons-material/Description";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { useParams, useNavigate } from "react-router-dom";
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import dayjs from "dayjs";
 import { useSnackbar } from "notistack";
@@ -31,9 +12,17 @@ import { appDb, type LocalSegment, type LocalWordTiming } from "../data/app-db";
 import {
   deleteTranscription,
   listAudioChunks,
+  listVideoChunks,
   updateSegmentCorrection,
+  updateSegmentSpeakerLabel,
+  updateSingleSegmentSpeakerLabel,
 } from "../services/data/transcriptionRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
+import { SpeakerEditDialog } from "../components/SpeakerEditDialog";
+import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
+import { useShareLink } from "../hooks/useShareLink";
+import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
+import { TranscriptionView } from "../components/TranscriptionView";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
@@ -75,6 +64,27 @@ function buildRealtimeAudioFileName(title: string | undefined, fallbackId: strin
   return `${baseName}_${normalizedRate}hz.wav`;
 }
 
+function determineVideoExtension(mimeType?: string | null) {
+  if (!mimeType) {
+    return "webm";
+  }
+  if (mimeType.includes("mp4")) {
+    return "mp4";
+  }
+  if (mimeType.includes("ogg")) {
+    return "ogv";
+  }
+  if (mimeType.includes("webm")) {
+    return "webm";
+  }
+  return "webm";
+}
+
+function buildSessionVideoFileName(title: string | undefined, fallbackId: string, mimeType?: string | null) {
+  const extension = determineVideoExtension(mimeType);
+  return buildDownloadFileName(title, fallbackId, extension);
+}
+
 function downloadBlobContent(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -92,32 +102,6 @@ function formatAbsoluteStartTime(startOffsetMs: number, createdAtIso: string | u
     return base.add(startOffsetMs, "millisecond").toISOString();
   }
   return `${startOffsetMs}ms`;
-}
-
-function resolveSegmentText(segment: LocalSegment, preferCorrected = false) {
-  if (preferCorrected) {
-    const corrected = segment.correctedText;
-    if (corrected && corrected.trim().length > 0) {
-      return corrected;
-    }
-  }
-  return segment.text ?? "";
-}
-
-function aggregateSegmentText(
-  segments: LocalSegment[] | undefined,
-  preferCorrected: boolean
-): string | undefined {
-  if (!segments || segments.length === 0) {
-    return undefined;
-  }
-  const entries = segments
-    .map((segment) => resolveSegmentText(segment, preferCorrected).trim())
-    .filter((text) => text.length > 0);
-  if (!entries.length) {
-    return undefined;
-  }
-  return entries.join("\n");
 }
 
 function getSegmentStartMs(segment: LocalSegment): number | null {
@@ -151,6 +135,20 @@ function segmentHasTiming(segment: LocalSegment): boolean {
     (typeof segment.startMs === "number" && Number.isFinite(segment.startMs)) ||
     (typeof segment.endMs === "number" && Number.isFinite(segment.endMs))
   );
+}
+
+function computeNextSpeakerId(segments: LocalSegment[] | undefined): string {
+  if (!segments || segments.length === 0) {
+    return "1";
+  }
+  const maxNumericId = segments.reduce((max, segment) => {
+    const parsed = Number.parseInt(segment.spk ?? "0", 10);
+    if (Number.isFinite(parsed) && parsed > max) {
+      return parsed;
+    }
+    return max;
+  }, 0);
+  return String(maxNumericId + 1);
 }
 
 const WORD_TIMING_RELATIVE_TOLERANCE_MS = 250;
@@ -194,8 +192,8 @@ function resolveWordTimingMs(segment: LocalSegment, word: LocalWordTiming) {
         ? segmentStart + rawStart
         : rawStart
       : endLooksRelative && rawEnd !== null
-      ? segmentStart + rawEnd
-      : segmentStart;
+        ? segmentStart + rawEnd
+        : segmentStart;
 
   const normalizedEndCandidate =
     rawEnd !== null
@@ -230,17 +228,13 @@ function buildWordEditorResult(words: LocalWordTiming[], overrides: string[]) {
   return { text, words: normalizedWords };
 }
 
-function formatSecondsLabel(ms: number) {
-  return (ms / 1000).toFixed(2);
-}
-
 function formatSegmentPlainText(segment: LocalSegment, index: number, createdAtIso: string | undefined) {
   const startOffset = Math.max(0, Math.round(segment.startMs ?? 0));
   const hasValidEnd =
     typeof segment.endMs === "number" && Number.isFinite(segment.endMs) && segment.endMs >= segment.startMs;
   const endAt = hasValidEnd ? Math.round(segment.endMs) : null;
   const duration = endAt !== null ? Math.max(0, endAt - startOffset) : 0;
-  const speaker = segment.speaker?.trim().length ? segment.speaker.trim() : "unknown";
+  const speaker = segment.speaker_label?.trim().length ? segment.speaker_label.trim() : "unknown";
   const header = `# ${index + 1} ${speaker} ${formatAbsoluteStartTime(
     startOffset,
     createdAtIso
@@ -268,11 +262,11 @@ function buildStreamingResultPayload(
     const words =
       segment.words && segment.words.length > 0
         ? segment.words.map((word) => ({
-            text: word.text,
-            start_at: word.startMs,
-            duration: Math.max(0, word.endMs - word.startMs),
-            confidence: word.confidence ?? 0,
-          }))
+          text: word.text,
+          start_at: word.startMs,
+          duration: Math.max(0, word.endMs - word.startMs),
+          confidence: word.confidence ?? 0,
+        }))
         : undefined;
 
     const alternatives: RtzrStreamingAlternative[] = [
@@ -320,13 +314,21 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 export default function TranscriptionDetailPage() {
   const { transcriptionId } = useParams<{ transcriptionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mediaElementRef = useRef<any>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoBlobRef = useRef<Blob | null>(null);
+  const videoMimeTypeRef = useRef<string | null>(null);
   const segmentEndRef = useRef<number | null>(null);
   const programmaticSeekRef = useRef(false);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
@@ -337,19 +339,21 @@ export default function TranscriptionDetailPage() {
   const [editingWordTimings, setEditingWordTimings] = useState<LocalWordTiming[] | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const audioReady = Boolean(audioUrl || audioBlobRef.current) && !audioLoading;
+  const shareAudioAvailable = Boolean(audioUrl || audioBlobRef.current);
+  const [noteMode, setNoteMode] = useState(false);
+  const [wordDetailsVisibility, setWordDetailsVisibility] = useState<Record<string, boolean>>({});
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
   const activeWordHighlightRef = useRef<{ segmentId: string; index: number } | null>(null);
   const segmentCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const handleNavigateBack = useCallback(() => {
-    const state = window.history.state as { idx?: number } | null;
-    if (state && typeof state.idx === "number" && state.idx > 0) {
-      navigate(-1);
-      return;
-    }
-    navigate("/", { replace: true });
-  }, [navigate]);
+  const [speakerEditDialogOpen, setSpeakerEditDialogOpen] = useState(false);
+  const [speakerEditTarget, setSpeakerEditTarget] = useState<{
+    segmentId: string;
+    currentSpk: string;
+    currentLabel: string;
+  } | null>(null);
+  const [speakerEditName, setSpeakerEditName] = useState("");
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
@@ -364,9 +368,101 @@ export default function TranscriptionDetailPage() {
       .sortBy("startMs");
   }, [transcriptionId]);
 
+  const {
+    includeAudioInShare,
+    sharePassword,
+    setSharePassword,
+    shareLink,
+    shareGenerating,
+    shareError,
+    shareDialogOpen,
+    openShareDialog: handleShareDialogOpen,
+    closeShareDialog: handleShareDialogClose,
+    audioTranscoding,
+    handleIncludeAudioChange,
+    handleGenerateShareLink,
+    handleCopyShareLink,
+  } = useShareLink({
+    transcriptionId,
+    transcription,
+    segments,
+    audioUrl,
+    audioBlobRef,
+    shareAudioAvailable,
+    t,
+    enqueueSnackbar,
+  });
+
+  const handleSpeakerClick = useCallback((segment: LocalSegment) => {
+    setSpeakerEditTarget({
+      segmentId: segment.id,
+      currentSpk: segment.spk ?? "0",
+      currentLabel: segment.speaker_label ?? "",
+    });
+    setSpeakerEditName(segment.speaker_label ?? "");
+    setSpeakerEditDialogOpen(true);
+  }, []);
+
+  const handleSpeakerEditClose = useCallback(() => {
+    setSpeakerEditDialogOpen(false);
+    setSpeakerEditTarget(null);
+    setSpeakerEditName("");
+  }, []);
+
+  const handleSpeakerUpdateAll = useCallback(async () => {
+    if (!transcriptionId || !speakerEditTarget) return;
+    try {
+      await updateSegmentSpeakerLabel(
+        transcriptionId,
+        speakerEditTarget.currentSpk,
+        speakerEditName
+      );
+      enqueueSnackbar(t("speakerUpdateSuccess"), { variant: "success" });
+      handleSpeakerEditClose();
+    } catch (error) {
+      console.error("Failed to update speaker", error);
+      enqueueSnackbar(t("failedToSaveCorrections"), { variant: "error" });
+    }
+  }, [transcriptionId, speakerEditTarget, speakerEditName, enqueueSnackbar, t, handleSpeakerEditClose]);
+
+  const handleSpeakerUpdateSingle = useCallback(async () => {
+    if (!speakerEditTarget) return;
+    try {
+      const nextSpkId = computeNextSpeakerId(segments);
+      await updateSingleSegmentSpeakerLabel(speakerEditTarget.segmentId, speakerEditName, nextSpkId);
+      enqueueSnackbar(t("speakerUpdateSuccess"), { variant: "success" });
+      handleSpeakerEditClose();
+    } catch (error) {
+      console.error("Failed to update speaker", error);
+      enqueueSnackbar(t("failedToSaveCorrections"), { variant: "error" });
+    }
+  }, [speakerEditTarget, speakerEditName, segments, enqueueSnackbar, t, handleSpeakerEditClose]);
+
+  const handleNavigateBack = useCallback(() => {
+    const fromList = Boolean((location.state as { fromList?: boolean } | null)?.fromList);
+    if (fromList) {
+      navigate(-1);
+      return;
+    }
+    navigate("/", { replace: true });
+  }, [location.state, navigate]);
+
+  const noteModeText = useMemo(() => {
+    const aggregated = aggregateSegmentText(segments, true);
+    if (aggregated && aggregated.trim().length > 0) {
+      return aggregated;
+    }
+    const fallback = transcription?.transcriptText?.trim();
+    return fallback && fallback.length > 0 ? fallback : "";
+  }, [segments, transcription]);
+
   useEffect(() => {
     segmentsRef.current = segments ?? [];
   }, [segments]);
+
+  useEffect(() => {
+    setNoteMode(false);
+  }, [transcriptionId]);
 
   useEffect(() => {
     activeSegmentIdRef.current = activeSegmentId;
@@ -387,8 +483,28 @@ export default function TranscriptionDetailPage() {
     element.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeSegmentId]);
 
+  const isWordDetailsVisible = useCallback(
+    (segmentId: string) => Boolean(wordDetailsVisibility[segmentId]),
+    [wordDetailsVisibility]
+  );
+
+  useEffect(() => {
+    const current = activeWordHighlightRef.current;
+    if (current && !isWordDetailsVisible(current.segmentId)) {
+      setActiveWordHighlight(null);
+      activeWordHighlightRef.current = null;
+    }
+  }, [isWordDetailsVisible]);
+
   const updateActiveWordHighlight = useCallback(
     (segmentId: string, currentSeconds: number) => {
+      if (!isWordDetailsVisible(segmentId)) {
+        if (activeWordHighlightRef.current !== null) {
+          setActiveWordHighlight(null);
+          activeWordHighlightRef.current = null;
+        }
+        return;
+      }
       const segment = segmentsRef.current.find((entry) => entry.id === segmentId);
       if (!segment || !segment.words || segment.words.length === 0) {
         if (activeWordHighlightRef.current !== null) {
@@ -413,16 +529,8 @@ export default function TranscriptionDetailPage() {
         activeWordHighlightRef.current = nextHighlight;
       }
     },
-    []
+    [isWordDetailsVisible]
   );
-
-  const handleSegmentCardRef = useCallback((segmentId: string, node: HTMLDivElement | null) => {
-    if (node) {
-      segmentCardRefs.current.set(segmentId, node);
-    } else {
-      segmentCardRefs.current.delete(segmentId);
-    }
-  }, []);
 
   const focusSegmentByDirection = useCallback(
     (direction: "previous" | "next") => {
@@ -741,6 +849,60 @@ export default function TranscriptionDetailPage() {
     };
   }, [t, transcription]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    videoBlobRef.current = null;
+    videoMimeTypeRef.current = null;
+    setVideoError(null);
+
+    if (!transcription || transcription.kind !== "realtime") {
+      setVideoUrl(null);
+      setVideoLoading(false);
+      return () => {
+        cancelled = true;
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }
+
+    setVideoLoading(true);
+    (async () => {
+      try {
+        const chunks = await listVideoChunks(transcription.id);
+        if (cancelled) return;
+        if (chunks.length === 0) {
+          setVideoUrl(null);
+          return;
+        }
+        const mimeType =
+          chunks.find((chunk) => chunk.mimeType)?.mimeType ?? "video/webm";
+        const blob = new Blob(chunks.map((chunk) => chunk.data), { type: mimeType });
+        videoBlobRef.current = blob;
+        videoMimeTypeRef.current = mimeType;
+        objectUrl = URL.createObjectURL(blob);
+        setVideoUrl(objectUrl);
+      } catch (error) {
+        console.error("Failed to load recorded video", error);
+        if (!cancelled) {
+          setVideoError(t("videoCannotBeLoaded"));
+        }
+      } finally {
+        if (!cancelled) {
+          setVideoLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [t, transcription]);
+
   const handleDelete = useCallback(async () => {
     if (!transcriptionId) return;
     if (!window.confirm(t("wouldYouLikeToDeleteYourTranscriptionHistory"))) {
@@ -756,10 +918,10 @@ export default function TranscriptionDetailPage() {
     const useRealtimeName = transcription.kind === "realtime";
     const downloadName = useRealtimeName
       ? buildRealtimeAudioFileName(
-          transcription.title,
-          transcription.id,
-          transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE
-        )
+        transcription.title,
+        transcription.id,
+        transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE
+      )
       : buildDownloadFileName(transcription.title, transcription.id, "wav");
     if (audioBlobRef.current) {
       const url = URL.createObjectURL(audioBlobRef.current);
@@ -781,6 +943,30 @@ export default function TranscriptionDetailPage() {
       link.remove();
     }
   }, [audioUrl, transcription]);
+
+  const handleDownloadVideo = useCallback(() => {
+    if (!transcription) return;
+    if (!videoBlobRef.current && !videoUrl) {
+      return;
+    }
+    const downloadName = buildSessionVideoFileName(
+      transcription.title,
+      transcription.id,
+      videoMimeTypeRef.current
+    );
+    if (videoBlobRef.current) {
+      downloadBlobContent(videoBlobRef.current, downloadName);
+      return;
+    }
+    if (videoUrl) {
+      const link = document.createElement("a");
+      link.href = videoUrl;
+      link.download = downloadName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  }, [transcription, videoUrl]);
 
   const findSegmentForPlaybackTime = useCallback((currentSeconds: number): LocalSegment | null => {
     const entries = segmentsRef.current;
@@ -841,12 +1027,21 @@ export default function TranscriptionDetailPage() {
         enqueueSnackbar(t("theAudioIsNotReadyYet"), { variant: "info" });
         return;
       }
+      const media = mediaElementRef.current;
+      if (!media) return;
+      const currentActiveId = activeSegmentIdRef.current;
+      if (currentActiveId === segment.id && !media.paused) {
+        media.pause();
+        segmentEndRef.current = null;
+        setActiveSegmentId(null);
+        setActiveWordHighlight(null);
+        activeWordHighlightRef.current = null;
+        return;
+      }
       if (!segmentHasTiming(segment)) {
         enqueueSnackbar(t("itCannotBePlayedBecauseThereIsNoSectionInformation"), { variant: "info" });
         return;
       }
-      const audio = audioElementRef.current;
-      if (!audio) return;
 
       const startMs = getSegmentStartMs(segment);
       if (startMs === null) {
@@ -858,13 +1053,13 @@ export default function TranscriptionDetailPage() {
       const hasValidEnd = typeof endMs === "number" && Number.isFinite(endMs) && endMs > startMs;
       const endSeconds = hasValidEnd ? endMs / 1000 : null;
 
-      if (!audio.paused) {
-        audio.pause();
+      if (!media.paused) {
+        media.pause();
       }
       programmaticSeekRef.current = false;
-      if (Math.abs(audio.currentTime - startSeconds) > 0.05) {
+      if (Math.abs(media.currentTime - startSeconds) > 0.05) {
         programmaticSeekRef.current = true;
-        audio.currentTime = startSeconds;
+        media.currentTime = startSeconds;
       }
 
       segmentEndRef.current = endSeconds;
@@ -872,9 +1067,9 @@ export default function TranscriptionDetailPage() {
       updateActiveWordHighlight(segment.id, startSeconds);
 
       try {
-        const playResult = audio.play();
+        const playResult = media.play();
         if (playResult && typeof playResult.catch === "function") {
-          playResult.catch((error) => {
+          playResult.catch((error: unknown) => {
             console.error(t("segmentPlaybackFailed"), error);
             segmentEndRef.current = null;
             setActiveSegmentId(null);
@@ -898,15 +1093,15 @@ export default function TranscriptionDetailPage() {
   );
 
   useEffect(() => {
-    const audio = audioElementRef.current;
-    if (!audio) return;
+    const media = mediaElementRef.current;
+    if (!media) return;
 
     const handleTimeUpdate = () => {
       const endBoundary = segmentEndRef.current;
       if (endBoundary !== null && Number.isFinite(endBoundary)) {
-        if (audio.currentTime >= endBoundary - 0.05) {
-          audio.pause();
-          audio.currentTime = endBoundary;
+        if (media.currentTime >= endBoundary - 0.05) {
+          media.pause();
+          media.currentTime = endBoundary;
           segmentEndRef.current = null;
           setActiveSegmentId(null);
           setActiveWordHighlight(null);
@@ -914,7 +1109,7 @@ export default function TranscriptionDetailPage() {
           return;
         }
       }
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      syncActiveSegmentWithPlayback(media.currentTime);
     };
 
     const clearSegmentPlayback = () => {
@@ -940,23 +1135,23 @@ export default function TranscriptionDetailPage() {
         programmaticSeekRef.current = false;
         return;
       }
-      syncActiveSegmentWithPlayback(audio.currentTime);
+      syncActiveSegmentWithPlayback(media.currentTime);
     };
 
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleStop);
-    audio.addEventListener("pause", handleStop);
-    audio.addEventListener("seeking", handleSeeking);
-    audio.addEventListener("seeked", handleSeeked);
+    media.addEventListener("timeupdate", handleTimeUpdate);
+    media.addEventListener("ended", handleStop);
+    media.addEventListener("pause", handleStop);
+    media.addEventListener("seeking", handleSeeking);
+    media.addEventListener("seeked", handleSeeked);
 
     return () => {
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleStop);
-      audio.removeEventListener("pause", handleStop);
-      audio.removeEventListener("seeking", handleSeeking);
-      audio.removeEventListener("seeked", handleSeeked);
+      media.removeEventListener("timeupdate", handleTimeUpdate);
+      media.removeEventListener("ended", handleStop);
+      media.removeEventListener("pause", handleStop);
+      media.removeEventListener("seeking", handleSeeking);
+      media.removeEventListener("seeked", handleSeeked);
     };
-  }, [audioUrl, syncActiveSegmentWithPlayback]);
+  }, [audioUrl, videoUrl, syncActiveSegmentWithPlayback]);
 
   if (transcription === undefined) {
     return (
@@ -976,327 +1171,188 @@ export default function TranscriptionDetailPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <Card>
-        <CardHeader
-          title={transcription.title}
-          subheader={`${t("creationTime")}: ${dayjs(transcription.createdAt).format(
-            "YYYY-MM-DD HH:mm:ss"
-          )}`}
-          action={
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ArrowBackIcon fontSize="small" />}
-              onClick={handleNavigateBack}
-            >
-              {t("toTranscriptionList")}
-            </Button>
-          }
-        />
-        <CardContent>
+      <MediaPlaybackSection
+        transcription={transcription}
+        audioUrl={audioUrl}
+        videoUrl={videoUrl}
+        mediaRef={mediaElementRef}
+        audioLoading={audioLoading}
+        videoLoading={videoLoading}
+        audioError={audioError}
+        videoError={videoError}
+        audioDownloadable={Boolean(audioUrl || audioBlobRef.current)}
+        videoDownloadable={Boolean(videoUrl || videoBlobRef.current)}
+        onBack={handleNavigateBack}
+        onDownloadJson={handleDownloadJson}
+        onDownloadText={handleDownloadText}
+        onDownloadAudio={handleDownloadAudio}
+        onDownloadVideo={handleDownloadVideo}
+        onDelete={handleDelete}
+        onShare={handleShareDialogOpen}
+        t={t}
+      />
+
+      <Dialog
+        open={shareDialogOpen}
+        onClose={handleShareDialogClose}
+        maxWidth="sm"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogTitle>{t("shareSectionTitle")}</DialogTitle>
+        <DialogContent dividers>
           <Stack spacing={2}>
-            <Stack spacing={1}>
-              <Typography variant="body2" color="text.secondary">
-                {t("type")}:{" "}
-                {transcription.kind === "file" ? t("fileTranscription") : t("realTimeTranscription")}
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={shareAudioAvailable && includeAudioInShare}
+                    onChange={handleIncludeAudioChange}
+                    disabled={!shareAudioAvailable || shareGenerating}
+                  />
+                }
+                label={t("shareIncludeAudioLabel")}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {shareAudioAvailable ? t("shareIncludeAudioHelper") : t("shareIncludeAudioUnavailable")}
               </Typography>
+            </FormGroup>
+            <TextField
+              label={t("sharePasswordLabel")}
+              type="password"
+              value={sharePassword}
+              onChange={(event) => setSharePassword(event.target.value)}
+              helperText={t("sharePasswordHelper")}
+              fullWidth
+              disabled={shareGenerating}
+            />
+            {audioTranscoding ? (
               <Typography variant="body2" color="text.secondary">
-                {t("status")}: {transcription.status}
+                {t("shareTranscoding")}
               </Typography>
-              {transcription.errorMessage ? (
-                <Alert severity="error">{transcription.errorMessage}</Alert>
-              ) : null}
-              {audioLoading && <LinearProgress color="secondary" />}
-              {audioError ? <Alert severity="warning">{audioError}</Alert> : null}
-              {audioUrl ? (
-                <Box sx={{ mt: 1 }}>
-                  <audio
-                    ref={audioElementRef}
-                  controls
-                  src={audioUrl}
-                  style={{ width: "100%" }}
-                  aria-label={t("recordingPlayback")}
-                >
-                  {t("yourBrowserDoesNotSupportTheAudioTag")}
-                </audio>
-                </Box>
+            ) : null}
+            <Stack spacing={1} alignItems="flex-start">
+              <Button
+                variant="contained"
+                startIcon={
+                  shareGenerating || audioTranscoding ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    <ShareOutlinedIcon />
+                  )
+                }
+                onClick={handleGenerateShareLink}
+                disabled={shareGenerating || audioTranscoding || !transcription}
+              >
+                {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
+              </Button>
+              {shareLink ? (
+                <TextField
+                  value={shareLink}
+                  fullWidth
+                  InputProps={{
+                    readOnly: true,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title={t("shareCopyLink")}>
+                          <IconButton onClick={handleCopyShareLink} size="small">
+                            <ContentCopyOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
               ) : null}
             </Stack>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
-              <Button
-                variant="outlined"
-                startIcon={<DescriptionIcon />}
-                onClick={handleDownloadJson}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("json")}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<ArticleIcon />}
-                onClick={handleDownloadText}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("text2")}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<AudiotrackIcon />}
-                disabled={!audioUrl && !audioBlobRef.current}
-                onClick={handleDownloadAudio}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("audio")}
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleDelete}
-                fullWidth
-                sx={{ maxWidth: { sm: 200 } }}
-              >
-                {t("delete")}
-              </Button>
-            </Stack>
-            <Typography variant="caption" color="text.secondary">
-              {t(
-                "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다."
-              )}
-            </Typography>
+            {shareError ? <Alert severity="error">{shareError}</Alert> : null}
           </Stack>
-        </CardContent>
-      </Card>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleShareDialogClose}>{t("close")}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <SpeakerEditDialog
+        open={speakerEditDialogOpen}
+        name={speakerEditName}
+        labels={{
+          title: t("editSpeaker"),
+          nameLabel: t("speakerName"),
+          updateAll: t("changeAllSpeakers"),
+          createNew: t("createNewSpeaker"),
+          cancel: t("cancellation"),
+        }}
+        onChangeName={setSpeakerEditName}
+        onUpdateAll={() => void handleSpeakerUpdateAll()}
+        onUpdateSingle={() => void handleSpeakerUpdateSingle()}
+        onClose={handleSpeakerEditClose}
+      />
 
       <Stack spacing={2}>
-        {segments && segments.length > 0 ? (
-          segments.map((segment) => {
-            const isEditing = editingSegmentId === segment.id;
-            const displayText = resolveSegmentText(segment, true);
-            const hasCorrection = Boolean(segment.correctedText && segment.correctedText.trim().length > 0);
-            const hasTimingInfo = segmentHasTiming(segment);
-            const startMsValue = getSegmentStartMs(segment);
-            const endMsValue = getSegmentEndMs(segment);
-            const startLabel = startMsValue !== null ? `${(startMsValue / 1000).toFixed(1)}s` : null;
-            const endLabel = endMsValue !== null ? `${(endMsValue / 1000).toFixed(1)}s` : null;
-            const timingLabel = hasTimingInfo
-              ? startLabel && endLabel
-                ? `${startLabel} ~ ${endLabel}`
-                : startLabel ?? t("hasTimeInformation")
-              : t("noTimeInformation");
-            const playDisabled = !audioReady || !hasTimingInfo;
-            const isActiveSegment = activeSegmentId === segment.id;
-            const showWordHighlight = !isEditing && Boolean(segment.words && segment.words.length > 0);
-            const activeWordIndex =
-              activeWordHighlight?.segmentId === segment.id ? activeWordHighlight.index : null;
-            const hasEditableWords =
-              Boolean(
-                editingWordInputs &&
-                  editingWordTimings &&
-                  editingWordInputs.length === editingWordTimings.length
-              );
-            const isWordEditorActive = isEditing && hasEditableWords;
-            const activeWordInputs =
-              isWordEditorActive && editingWordInputs ? editingWordInputs : null;
-            const activeWordTimings =
-              isWordEditorActive && editingWordTimings ? editingWordTimings : null;
-            const wordEditorPreview =
-              activeWordInputs && activeWordTimings
-                ? buildWordEditorResult(activeWordTimings, activeWordInputs).text
-                : "";
-            return (
-              <Card
-                key={segment.id}
-                ref={(node) => handleSegmentCardRef(segment.id, node)}
-                tabIndex={-1}
-              >
-                <CardContent>
-                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                    <Chip
-                      label={
-                        segment.speaker
-                          ? t("speaker", { values: { speaker: segment.speaker } })
-                          : t("speakerNotSpecified")
-                      }
-                      color="primary"
-                      variant="outlined"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      {timingLabel}
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant={isActiveSegment ? "contained" : "text"}
-                      onClick={() => handlePlaySegment(segment)}
-                      disabled={playDisabled}
-                      aria-label={t("playTheSection")}
-                      sx={{ minWidth: 36 }}
-                    >
-                      {isActiveSegment ? t("playing") : <PlayArrowIcon fontSize="small" />}
-                    </Button>
-                  </Stack>
-                  <Divider sx={{ mb: 1 }} />
-                  {isEditing ? (
-                    isWordEditorActive && activeWordInputs && activeWordTimings ? (
-                      <Stack spacing={1.25}>
-                        <Typography variant="subtitle2">
-                          {t("wordByWordCorrection")}
-                        </Typography>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 1,
-                          }}
-                        >
-                          {activeWordInputs.map((value, index) => (
-                            <TextField
-                              key={`${segment.id}-word-editor-${index}`}
-                              label={t("word", { values: { index: index + 1 } })}
-                              size="small"
-                              value={value}
-                              disabled={savingEdit}
-                              onChange={(event) => handleWordInputChange(index, event.target.value)}
-                              onKeyDown={handleEditKeyDown}
-                              autoFocus={index === 0}
-                              sx={{ minWidth: 120 }}
-                            />
-                          ))}
-                        </Box>
-                        <Typography variant="body2" color="text.secondary">
-                          {wordEditorPreview
-                            ? t("preview", { values: { text: wordEditorPreview } })
-                            : t("noWordsWereEntered")}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {t("youCanCancelWithEscAndSaveWithCtrlEnter")}
-                        </Typography>
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Button onClick={handleCancelEdit} disabled={savingEdit}>
-                            {t("cancellation")}
-                          </Button>
-                          <Button
-                            variant="contained"
-                            onClick={() => void handleSaveEdit()}
-                            disabled={savingEdit}
-                          >
-                            {savingEdit ? t("saving2") : t("save")}
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    ) : (
-                      <Stack spacing={1}>
-                        <TextField
-                          multiline
-                          minRows={3}
-                          fullWidth
-                          label={t("redactedText")}
-                          value={editingValue}
-                          disabled={savingEdit}
-                          onChange={(event) => setEditingValue(event.target.value)}
-                          autoFocus
-                          onKeyDown={handleEditKeyDown}
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {t("text")}: {segment.text}
-                        </Typography>
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Button onClick={handleCancelEdit} disabled={savingEdit}>
-                            {t("cancellation")}
-                          </Button>
-                          <Button
-                            variant="contained"
-                            onClick={() => void handleSaveEdit()}
-                            disabled={savingEdit}
-                          >
-                            {savingEdit ? t("saving2") : t("save")}
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    )
-                  ) : (
-                    <Stack
-                      spacing={hasCorrection ? 1 : 0.5}
-                      onDoubleClick={() => handleStartEdit(segment)}
-                      sx={{ cursor: "text" }}
-                    >
-                      {showWordHighlight ? (
-                        <Stack spacing={hasCorrection ? 0.75 : 0.5}>
-                          {hasCorrection ? (
-                            <Typography variant="body1">{segment.correctedText}</Typography>
-                          ) : null}
-                          {hasCorrection ? (
-                            <Typography variant="caption" color="text.secondary">
-                              {t("text")}
-                            </Typography>
-                          ) : null}
-                          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                            {segment.words?.map((word, index) => {
-                              const isActiveWord = activeWordIndex === index;
-                              const timing = resolveWordTimingMs(segment, word);
-                              const tooltipTitle = `start_at: ${formatSecondsLabel(
-                                timing.startMs
-                              )}s · duration: ${formatSecondsLabel(timing.durationMs)}s`;
-                              return (
-                                <Tooltip
-                                  key={`${segment.id}-word-${index}-${word.startMs}`}
-                                  title={tooltipTitle}
-                                  enterTouchDelay={0}
-                                  leaveTouchDelay={1500}
-                                >
-                                  <Box
-                                    component="span"
-                                    tabIndex={0}
-                                    aria-label={`${word.text} – ${tooltipTitle}`}
-                                    sx={{
-                                      px: 0.75,
-                                      py: 0.25,
-                                      borderRadius: 1,
-                                      border: "1px solid",
-                                      borderColor: isActiveWord ? "primary.main" : "divider",
-                                      bgcolor: isActiveWord ? "primary.main" : "transparent",
-                                      color: isActiveWord ? "primary.contrastText" : "text.primary",
-                                      fontWeight: isActiveWord ? 600 : 400,
-                                      transition:
-                                        "background-color 120ms linear, color 120ms linear, border-color 120ms linear",
-                                    }}
-                                  >
-                                    {word.text}
-                                  </Box>
-                                </Tooltip>
-                              );
-                            })}
-                          </Box>
-                        </Stack>
-                      ) : (
-                        <>
-                          <Typography variant="body1">{displayText}</Typography>
-                          {hasCorrection ? (
-                            <Typography variant="caption" color="text.secondary">
-                              원본: {segment.text}
-                            </Typography>
-                          ) : null}
-                        </>
-                      )}
-                    </Stack>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })
+        <Stack spacing={0.5}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={noteMode}
+                onChange={(event) => setNoteMode(event.target.checked)}
+              />
+            }
+            label={t("noteMode")}
+          />
+          <Typography variant="caption" color="text.secondary">
+            {t("noteModeHelper")}
+          </Typography>
+        </Stack>
+
+        {noteMode ? (
+          <TextField
+            multiline
+            minRows={8}
+            fullWidth
+            label={t("noteModeTextAreaLabel")}
+            placeholder={t("noteModePlaceholder")}
+            value={noteModeText}
+            InputProps={{ readOnly: true }}
+          />
         ) : (
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">
-                {t("thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults")}
-              </Typography>
-            </CardContent>
-          </Card>
+          <TranscriptionView
+            segments={segments}
+            activeSegmentId={activeSegmentId}
+            activeWordHighlight={activeWordHighlight}
+            wordDetailsVisibility={wordDetailsVisibility}
+            editingSegmentId={editingSegmentId}
+            editingValue={editingValue}
+            editingWordInputs={editingWordInputs}
+            editingWordTimings={editingWordTimings}
+            savingEdit={savingEdit}
+            audioReady={audioReady}
+            onSpeakerClick={handleSpeakerClick}
+          onPlaySegment={handlePlaySegment}
+          onStartEdit={handleStartEdit}
+          onWordInputChange={handleWordInputChange}
+          onEditValueChange={setEditingValue}
+          onCancelEdit={handleCancelEdit}
+          onSaveEdit={() => void handleSaveEdit()}
+          onWordDetailsToggle={(segmentId) => {
+            setWordDetailsVisibility((prev) => {
+                const nextVisible = !(prev[segmentId] ?? false);
+                if (!nextVisible && activeWordHighlightRef.current?.segmentId === segmentId) {
+                  setActiveWordHighlight(null);
+                  activeWordHighlightRef.current = null;
+                }
+                return {
+                  ...prev,
+                  [segmentId]: nextVisible,
+                };
+              });
+            }}
+            onKeyDown={handleEditKeyDown}
+            segmentCardRefs={segmentCardRefs}
+            t={t}
+          />
         )}
       </Stack>
-    </Box>
+    </Box >
   );
 }

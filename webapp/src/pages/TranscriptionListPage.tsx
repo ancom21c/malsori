@@ -27,6 +27,10 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CloudIcon from "@mui/icons-material/Cloud";
+import CloudOffIcon from "@mui/icons-material/CloudOff";
+import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
+import { updateLocalTranscription } from "../services/data/transcriptionRepository";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
@@ -235,6 +239,21 @@ export default function TranscriptionListPage() {
     setSelectedEndpoints([]);
   }, []);
 
+  const handleToggleSync = async (transcription: LocalTranscription) => {
+    const newValue = !transcription.isCloudSynced;
+    await updateLocalTranscription(transcription.id, { isCloudSynced: newValue });
+    enqueueSnackbar(
+      newValue ? t("cloudSyncEnabled") : t("cloudSyncDisabled"),
+      { variant: "info" }
+    );
+  };
+
+  const handleDownload = async (transcription: LocalTranscription) => {
+    // TODO: Trigger download via SyncManager
+    enqueueSnackbar(t("downloadStarted"), { variant: "info" });
+    await updateLocalTranscription(transcription.id, { downloadStatus: "downloading" });
+  };
+
   const handleKindToggle = (kind: LocalTranscriptionKind) => {
     setSelectedKinds((prev) => {
       if (prev.includes(kind)) {
@@ -342,11 +361,11 @@ export default function TranscriptionListPage() {
                     renderValue={(selected) =>
                       Array.isArray(selected) && selected.length > 0
                         ? selected
-                            .map(
-                              (value) =>
-                                modelOptions.find((option) => option.value === value)?.label ?? value
-                            )
-                            .join(", ")
+                          .map(
+                            (value) =>
+                              modelOptions.find((option) => option.value === value)?.label ?? value
+                          )
+                          .join(", ")
                         : t("entire")
                     }
                     disabled={modelOptions.length === 0}
@@ -378,11 +397,11 @@ export default function TranscriptionListPage() {
                     renderValue={(selected) =>
                       Array.isArray(selected) && selected.length > 0
                         ? selected
-                            .map(
-                              (value) =>
-                                endpointOptions.find((option) => option.value === value)?.label ?? value
-                            )
-                            .join(", ")
+                          .map(
+                            (value) =>
+                              endpointOptions.find((option) => option.value === value)?.label ?? value
+                          )
+                          .join(", ")
                         : t("entire")
                     }
                     disabled={endpointOptions.length === 0}
@@ -450,15 +469,31 @@ export default function TranscriptionListPage() {
                   <Box key={item.id}>
                     <ListItem
                       secondaryAction={
-                        <IconButton edge="end" onClick={() => void handleDelete(item)}>
-                          <DeleteIcon />
-                        </IconButton>
+                        <Stack direction="row" spacing={1}>
+                          {item.downloadStatus === "not_downloaded" ? (
+                            <IconButton edge="end" onClick={() => void handleDownload(item)}>
+                              <CloudDownloadIcon color="primary" />
+                            </IconButton>
+                          ) : (
+                            <IconButton
+                              edge="end"
+                              onClick={() => void handleToggleSync(item)}
+                              color={item.isCloudSynced ? "primary" : "default"}
+                            >
+                              {item.isCloudSynced ? <CloudIcon /> : <CloudOffIcon />}
+                            </IconButton>
+                          )}
+                          <IconButton edge="end" onClick={() => void handleDelete(item)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Stack>
                       }
                       disablePadding
                     >
                       <ListItemButton
                         component={RouterLink}
                         to={`/transcriptions/${item.id}`}
+                        state={{ fromList: true }}
                         sx={{ py: 1.5 }}
                       >
                         <ListItemAvatar>{getKindAvatar(item.kind)}</ListItemAvatar>

@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  FormControlLabel,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   ListItemText,
   LinearProgress,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -34,6 +36,8 @@ import {
   updateLocalTranscription,
   replaceSegments,
   appendAudioChunk,
+  appendVideoChunk,
+  deleteTranscription,
 } from "../services/data/transcriptionRepository";
 import { RtzrStreamingClient } from "../services/api/rtzrStreamingClient";
 import {
@@ -51,6 +55,10 @@ import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import StopCircleIcon from "@mui/icons-material/StopCircle";
 import MicNoneRoundedIcon from "@mui/icons-material/MicNoneRounded";
+import VideocamRoundedIcon from "@mui/icons-material/VideocamRounded";
+import VideocamOffRoundedIcon from "@mui/icons-material/VideocamOffRounded";
+import CameraswitchRoundedIcon from "@mui/icons-material/CameraswitchRounded";
+import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
 import {
   extractModelNameFromConfig,
@@ -58,15 +66,17 @@ import {
 } from "../utils/transcriptionMetadata";
 import { useI18n } from "../i18n";
 
-type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "saving";
+type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
 type RealtimeSegment = {
   id: string;
   text: string;
+  rawText?: string;
   startMs: number;
   endMs: number;
   isFinal: boolean;
-  speaker?: string;
+  spk?: string;
+  speakerLabel?: string;
   language?: string;
   words?: LocalWordTiming[];
 };
@@ -77,10 +87,19 @@ const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
   connecting: "connecting",
   recording: "sessionStateRecording",
   paused: "pause",
+  stopping: "stopping",
   saving: "saving",
 };
 
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
+const VIDEO_CAPTURE_TIMESLICE_MS = 4000;
+const VIDEO_MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm;codecs=h264,opus",
+  "video/webm",
+  "video/mp4",
+];
 
 type RuntimeSettingKey =
   | "maxUtterDuration"
@@ -106,48 +125,50 @@ const RUNTIME_SETTING_FIELDS: Array<{
   helperText: string;
   step?: string;
 }> = [
-  {
-    key: "maxUtterDuration",
-    label: "max_utter_duration (초)",
-    placeholder: "예: 12",
-    helperText: "최대 발화 길이. 기본 12초, 값이 크면 긴 발화 하나로 처리됩니다.",
-    step: "1",
-  },
-  {
-    key: "noiseThreshold",
-    label: "noise_threshold",
-    placeholder: "예: 0.7",
-    helperText: "백그라운드 노이즈 감지 임계값. 기본 0.7.",
-    step: "0.01",
-  },
-  {
-    key: "epdTime",
-    label: "epd_time (초)",
-    placeholder: "예: 0.5",
-    helperText: "무음 감지 시간. 0.5~1.0초 추천.",
-    step: "0.1",
-  },
-  {
-    key: "activeThreshold",
-    label: "active_threshold",
-    placeholder: "예: 0.88",
-    helperText: "음성 활성화 임계값. 기본 0.88.",
-    step: "0.01",
-  },
-  {
-    key: "acousticScale",
-    label: "acoustic_scale",
-    placeholder: "예: 1.0",
-    helperText: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
-    step: "0.01",
-  },
-];
+    {
+      key: "maxUtterDuration",
+      label: "max_utter_duration (초)",
+      placeholder: "예: 12",
+      helperText: "최대 발화 길이. 기본 12초, 값이 크면 긴 발화 하나로 처리됩니다.",
+      step: "1",
+    },
+    {
+      key: "noiseThreshold",
+      label: "noise_threshold",
+      placeholder: "예: 0.7",
+      helperText: "백그라운드 노이즈 감지 임계값. 기본 0.7.",
+      step: "0.01",
+    },
+    {
+      key: "epdTime",
+      label: "epd_time (초)",
+      placeholder: "예: 0.5",
+      helperText: "무음 감지 시간. 0.5~1.0초 추천.",
+      step: "0.1",
+    },
+    {
+      key: "activeThreshold",
+      label: "active_threshold",
+      placeholder: "예: 0.88",
+      helperText: "음성 활성화 임계값. 기본 0.88.",
+      step: "0.01",
+    },
+    {
+      key: "acousticScale",
+      label: "acoustic_scale",
+      placeholder: "예: 1.0",
+      helperText: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
+      step: "0.01",
+    },
+  ];
 
 type NormalizedRealtimeSegmentPayload = {
   text: string;
+  rawText?: string;
   startMs?: number;
   endMs?: number;
-  speaker?: string;
+  spk?: string;
+  speakerLabel?: string;
   language?: string;
   words?: LocalWordTiming[];
 };
@@ -248,8 +269,8 @@ function normalizeWordFromRecord(word: unknown): LocalWordTiming | null {
     endValue !== undefined
       ? Math.max(0, Math.round(endValue))
       : normalizedStart !== undefined && durationValue !== undefined
-      ? Math.max(0, Math.round(normalizedStart + durationValue))
-      : undefined;
+        ? Math.max(0, Math.round(normalizedStart + durationValue))
+        : undefined;
   const startMs = normalizedStart ?? normalizedEnd ?? 0;
   const endMs = normalizedEnd ?? startMs;
   const confidenceValue = (word as { confidence?: unknown }).confidence;
@@ -324,18 +345,24 @@ function normalizeRealtimeSegmentPayload(payload: unknown): NormalizedRealtimeSe
     endValue !== undefined
       ? Math.max(0, Math.round(endValue))
       : normalizedStart !== undefined && durationValue !== undefined
-      ? Math.max(0, Math.round(normalizedStart + durationValue))
-      : undefined;
+        ? Math.max(0, Math.round(normalizedStart + durationValue))
+        : undefined;
 
-  const speaker = pickFirstString(candidateRecords, ["speaker", "spk", "speaker_label"]);
+  const spk = pickFirstString(candidateRecords, ["spk", "speaker"]) ?? "0";
+  const speakerLabel = pickFirstString(candidateRecords, ["speaker_label", "speaker_name"]);
   const language = pickFirstString(candidateRecords, ["language", "lang"]);
   const words = collectWordTimings(candidateRecords);
+  const rawText =
+    pickFirstString(candidateRecords, ["raw_text", "rawText"]) ||
+    (words ? words.map((word) => word.text).join(" ") : undefined);
 
   return {
     text,
+    rawText,
     startMs: normalizedStart,
     endMs: normalizedEnd,
-    speaker,
+    spk,
+    speakerLabel,
     language,
     words,
   };
@@ -361,8 +388,8 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
     typeof (config as { sample_rate?: unknown }).sample_rate === "number"
       ? (config as { sample_rate: number }).sample_rate
       : typeof (config as { sampleRate?: unknown }).sampleRate === "number"
-      ? (config as { sampleRate: number }).sampleRate
-      : undefined;
+        ? (config as { sampleRate: number }).sampleRate
+        : undefined;
   if (typeof maybeSampleRate === "number" && Number.isFinite(maybeSampleRate) && maybeSampleRate > 0) {
     return Math.floor(maybeSampleRate);
   }
@@ -376,6 +403,7 @@ export default function RealtimeSessionPage() {
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
   const realtimeAutoSaveSeconds = useSettingsStore((state) => state.realtimeAutoSaveSeconds);
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
+  const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const setFloatingActionsVisible = useUiStore((state) => state.setFloatingActionsVisible);
   const streamingPresets = usePresets("streaming");
   const defaultStreamingPreset = useMemo<PresetConfig | undefined>(
@@ -395,6 +423,7 @@ export default function RealtimeSessionPage() {
   const [countdown, setCountdown] = useState(3);
   const [segments, setSegments] = useState<RealtimeSegment[]>([]);
   const [partialText, setPartialText] = useState<string | null>(null);
+  const [noteMode, setNoteMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
   const [streamingJsonEditorOpen, setStreamingJsonEditorOpen] = useState(false);
@@ -402,9 +431,21 @@ export default function RealtimeSessionPage() {
   const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettingsState>(DEFAULT_RUNTIME_SETTINGS);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [streamingRequestJson, setStreamingRequestJson] = useState("");
+  const cameraSupported =
+    typeof navigator !== "undefined" &&
+    typeof MediaRecorder !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+  const [cameraRecording, setCameraRecording] = useState(false);
   const portalContainer = useAppPortalContainer();
   const runtimeSettingsFabRef = useRef<HTMLButtonElement | null>(null);
   const runtimeSettingsPreviouslyOpenRef = useRef(false);
+  const sessionConnectedRef = useRef(false);
+  const connectionReadyRef = useRef(false);
+  const countdownFinishedRef = useRef(false);
 
   useEffect(() => {
     if (!runtimeSettingsOpen) {
@@ -421,6 +462,8 @@ export default function RealtimeSessionPage() {
     }
     runtimeSettingsPreviouslyOpenRef.current = runtimeSettingsOpen;
   }, [runtimeSettingsOpen]);
+
+
 
   const countdownTimerRef = useRef<number | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -440,15 +483,32 @@ export default function RealtimeSessionPage() {
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
+  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const videoRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunkIndexRef = useRef(0);
+  const videoMimeTypeRef = useRef<string | null>(null);
+  const cameraShouldRecordRef = useRef(false);
+  const videoRecorderStopPromiseRef = useRef<Promise<void> | null>(null);
+  const stopSafetyTimerRef = useRef<number | null>(null);
+  const waitingForFinalRef = useRef(false);
 
   sessionStateRef.current = sessionState;
 
+  const sessionActive =
+    sessionState === "recording" ||
+    sessionState === "paused" ||
+    sessionState === "connecting" ||
+    sessionState === "countdown" ||
+    sessionState === "stopping" ||
+    sessionState === "saving";
+
   useEffect(() => {
-    setFloatingActionsVisible(true);
+    setFloatingActionsVisible(!sessionActive);
     return () => {
       setFloatingActionsVisible(true);
     };
-  }, [setFloatingActionsVisible]);
+  }, [sessionActive, setFloatingActionsVisible]);
 
   const clearCountdown = () => {
     if (countdownTimerRef.current !== null) {
@@ -463,6 +523,230 @@ export default function RealtimeSessionPage() {
       autosaveTimerRef.current = null;
     }
   };
+
+  const clearStopSafetyTimer = () => {
+    if (stopSafetyTimerRef.current !== null) {
+      window.clearTimeout(stopSafetyTimerRef.current);
+      stopSafetyTimerRef.current = null;
+    }
+  };
+
+  const stopCameraStream = useCallback(() => {
+    const stream = cameraStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+    const preview = cameraPreviewRef.current;
+    if (preview && preview.srcObject) {
+      preview.srcObject = null;
+    }
+  }, []);
+
+  const stopVideoRecorder = useCallback(async () => {
+    const recorder = videoRecorderRef.current;
+    if (!recorder) {
+      setCameraRecording(false);
+      return;
+    }
+    if (recorder.state === "inactive") {
+      videoRecorderRef.current = null;
+      setCameraRecording(false);
+      return;
+    }
+    if (videoRecorderStopPromiseRef.current) {
+      await videoRecorderStopPromiseRef.current;
+      return;
+    }
+    videoRecorderStopPromiseRef.current = new Promise<void>((resolve) => {
+      recorder.addEventListener(
+        "stop",
+        () => {
+          videoRecorderStopPromiseRef.current = null;
+          resolve();
+        },
+        { once: true }
+      );
+    });
+    try {
+      recorder.stop();
+    } catch {
+      videoRecorderStopPromiseRef.current = null;
+    }
+    await videoRecorderStopPromiseRef.current;
+    videoRecorderRef.current = null;
+    setCameraRecording(false);
+  }, []);
+
+  const startVideoRecordingIfNeeded = useCallback(async () => {
+    if (!cameraShouldRecordRef.current) return;
+    if (!cameraEnabled) return;
+    const stream = cameraStreamRef.current;
+    if (!stream) return;
+    if (typeof MediaRecorder === "undefined") {
+      setCameraError(t("cameraNotSupported"));
+      return;
+    }
+    const existingRecorder = videoRecorderRef.current;
+    if (existingRecorder && existingRecorder.state === "recording") {
+      return;
+    }
+    let mimeType = videoMimeTypeRef.current;
+    if (!mimeType && typeof MediaRecorder.isTypeSupported === "function") {
+      mimeType =
+        VIDEO_MIME_CANDIDATES.find((candidate) =>
+          MediaRecorder.isTypeSupported(candidate)
+        ) ?? null;
+    }
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    } catch (error) {
+      console.error("Failed to start camera recorder", error);
+      const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
+      setCameraError(message);
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      return;
+    }
+
+    videoRecorderRef.current = recorder;
+    videoMimeTypeRef.current = recorder.mimeType || mimeType || "video/webm";
+    recorder.addEventListener("dataavailable", (event) => {
+      if (!event.data || event.data.size === 0) {
+        return;
+      }
+      const transcriptionId = transcriptionIdRef.current;
+      if (!transcriptionId) return;
+      const chunkIndex = videoChunkIndexRef.current++;
+      void event.data
+        .arrayBuffer()
+        .then((buffer) =>
+          appendVideoChunk({
+            transcriptionId,
+            chunkIndex,
+            data: buffer,
+            mimeType:
+              event.data.type ||
+              recorder.mimeType ||
+              videoMimeTypeRef.current ||
+              "video/webm",
+          })
+        )
+        .catch((error) => {
+          console.error("Failed to persist video chunk", error);
+        });
+    });
+    recorder.addEventListener("stop", () => {
+      videoRecorderRef.current = null;
+      setCameraRecording(false);
+    });
+    recorder.addEventListener("error", (event) => {
+      console.error("Camera recording error", event);
+      setCameraError(t("cameraRecordingFailed"));
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      cameraShouldRecordRef.current = false;
+      void stopVideoRecorder();
+      stopCameraStream();
+    });
+
+    try {
+      recorder.start(VIDEO_CAPTURE_TIMESLICE_MS);
+      setCameraRecording(true);
+    } catch (error) {
+      console.error("Failed to capture camera stream", error);
+      const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
+      setCameraError(message);
+      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+    }
+  }, [cameraEnabled, enqueueSnackbar, stopCameraStream, stopVideoRecorder, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const activateCamera = async () => {
+      if (!cameraEnabled) {
+        await stopVideoRecorder();
+        if (!cancelled) {
+          stopCameraStream();
+          setCameraError(null);
+        }
+        return;
+      }
+      if (!cameraSupported) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setCameraError(t("cameraNotSupported"));
+        setCameraEnabled(false);
+        return;
+      }
+      setCameraLoading(true);
+      setCameraError(null);
+      try {
+        await stopVideoRecorder();
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: cameraFacingMode },
+          audio: true,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        cameraStreamRef.current = stream;
+        const preview = cameraPreviewRef.current;
+        if (preview) {
+          preview.muted = true;
+          preview.playsInline = true;
+          preview.autoplay = true;
+          preview.controls = false;
+          preview.srcObject = stream;
+          void preview.play().catch(() => {
+            /* ignore autoplay errors */
+          });
+        }
+        if (cameraShouldRecordRef.current) {
+          await startVideoRecordingIfNeeded();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error instanceof Error ? error.message : t("cameraAccessFailed");
+        setCameraError(message);
+        setCameraEnabled(false);
+        stopCameraStream();
+      } finally {
+        if (!cancelled) {
+          setCameraLoading(false);
+        }
+      }
+    };
+    void activateCamera();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cameraEnabled,
+    cameraFacingMode,
+    cameraSupported,
+    startVideoRecordingIfNeeded,
+    stopCameraStream,
+    stopVideoRecorder,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (sessionState === "recording" && cameraShouldRecordRef.current && cameraEnabled) {
+      void startVideoRecordingIfNeeded();
+    }
+  }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
+
+  useEffect(() => {
+    if (sessionState === "recording" && cameraShouldRecordRef.current && cameraEnabled) {
+      void startVideoRecordingIfNeeded();
+    }
+  }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
 
   const handleRuntimeSettingChange = (key: RuntimeSettingKey, value: string) => {
     setRuntimeSettings((prev) => ({
@@ -536,6 +820,7 @@ export default function RealtimeSessionPage() {
   const resetSessionState = () => {
     clearCountdown();
     clearAutosave();
+    clearStopSafetyTimer();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     recorderRef.current = null;
@@ -544,12 +829,21 @@ export default function RealtimeSessionPage() {
     segmentsRef.current = [];
     setSegments([]);
     setPartialText(null);
+    setNoteMode(false);
     setCountdown(3);
     sessionStartRef.current = null;
+    sessionConnectedRef.current = false;
+    connectionReadyRef.current = false;
+    countdownFinishedRef.current = false;
     chunkIndexRef.current = 0;
     recordedSampleRateRef.current = null;
     finalizingRef.current = false;
     finalizeReasonRef.current = "normal";
+    cameraShouldRecordRef.current = false;
+    videoChunkIndexRef.current = 0;
+    setCameraRecording(false);
+    void stopVideoRecorder();
+    waitingForFinalRef.current = false;
     setSessionState("idle");
   };
 
@@ -567,6 +861,7 @@ export default function RealtimeSessionPage() {
   };
 
   const handleAudioChunk = (buffer: ArrayBuffer, info: RecorderChunkInfo) => {
+    if (!countdownFinishedRef.current) return;
     const id = transcriptionIdRef.current;
     if (!id) return;
     const sampleRate = info?.sampleRate;
@@ -595,10 +890,12 @@ export default function RealtimeSessionPage() {
       id,
       segmentsRef.current.map((segment) => ({
         text: segment.text,
+        rawText: segment.rawText,
         startMs: segment.startMs,
         endMs: segment.endMs,
         isFinal: segment.isFinal,
-        speaker: segment.speaker,
+        spk: segment.spk,
+        speaker_label: segment.speakerLabel,
         language: segment.language,
         words: segment.words,
       }))
@@ -667,13 +964,21 @@ export default function RealtimeSessionPage() {
       const fallbackEndFromWords = normalizedWords?.[normalizedWords.length - 1]?.endMs;
       const startMs = normalized.startMs ?? fallbackStartFromWords ?? 0;
       const endMs = normalized.endMs ?? fallbackEndFromWords ?? startMs;
+
+      let speakerLabel = normalized.speakerLabel;
+      if (normalized.spk === "0" && !speakerLabel) {
+        speakerLabel = defaultSpeakerName;
+      }
+
       const segment: RealtimeSegment = {
         id: `${Date.now()}-${segmentsRef.current.length}`,
         text: normalized.text,
+        rawText: normalized.rawText,
         startMs,
         endMs,
         isFinal: true,
-        speaker: normalized.speaker,
+        spk: normalized.spk,
+        speakerLabel,
         language: normalized.language,
         words: normalizedWords,
       };
@@ -681,6 +986,13 @@ export default function RealtimeSessionPage() {
       setSegments([...segmentsRef.current]);
       setPartialText(null);
       await persistSegments();
+
+      if (waitingForFinalRef.current) {
+        waitingForFinalRef.current = false;
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+        }
+      }
       return;
     }
 
@@ -703,8 +1015,9 @@ export default function RealtimeSessionPage() {
     });
   };
 
-  const startRecording = async (decoderConfig: Record<string, unknown>) => {
-    setSessionState("connecting");
+  const prepareSession = async (decoderConfig: Record<string, unknown>) => {
+    sessionConnectedRef.current = false;
+    connectionReadyRef.current = false;
 
     const recorder = new RecorderManager();
     recorderRef.current = recorder;
@@ -726,15 +1039,25 @@ export default function RealtimeSessionPage() {
         enqueueSnackbar(t("attemptingToReconnectToStreaming", { values: { attempt } }), {
           variant: "warning",
         });
-        setSessionState("connecting");
+        if (countdownFinishedRef.current) {
+          setSessionState("connecting");
+        }
       },
       onOpen: () => {
-        setSessionState("recording");
-        startAutosaveTimer();
-        setErrorMessage(null);
+        sessionConnectedRef.current = true;
+        connectionReadyRef.current = true;
+        if (countdownFinishedRef.current) {
+          setSessionState("recording");
+          startAutosaveTimer();
+          setErrorMessage(null);
+        }
       },
       onClose: (event) => {
         if (finalizingRef.current) return;
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+          return;
+        }
         const reason = event.reason || t("yourStreamingConnectionHasEnded");
         setErrorMessage(reason);
         enqueueSnackbar(reason, { variant: "error" });
@@ -763,6 +1086,10 @@ export default function RealtimeSessionPage() {
           stopSession(true);
         },
         onStop: () => {
+          if (sessionStateRef.current === "stopping") {
+            // Wait for socket close or safety timer
+            return;
+          }
           void finalizeSession(finalizeReasonRef.current === "aborted");
         },
       });
@@ -781,9 +1108,11 @@ export default function RealtimeSessionPage() {
     finalizingRef.current = true;
     clearCountdown();
     clearAutosave();
+    clearStopSafetyTimer();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     const id = transcriptionIdRef.current;
+    const shouldDiscard = aborted && !sessionConnectedRef.current;
     if (sessionState !== "saving") {
       setSessionState("saving");
     }
@@ -791,7 +1120,9 @@ export default function RealtimeSessionPage() {
     const duration = sessionStartRef.current ? Date.now() - sessionStartRef.current : undefined;
 
     try {
-      if (id) {
+      if (id && shouldDiscard) {
+        await deleteTranscription(id);
+      } else if (id) {
         await replaceSegments(
           id,
           segmentsRef.current.map((segment) => ({
@@ -799,7 +1130,7 @@ export default function RealtimeSessionPage() {
             startMs: segment.startMs,
             endMs: segment.endMs,
             isFinal: segment.isFinal,
-            speaker: segment.speaker,
+            speaker_label: segment.speakerLabel,
             language: segment.language,
             words: segment.words,
           }))
@@ -818,6 +1149,10 @@ export default function RealtimeSessionPage() {
 
     const navigateId = id;
     resetSessionState();
+    if (shouldDiscard) {
+      enqueueSnackbar(t("theSessionHasBeenAborted"), { variant: "warning" });
+      return;
+    }
     if (navigateId) {
       navigate(`/transcriptions/${navigateId}`);
     }
@@ -831,20 +1166,52 @@ export default function RealtimeSessionPage() {
   };
 
   const stopSession = (aborted: boolean) => {
-    if (sessionState === "idle") return;
+    if (sessionState === "idle" || sessionState === "saving" || sessionState === "stopping") return;
     finalizeReasonRef.current = aborted ? "aborted" : "normal";
+    cameraShouldRecordRef.current = false;
+    void stopVideoRecorder();
     if (sessionState === "countdown") {
       clearCountdown();
-      void finalizeSession(true);
+      finalizeReasonRef.current = "aborted";
+      if (recorderRef.current) {
+        recorderRef.current.stop();
+      } else {
+        void finalizeSession(true);
+      }
       return;
     }
     if (!aborted) {
+      setSessionState("stopping");
+
+      // If we have partial text, we should wait for the final result
+      if (partialText) {
+        waitingForFinalRef.current = true;
+        streamingClientRef.current?.requestFinal();
+
+        // Safety timer: if final doesn't come within 3 seconds, force stop
+        stopSafetyTimerRef.current = window.setTimeout(() => {
+          if (sessionStateRef.current === "stopping") {
+            waitingForFinalRef.current = false;
+            void finalizeSession(false);
+          }
+        }, 3000);
+        return;
+      }
+
       streamingClientRef.current?.requestFinal();
+      // Safety timer in case server doesn't close connection
+      stopSafetyTimerRef.current = window.setTimeout(() => {
+        if (sessionStateRef.current === "stopping") {
+          void finalizeSession(false);
+        }
+      }, 3000);
     }
     if (recorderRef.current) {
       recorderRef.current.stop();
     } else {
-      void finalizeSession(aborted);
+      if (aborted) {
+        void finalizeSession(true);
+      }
     }
   };
 
@@ -904,6 +1271,10 @@ export default function RealtimeSessionPage() {
       void handleStartSession();
       return;
     }
+    if (sessionState === "connecting") {
+      stopSession(true);
+      return;
+    }
     if (sessionState === "recording") {
       handlePauseRecording();
       return;
@@ -943,8 +1314,8 @@ export default function RealtimeSessionPage() {
       trimmedRequest.length > 0
         ? trimmedRequest
         : activeStreamingPreset?.configJson ??
-          defaultStreamingPreset?.configJson ??
-          fallbackStreamingConfig;
+        defaultStreamingPreset?.configJson ??
+        fallbackStreamingConfig;
     try {
       decoderConfig = JSON.parse(configString);
     } catch (error) {
@@ -989,6 +1360,7 @@ export default function RealtimeSessionPage() {
         audioSampleRate: sampleRate,
         audioChannels: 1,
       });
+      videoChunkIndexRef.current = 0;
     } catch (error) {
       console.error(t("localTranscriptionRecordCreationFailed"), error);
       setErrorMessage(t("localTranscriptionRecordsCannotBeCreated"));
@@ -1001,17 +1373,31 @@ export default function RealtimeSessionPage() {
     setSegments([]);
     setPartialText(null);
     chunkIndexRef.current = 0;
+    cameraShouldRecordRef.current = true;
+    // Video recording will be triggered by useEffect when state becomes "recording"
     setErrorMessage(null);
     finalizeReasonRef.current = "normal";
+    countdownFinishedRef.current = false;
+
     setCountdown(3);
     setSessionState("countdown");
     setRuntimeSettingsOpen(false);
+
+    void prepareSession(decoderConfig);
+
     clearCountdown();
     countdownTimerRef.current = window.setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearCountdown();
-          void startRecording(decoderConfig);
+          countdownFinishedRef.current = true;
+          if (connectionReadyRef.current) {
+            setSessionState("recording");
+            startAutosaveTimer();
+            setErrorMessage(null);
+          } else {
+            setSessionState("connecting");
+          }
           return 0;
         }
         return prev - 1;
@@ -1034,14 +1420,33 @@ export default function RealtimeSessionPage() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      cameraShouldRecordRef.current = false;
+      void stopVideoRecorder();
+      stopCameraStream();
+    };
+  }, [stopCameraStream, stopVideoRecorder]);
+
+  const noteModeText = useMemo(() => {
+    const lines = segments
+      .map((segment) => segment.text?.trim())
+      .filter((text): text is string => Boolean(text && text.length));
+    const base = lines.join("\n");
+    const partial = partialText?.trim();
+    if (partial) {
+      return base ? `${base}\n${partial}` : partial;
+    }
+    return base;
+  }, [segments, partialText]);
+
   const formatTimeRange = (segment: RealtimeSegment) => {
     const start = (segment.startMs / 1000).toFixed(1);
     const end = (segment.endMs / 1000).toFixed(1);
     return `${start}s ~ ${end}s`;
   };
 
-  const mainButtonDisabled =
-    sessionState === "countdown" || sessionState === "connecting" || sessionState === "saving";
+  const mainButtonDisabled = sessionState === "countdown" || sessionState === "saving" || sessionState === "stopping";
   const mainButtonLabel = (() => {
     switch (sessionState) {
       case "idle":
@@ -1052,6 +1457,8 @@ export default function RealtimeSessionPage() {
         return t("resumption");
       case "saving":
         return t("saving");
+      case "stopping":
+        return t("stopping");
       case "connecting":
         return t("connecting");
       case "countdown":
@@ -1074,6 +1481,7 @@ export default function RealtimeSessionPage() {
       case "countdown":
         return <HourglassBottomIcon />;
       case "saving":
+      case "stopping":
         return <CircularProgress size={24} color="inherit" thickness={5} />;
       default:
         return <MicNoneRoundedIcon />;
@@ -1082,9 +1490,9 @@ export default function RealtimeSessionPage() {
   const mainButtonColor: "primary" | "secondary" | "success" =
     sessionState === "recording" || sessionState === "paused"
       ? "secondary"
-      : sessionState === "saving"
-      ? "success"
-      : "primary";
+      : sessionState === "saving" || sessionState === "stopping"
+        ? "success"
+        : "primary";
   const mainButtonTooltip = (() => {
     if (sessionState === "recording") {
       return t("tapToPausePressAndHoldFor3SecondsToEndTheSession");
@@ -1092,131 +1500,375 @@ export default function RealtimeSessionPage() {
     if (sessionState === "paused") {
       return t("tapToResumeTranscription");
     }
+    if (sessionState === "connecting") {
+      return t("sessionEnds");
+    }
     if (sessionState === "idle") {
       return t("realTimeTranscriptionBeginsAfterA3SecondCountdown");
     }
-    if (sessionState === "saving") {
+    if (sessionState === "saving" || sessionState === "stopping") {
       return t("savingResults");
     }
     return t("preparingForSession");
   })();
-  const showStopFab = sessionState === "paused";
+  const showStopFab =
+    sessionState === "paused" ||
+    sessionState === "recording" ||
+    sessionState === "connecting" ||
+    sessionState === "countdown";
+
+  const handleStopFabClick = () => {
+    const shouldAbort = sessionState === "connecting" || sessionState === "countdown";
+    stopSession(shouldAbort ? true : false);
+  };
+
+  const handleToggleCamera = () => {
+    if (!cameraSupported) {
+      setCameraError(t("cameraNotSupported"));
+      enqueueSnackbar(t("cameraNotSupported"), { variant: "info" });
+      return;
+    }
+    setCameraEnabled((prev) => !prev);
+  };
+
+  const handleSwitchCamera = () => {
+    setCameraFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+  };
+
+  const showVideoSection = cameraEnabled || cameraLoading;
 
   return (
     <>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <Card>
-          <CardHeader
-            title={t("realTimeTranscription")}
-            subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
-          />
-          {sessionState !== "idle" && <LinearProgress />}
-          <CardContent>
-            <Stack spacing={2}>
-              <Typography variant="body2" color="text.secondary">
-                {t("currentlySelectedStreamingSetting", {
-                  values: {
-                    name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
-                  },
-                })}
-                {activeStreamingPreset?.description
-                  ? ` – ${activeStreamingPreset.description}`
-                  : ""}
-                <br />
-                {t("automaticTemporaryStorageCycleSeconds", {
-                  values: { seconds: realtimeAutoSaveSeconds },
-                })}
-              </Typography>
-              {!apiBaseUrl.trim() && (
-                <Alert severity="warning">
-                  {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
-                </Alert>
-              )}
-              {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-              <Divider />
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} variant="outlined" />
-                {sessionState === "countdown" && (
-                  <Typography variant="h4" color="primary">
-                    {countdown}
-                  </Typography>
-                )}
-              </Stack>
-              {segments.length === 0 && sessionState === "idle" && (
-                <Typography variant="body1" color="text.secondary">
-                  {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
-                </Typography>
-              )}
-              {segments.length > 0 && (
-                <Stack spacing={1.5}>
-                  {segments.map((segment) => (
-                    <Card key={segment.id} variant="outlined">
-                      <CardContent>
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                          <Chip label={formatTimeRange(segment)} color="success" size="small" />
-                        </Stack>
-                        <Typography variant="body1">{segment.text}</Typography>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Stack>
-              )}
-              {partialText && (
-                <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
-                  <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                      <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
-                    </Stack>
-                    <Typography variant="body1" color="secondary.main">
-                      {partialText}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              <Box ref={transcriptEndRef} sx={{ height: 1 }} />
-            </Stack>
-          </CardContent>
-        </Card>
-      </Box>
       <Box
         sx={{
-          position: "fixed",
-          bottom: { xs: 16, sm: 24 },
-          left: { xs: 16, sm: 32 },
-          zIndex: (theme) => theme.zIndex.modal + 1,
+          display: "flex",
+          flexDirection: "column",
+          height: "100dvh",
+          overflow: "hidden",
+          position: "relative",
+          bgcolor: "background.default",
         }}
       >
-        <Tooltip
-          title={runtimeSettingsOpen ? t("closeSettings") : t("openRealTimeTranscriptionSettings")}
-          placement="right"
+        <Box
+          sx={{
+            position: "fixed",
+            top: "calc(12px + env(safe-area-inset-top))",
+            right: { xs: 12, sm: 16 },
+            zIndex: (theme) => theme.zIndex.modal + 3,
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+          }}
         >
-          <Fab
-            size="small"
-            color={runtimeSettingsOpen ? "secondary" : "default"}
-            onClick={() => {
-              runtimeSettingsFabRef.current?.blur();
-              setRuntimeSettingsOpen((prev) => !prev);
+          <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} color="primary" />
+          {sessionState === "countdown" && (
+            <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
+              {countdown}
+            </Typography>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            "@media (orientation: landscape)": showVideoSection
+              ? {
+                flexDirection: "row",
+                alignItems: "stretch",
+                gap: 2,
+              }
+              : undefined,
+          }}
+        >
+          {/* Fixed Video Section */}
+          {showVideoSection && (
+            <Box
+              sx={{
+                flex: "0 0 auto",
+                p: 2,
+                pb: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                zIndex: 1,
+                "@media (orientation: landscape)": {
+                  flexBasis: "50%",
+                  maxWidth: "50%",
+                  pb: 2,
+                  pr: 1,
+                },
+              }}
+            >
+              <Card>
+                <CardHeader
+                  title={t("sessionVideoCapture")}
+                  subheader={t("recordVideoAlongsideRealTimeTranscription")}
+                />
+                <Collapse in={showVideoSection} unmountOnExit>
+                  <CardContent>
+                    <Stack spacing={2}>
+                      {!cameraSupported && (
+                        <Alert severity="info">{t("cameraNotSupported")}</Alert>
+                      )}
+                      {cameraError && <Alert severity="error">{cameraError}</Alert>}
+                      <Box
+                        sx={{
+                          position: "relative",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                          border: 1,
+                          borderColor: "divider",
+                          aspectRatio: "16 / 9",
+                          backgroundColor: (theme) => theme.palette.grey[900],
+                          width: "100%",
+                          maxHeight: "50vh",
+                          maxWidth: "100%",
+                          "@media (orientation: landscape)": {
+                            maxWidth: "100%",
+                            maxHeight: "100vh",
+                            marginLeft: 0,
+                            marginRight: "auto",
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            inset: 0,
+                            display: cameraEnabled ? "none" : "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "text.secondary",
+                            textAlign: "center",
+                            p: 2,
+                            backgroundColor: (theme) => theme.palette.action.hover,
+                          }}
+                        >
+                          <Typography variant="body2">{t("cameraPreview")}</Typography>
+                        </Box>
+                        <Box
+                          component="video"
+                          ref={cameraPreviewRef}
+                          muted
+                          playsInline
+                          autoPlay
+                          sx={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: cameraEnabled ? "block" : "none",
+                          }}
+                        />
+                        {cameraRecording && (
+                          <Chip
+                            size="small"
+                            color="error"
+                            icon={<FiberManualRecordRoundedIcon fontSize="small" />}
+                            label={t("cameraRecording")}
+                            sx={{
+                              position: "absolute",
+                              top: 16,
+                              left: 16,
+                              bgcolor: "rgba(211, 47, 47, 0.85)",
+                              color: "common.white",
+                            }}
+                          />
+                        )}
+                        {cameraLoading && (
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              bgcolor: "rgba(0,0,0,0.4)",
+                            }}
+                          >
+                            <CircularProgress color="inherit" />
+                          </Box>
+                        )}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("cameraRecordingSavedWithSession")}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Collapse>
+              </Card>
+            </Box>
+          )}
+
+          {/* Scrollable Transcript Section */}
+          <Box
+            sx={{
+              flex: "1 1 auto",
+              overflowY: "auto",
+              p: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              // Add padding at bottom for floating buttons + safe area
+              pb: "calc(100px + env(safe-area-inset-bottom))",
+              minHeight: 0,
+              "@media (orientation: landscape)": showVideoSection
+                ? {
+                  pr: 2,
+                  pl: 1,
+                }
+                : undefined,
             }}
-            aria-label={runtimeSettingsOpen ? t("closeStreamingSettings") : t("openStreamingSettings")}
-            ref={runtimeSettingsFabRef}
           >
-            <SettingsRoundedIcon />
-          </Fab>
-        </Tooltip>
+            <Card sx={{ minHeight: "100%" }}>
+              {!sessionActive && (
+                <CardHeader
+                  title={t("realTimeTranscription")}
+                  subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
+                />
+              )}
+              {sessionState !== "idle" && <LinearProgress />}
+              <CardContent>
+                <Stack spacing={2}>
+                  {!sessionActive && (
+                    <Typography variant="body2" color="text.secondary">
+                      {t("currentlySelectedStreamingSetting", {
+                        values: {
+                          name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
+                        },
+                      })}
+                      {activeStreamingPreset?.description
+                        ? ` – ${activeStreamingPreset.description}`
+                        : ""}
+                      <br />
+                      {t("automaticTemporaryStorageCycleSeconds", {
+                        values: { seconds: realtimeAutoSaveSeconds },
+                      })}
+                    </Typography>
+                  )}
+                  {!apiBaseUrl.trim() && (
+                    <Alert severity="warning">
+                      {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
+                    </Alert>
+                  )}
+                  {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+                  <Divider />
+                  <Stack spacing={0.5}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={noteMode}
+                          onChange={(event) => setNoteMode(event.target.checked)}
+                        />
+                      }
+                      label={t("noteMode")}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {t("noteModeHelper")}
+                    </Typography>
+                  </Stack>
+                  {noteMode ? (
+                    <TextField
+                      multiline
+                      minRows={6}
+                      fullWidth
+                      label={t("noteModeTextAreaLabel")}
+                      placeholder={t("noteModePlaceholder")}
+                      value={noteModeText}
+                      InputProps={{ readOnly: true }}
+                    />
+                  ) : (
+                    <>
+                      {segments.length === 0 && sessionState === "idle" && (
+                        <Typography variant="body1" color="text.secondary">
+                          {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
+                        </Typography>
+                      )}
+                      {segments.length > 0 && (
+                        <Stack spacing={1.5}>
+                          {segments.map((segment) => (
+                            <Card key={segment.id} variant="outlined">
+                              <CardContent>
+                                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                                  <Chip label={formatTimeRange(segment)} color="success" size="small" />
+                                </Stack>
+                                <Typography variant="body1">{segment.text}</Typography>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      )}
+                      {partialText && (
+                        <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
+                          <CardContent>
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                              <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
+                            </Stack>
+                            <Typography variant="body1" color="secondary.main">
+                              {partialText}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  )}
+                  <Box ref={transcriptEndRef} sx={{ height: 1 }} />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
       </Box>
+
+      {/* Floating Settings Button */}
+      {!sessionActive && (
+        <Box
+          sx={{
+            position: "fixed",
+            bottom: "calc(16px + env(safe-area-inset-bottom))",
+            left: { xs: 16, sm: 32 },
+            zIndex: (theme) => theme.zIndex.modal + 1,
+          }}
+        >
+          <Tooltip
+            title={runtimeSettingsOpen ? t("closeSettings") : t("openRealTimeTranscriptionSettings")}
+            placement="right"
+          >
+            <Fab
+              size="small"
+              color={runtimeSettingsOpen ? "secondary" : "default"}
+              onClick={() => {
+                runtimeSettingsFabRef.current?.blur();
+                setRuntimeSettingsOpen((prev) => !prev);
+              }}
+              aria-label={runtimeSettingsOpen ? t("closeStreamingSettings") : t("openStreamingSettings")}
+              ref={runtimeSettingsFabRef}
+            >
+              <SettingsRoundedIcon />
+            </Fab>
+          </Tooltip>
+        </Box>
+      )}
+
+      {/* Floating Main Controls */}
       <Box
         sx={{
           position: "fixed",
           left: 0,
           right: 0,
-          bottom: { xs: 16, sm: 32 },
+          bottom: "calc(16px + env(safe-area-inset-bottom))",
           display: "flex",
           justifyContent: "center",
-          zIndex: (theme) => theme.zIndex.modal + 1,
+          zIndex: (theme) =>
+            sessionState === "countdown"
+              ? theme.zIndex.modal + 3
+              : theme.zIndex.modal + 1,
           pointerEvents: "none",
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ pointerEvents: "auto" }}>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ pointerEvents: "auto", flexWrap: "wrap", justifyContent: "center" }}>
           <Tooltip title={mainButtonTooltip}>
             <span>
               <Fab
@@ -1252,7 +1904,7 @@ export default function RealtimeSessionPage() {
               <Fab
                 color="error"
                 aria-label={t("sessionEnds")}
-                onClick={() => stopSession(false)}
+                onClick={handleStopFabClick}
                 sx={{
                   boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
                 }}
@@ -1261,8 +1913,42 @@ export default function RealtimeSessionPage() {
               </Fab>
             </Tooltip>
           )}
+          <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+            <span>
+              <Fab
+                color={cameraEnabled ? "secondary" : "default"}
+                size="medium"
+                onClick={handleToggleCamera}
+                disabled={cameraLoading || !cameraSupported}
+                aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+              >
+                {cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
+              </Fab>
+            </span>
+          </Tooltip>
+          <Tooltip
+            title={
+              cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")
+            }
+          >
+            <span>
+              <Fab
+                color="default"
+                size="medium"
+                onClick={handleSwitchCamera}
+                disabled={!cameraEnabled || cameraLoading}
+                aria-label={cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
+                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+              >
+                <CameraswitchRoundedIcon />
+              </Fab>
+            </span>
+          </Tooltip>
         </Stack>
       </Box>
+
+      {/* Countdown Overlay */}
       {sessionState === "countdown" && countdown > 0 ? (
         <Box
           sx={{
@@ -1295,6 +1981,8 @@ export default function RealtimeSessionPage() {
           </Typography>
         </Box>
       ) : null}
+
+      {/* Settings Dialog */}
       <Dialog
         open={runtimeSettingsOpen}
         onClose={() => setRuntimeSettingsOpen(false)}
