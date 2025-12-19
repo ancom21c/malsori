@@ -1,5 +1,10 @@
-import { Card, CardContent, Chip, FormControlLabel, Stack, Switch, Typography, Button, Divider, TextField, Tooltip, Box } from "@mui/material";
+import { useMemo } from "react";
+import { alpha, useTheme } from "@mui/material/styles";
+import { Box, Button, Card, CardContent, Chip, Divider, IconButton, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import ListAltOutlinedIcon from "@mui/icons-material/ListAltOutlined";
+import EditIcon from "@mui/icons-material/Edit";
 import type { LocalSegment, LocalWordTiming } from "../data/app-db";
 import {
   resolveSegmentText,
@@ -61,6 +66,28 @@ export function TranscriptionView({
   t,
 }: TranscriptionViewProps) {
   const allowEditing = !readOnly;
+  const theme = useTheme();
+  const speakerPalette = useMemo(
+    () => [
+      theme.palette.primary.main,
+      theme.palette.secondary.main,
+      theme.palette.success.main,
+      theme.palette.warning.main,
+      theme.palette.info.main,
+      theme.palette.error.main,
+    ],
+    [theme]
+  );
+  const resolveSpeakerColor = (label?: string | null) => {
+    if (!label) {
+      return theme.palette.grey[500];
+    }
+    let hash = 0;
+    for (let index = 0; index < label.length; index += 1) {
+      hash = (hash + label.charCodeAt(index) * 17) % 1024;
+    }
+    return speakerPalette[hash % speakerPalette.length];
+  };
 
   if (!segments || segments.length === 0) {
     return null;
@@ -90,6 +117,8 @@ export function TranscriptionView({
           isEditing;
         const previewText =
           hasWordEditorData && editingWordInputs ? editingWordInputs.filter(Boolean).join(" ") : "";
+        const speakerLabel = segment.speaker_label?.trim() ?? "";
+        const speakerColor = resolveSpeakerColor(speakerLabel);
 
         return (
           <Card
@@ -107,13 +136,16 @@ export function TranscriptionView({
               <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
                 <Chip
                   label={
-                    segment.speaker_label
-                      ? t("speaker", { values: { speaker: segment.speaker_label } })
-                      : t("speakerNotSpecified")
+                    speakerLabel.length > 0 ? speakerLabel : t("speakerNotSpecified")
                   }
-                  color="primary"
                   variant="outlined"
                   onClick={allowEditing ? () => onSpeakerClick(segment) : undefined}
+                  sx={{
+                    borderColor: speakerColor,
+                    color: speakerColor,
+                    backgroundColor: alpha(speakerColor, 0.12),
+                    fontWeight: 600,
+                  }}
                 />
                 <Typography variant="caption" color="text.secondary">
                   {timingLabel}
@@ -128,20 +160,34 @@ export function TranscriptionView({
                 >
                   {isActiveSegment ? t("playing") : <PlayArrowIcon fontSize="small" />}
                 </Button>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      size="small"
-                      checked={isWordDetailsVisible}
-                      onChange={() => onWordDetailsToggle(segment.id)}
-                    />
-                  }
-                  label={t("showWordDetails")}
-                />
+                <Tooltip title={t("showWordDetails")}>
+                  <IconButton
+                    size="small"
+                    onClick={() => onWordDetailsToggle(segment.id)}
+                    aria-label={t("showWordDetails")}
+                    aria-pressed={isWordDetailsVisible}
+                    sx={{
+                      color: isWordDetailsVisible ? "primary.main" : "text.secondary",
+                      backgroundColor: isWordDetailsVisible ? alpha(theme.palette.primary.main, 0.12) : "transparent",
+                    }}
+                  >
+                    {isWordDetailsVisible ? (
+                      <ListAltIcon fontSize="small" />
+                    ) : (
+                      <ListAltOutlinedIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                </Tooltip>
                 {allowEditing ? (
-                  <Button size="small" variant="outlined" onClick={() => onStartEdit(segment)}>
-                    {t("edit")}
-                  </Button>
+                  <Tooltip title={t("edit")}>
+                    <IconButton
+                      size="small"
+                      onClick={() => onStartEdit(segment)}
+                      aria-label={t("edit")}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 ) : null}
               </Stack>
               <Divider sx={{ mb: 1 }} />

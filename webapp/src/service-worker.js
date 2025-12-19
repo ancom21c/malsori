@@ -1,4 +1,4 @@
-const CACHE_VERSION = "malsori-app-cache-v1";
+const CACHE_VERSION = `malsori-app-cache-${__BUILD_HASH__}`;
 const APP_SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -79,7 +79,9 @@ self.addEventListener("fetch", (event) => {
 
   const cacheFirstPaths = APP_SHELL_ASSETS;
   const shouldUseCacheFirst =
-    cacheFirstPaths.includes(url.pathname) || request.destination === "style" || request.destination === "script";
+    cacheFirstPaths.includes(url.pathname) ||
+    request.destination === "style" ||
+    request.destination === "script";
 
   if (shouldUseCacheFirst) {
     event.respondWith(

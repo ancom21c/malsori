@@ -513,6 +513,8 @@ export default function ShareViewerPage() {
                 videoError={null}
                 audioDownloadable={false}
                 videoDownloadable={false}
+                sticky
+                compactOnScroll
                 showEditingHint={false}
                 t={t}
               />

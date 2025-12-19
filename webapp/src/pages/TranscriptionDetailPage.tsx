@@ -15,6 +15,7 @@ import {
   listAudioChunks,
   listVideoChunks,
   updateSegmentCorrection,
+  updateLocalTranscription,
   updateSegmentSpeakerLabel,
   updateSingleSegmentSpeakerLabel,
 } from "../services/data/transcriptionRepository";
@@ -806,6 +807,25 @@ export default function TranscriptionDetailPage() {
     downloadBlobContent(blob, buildDownloadFileName(transcription.title, transcription.id, "txt"));
   }, [enqueueSnackbar, segments, t, transcription]);
 
+  const handleTitleUpdate = useCallback(
+    async (nextTitle: string) => {
+      if (!transcription) {
+        return;
+      }
+      const normalizedTitle = nextTitle.trim();
+      if ((transcription.title ?? "") === normalizedTitle) {
+        return;
+      }
+      try {
+        await updateLocalTranscription(transcription.id, { title: normalizedTitle });
+      } catch (error) {
+        console.error("Failed to update transcription title", error);
+        enqueueSnackbar(t("failure"), { variant: "error" });
+      }
+    },
+    [enqueueSnackbar, t, transcription]
+  );
+
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
@@ -1250,6 +1270,9 @@ export default function TranscriptionDetailPage() {
         onDownloadVideo={handleDownloadVideo}
         onDelete={handleDelete}
         onShare={handleShareDialogOpen}
+        onTitleUpdate={handleTitleUpdate}
+        sticky
+        compactOnScroll
         t={t}
       />
 
