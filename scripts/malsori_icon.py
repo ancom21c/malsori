@@ -1,19 +1,36 @@
 #!/usr/bin/env python3
-"""Draw the redesigned Malsori icon as an SVG without external dependencies."""
+"""Generate the Malsori favicon (mal glyph + sound icon)."""
 
 from __future__ import annotations
 
 import argparse
-import math
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
 import xml.etree.ElementTree as ET
 
 
-Point = Tuple[float, float]
-
-CRIMSON = "#dc143c"
 WHITE = "#ffffff"
+DEFAULT_BG_COLOR = "#1f6f64"
+
+# SVG path for the "mal" glyph sourced from Nanum Gothic Bold.
+MAL_GLYPH_PATH = (
+    "M535 453Q535 415 519.5 399.5Q504 384 466 384H166Q131 384 114.0 399.5Q97"
+    " 415 97 453V742Q97 780 112.5 795.0Q128 810 166 810H466Q504 810 519.5"
+    " 794.5Q535 779 535 741ZM423 703Q423 711 420.5 713.5Q418 716 410 716H222"
+    "Q214 716 211.5 714.0Q209 712 209 704V491Q209 482 211.5 480.0Q214 478"
+    " 222 478H410Q418 478 420.5 480.0Q423 482 423 491ZM932 561Q932 556 927.5"
+    " 552.0Q923 548 918 548H782V353Q782 348 778.0 343.5Q774 339 769 339H680"
+    "Q675 339 671.0 343.5Q667 348 667 354V829Q667 842 680 842H769Q782 842"
+    " 782 829V643H918Q923 643 927.5 639.5Q932 636 932 631ZM808 -91Q808 -96"
+    " 803.5 -100.5Q799 -105 794 -105H261Q222 -105 208.0 -90.0Q194 -75 194"
+    " -43V78Q194 110 207.5 124.0Q221 138 260 138H658Q666 138 668.0 141.0Q670"
+    " 144 670 153V186Q670 197 668.0 199.5Q666 202 657 202H206Q201 202 196.5"
+    " 205.5Q192 209 192 214V280Q192 285 196.5 289.5Q201 294 206 294H714Q755"
+    " 294 768.5 280.0Q782 266 782 232V114Q782 79 768.5 66.0Q755 53 714 53H319"
+    "Q311 53 309.0 50.5Q307 48 307 40V-1Q307 -10 309.0 -11.5Q311 -13 320"
+    " -13H793Q799 -13 803.5 -17.0Q808 -21 808 -27Z"
+)
+
+MAL_GLYPH_BOUNDS = (97.0, -105.0, 932.0, 842.0)
 
 
 def fmt(value: float) -> str:
@@ -21,91 +38,17 @@ def fmt(value: float) -> str:
     return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
-def arc_points(
-    center: Point,
-    radius: float,
-    start_deg: float,
-    end_deg: float,
-    *,
-    segments: int = 72,
-) -> List[Point]:
-    """Sample equally spaced points along an arc."""
-    points: List[Point] = []
-    step = (end_deg - start_deg) / max(1, segments)
-    for idx in range(segments + 1):
-        angle = math.radians(start_deg + step * idx)
-        x = center[0] + radius * math.cos(angle)
-        y = center[1] - radius * math.sin(angle)
-        points.append((x, y))
-    return points
-
-
-def path_from_points(points: Sequence[Point]) -> str:
-    commands = [f"M {fmt(points[0][0])} {fmt(points[0][1])}"]
-    commands.extend(f"L {fmt(x)} {fmt(y)}" for (x, y) in points[1:])
-    return " ".join(commands)
-
-
-def compute_wave_width(
-    radius: float,
-    arc_length: float,
-    factors: Iterable[float],
-    gap: float,
-) -> float:
-    """Sum the chord widths for the wave arcs, including gaps between them."""
-    widths: List[float] = []
-    for factor in factors:
-        span = (arc_length * factor) / radius
-        widths.append(2.0 * radius * math.sin(span / 2.0))
-    if not widths:
-        return 0.0
-    return sum(widths) + gap * (len(widths) - 1)
-
-
-def polar_point(center: Point, radius: float, angle_deg: float) -> Point:
-    angle = math.radians(angle_deg)
-    return center[0] + radius * math.cos(angle), center[1] - radius * math.sin(angle)
-
-
-def build_icon(output: Path, size: float = 64.0) -> None:
-    # --- original geometry (large internal coordinate system) ---
-    # circle_radius = 150.0
-    circle_radius = size * 0.5 * 0.95
-    arc1_span_deg = 30.0
-    inner_radius = circle_radius * 1
-    arc1_start, arc1_end = 195.0, 165.0
-    outer_arc_radius = circle_radius * 0.9
-
-    outer_arc_length = outer_arc_radius * math.radians(arc1_span_deg)
-
-    wave_factors = (5.0 / 5.0, 5.5 / 4.0, 2, 1.0)
-    wave_gap = circle_radius * 0.12
-    wave_radius = inner_radius
-    wave_width = compute_wave_width(wave_radius, outer_arc_length, wave_factors, wave_gap)
-
-    margin_left = circle_radius * 0.4
-    margin_right = circle_radius * 0.4
-    gap_between = circle_radius * 0.12
-    vertical_margin = circle_radius * 0.4
-
-    horizontal_extent = (
-        margin_left + (2.0 * circle_radius) + gap_between + wave_width + margin_right
-    )
-    vertical_extent = (2.0 * circle_radius) + (2.0 * vertical_margin)
-    canvas_size = max(horizontal_extent, vertical_extent)
-
-    offset_x = (canvas_size - horizontal_extent) / 2.0
-    offset_y = (canvas_size - vertical_extent) / 2.0
-
-    circle_center: Point = (
-        offset_x + margin_left + circle_radius,
-        offset_y + vertical_margin + circle_radius,
+def wave_path(origin_x: float, center_y: float, radius: float) -> str:
+    bulge = radius * 0.9
+    return (
+        f"M {fmt(origin_x)} {fmt(center_y - radius)} "
+        f"Q {fmt(origin_x + bulge)} {fmt(center_y)} {fmt(origin_x)} {fmt(center_y + radius)}"
     )
 
-    print(circle_center, canvas_size)
 
-    # favicon target size (e.g. 16, 32, 64) -> scale down whole drawing
-    scale = size / canvas_size
+def build_icon(output: Path, *, size: float, bg_color: str) -> None:
+    center = size / 2.0
+    radius = size * 0.47
 
     svg = ET.Element(
         "svg",
@@ -115,211 +58,111 @@ def build_icon(output: Path, size: float = 64.0) -> None:
             "width": fmt(size),
             "height": fmt(size),
             "role": "img",
-            "aria-label": "Redesigned Malsori icon",
+            "aria-label": "Malsori mal and sound icon",
         },
     )
     svg.append(ET.Element("title"))
-    svg[-1].text = "Redesigned Malsori icon"
+    svg[-1].text = "Malsori mal and sound icon"
 
-    # Wrap all drawing in a scaled group so it fits the favicon box.
-    root_group = ET.SubElement(
-        svg,
-        "g",
-        attrib={"transform": f"scale({fmt(scale)})"},
-    )
-
-    # Red circle background
     ET.SubElement(
-        root_group,
+        svg,
         "circle",
         attrib={
-            "cx": fmt(circle_center[0]),
-            "cy": fmt(circle_center[1]),
-            "r": fmt(circle_radius),
-            "fill": CRIMSON,
+            "cx": fmt(center),
+            "cy": fmt(center),
+            "r": fmt(radius),
+            "fill": bg_color,
         },
     )
 
-    stroke_group = ET.SubElement(
-        root_group,
+    min_x, min_y, max_x, max_y = MAL_GLYPH_BOUNDS
+    glyph_width = max_x - min_x
+    glyph_height = max_y - min_y
+    glyph_box_width = size * 0.54
+    glyph_box_height = size * 0.64
+    glyph_box_x = size * 0.02
+    glyph_box_y = center - (glyph_box_height / 2.0)
+    scale = min(glyph_box_width / glyph_width, glyph_box_height / glyph_height)
+    glyph_transform = (
+        f"translate({fmt(glyph_box_x)} {fmt(glyph_box_y)}) "
+        f"scale({fmt(scale)} {fmt(-scale)}) "
+        f"translate({fmt(-min_x)} {fmt(-max_y)})"
+    )
+
+    ET.SubElement(
+        svg,
+        "path",
+        attrib={
+            "d": MAL_GLYPH_PATH,
+            "fill": WHITE,
+            "transform": glyph_transform,
+        },
+    )
+
+    speaker_back_width = size * 0.085
+    speaker_back_height = size * 0.20
+    speaker_back_x = size * 0.64
+    speaker_back_y = center - (speaker_back_height / 2.0)
+    speaker_corner = size * 0.017
+
+    ET.SubElement(
+        svg,
+        "rect",
+        attrib={
+            "x": fmt(speaker_back_x),
+            "y": fmt(speaker_back_y),
+            "width": fmt(speaker_back_width),
+            "height": fmt(speaker_back_height),
+            "rx": fmt(speaker_corner),
+            "fill": WHITE,
+        },
+    )
+
+    cone_width = size * 0.15
+    cone_height = size * 0.30
+    cone_left = speaker_back_x + speaker_back_width
+    cone_right = cone_left + cone_width
+    cone_tip_offset = cone_height * 0.30
+    cone_top = center - (cone_height / 2.0)
+    cone_bottom = center + (cone_height / 2.0)
+    cone_left_top = center - cone_tip_offset
+    cone_left_bottom = center + cone_tip_offset
+    cone_path = (
+        f"M {fmt(cone_left)} {fmt(cone_left_top)} "
+        f"L {fmt(cone_right)} {fmt(cone_top)} "
+        f"L {fmt(cone_right)} {fmt(cone_bottom)} "
+        f"L {fmt(cone_left)} {fmt(cone_left_bottom)} Z"
+    )
+
+    ET.SubElement(
+        svg,
+        "path",
+        attrib={
+            "d": cone_path,
+            "fill": WHITE,
+        },
+    )
+
+    wave_group = ET.SubElement(
+        svg,
         "g",
         attrib={
             "fill": "none",
             "stroke": WHITE,
+            "stroke-width": fmt(size * 0.032),
             "stroke-linecap": "round",
-            "stroke-linejoin": "round",
         },
     )
+    wave_origin = cone_right + (size * 0.02)
+    wave_origin_outer = wave_origin + (size * 0.025)
+    wave_inner_radius = size * 0.06
+    wave_outer_radius = size * 0.09
 
-    outer_stroke = circle_radius * 0.14
-    inner_stroke = circle_radius * 0.11
-
-    # outer ear-like arc
-    outer_arc_path = path_from_points(
-        arc_points(circle_center, outer_arc_radius, arc1_start, arc1_end)
-    )
+    ET.SubElement(wave_group, "path", attrib={"d": wave_path(wave_origin, center, wave_inner_radius)})
     ET.SubElement(
-        stroke_group,
+        wave_group,
         "path",
-        attrib={
-            "d": outer_arc_path,
-            "stroke-width": fmt(outer_stroke),
-        },
-    )
-
-    # inner "speech bubble" side
-    inner_arc_angle = math.degrees(outer_arc_length / inner_radius)
-    inner_start = -22.5
-    inner_end = 22.5
-    inner_arc_center: Point = (
-        circle_center[0] - circle_radius * 1.6,
-        circle_center[1],
-    )
-    inner_arc_path = path_from_points(
-        arc_points(inner_arc_center, inner_radius, inner_start, inner_end)
-    )
-    ET.SubElement(
-        stroke_group,
-        "path",
-        attrib={
-            "d": inner_arc_path,
-            "stroke-width": fmt(inner_stroke),
-            "stroke-opacity": "0.95",
-        },
-    )
-
-    # Connect arc endpoints with straight lines.
-    line_paths = [
-        (
-            polar_point(circle_center, outer_arc_radius, arc1_start),
-            polar_point(inner_arc_center, inner_radius, inner_start),
-        ),
-        (
-            polar_point(circle_center, outer_arc_radius, arc1_end),
-            polar_point(inner_arc_center, inner_radius, inner_end),
-        ),
-    ]
-    for start_pt, end_pt in line_paths:
-        ET.SubElement(
-            stroke_group,
-            "path",
-            attrib={
-                "d": f"M {fmt(start_pt[0])} {fmt(start_pt[1])} "
-                     f"L {fmt(end_pt[0])} {fmt(end_pt[1])}",
-                "stroke-width": fmt(inner_stroke),
-            },
-        )
-
-    # Wave arcs to the right of the circle.
-    cursor_x = circle_center[0] - circle_radius * 1.6 + gap_between
-    for factor in wave_factors:
-        length = outer_arc_length * factor
-        span = length / wave_radius
-        span_deg = math.degrees(span)
-        theta_start = -span_deg / 2.0
-        theta_end = span_deg / 2.0
-        center_x = cursor_x
-
-        arc_path = path_from_points(
-            arc_points(
-                (center_x, circle_center[1]),
-                wave_radius,
-                theta_start,
-                theta_end,
-                segments=80,
-            )
-        )
-        ET.SubElement(
-            stroke_group,
-            "path",
-            attrib={
-                "d": arc_path,
-                "stroke-width": fmt(inner_stroke),
-                "stroke-opacity": "0.85",
-            },
-        )
-        cursor_x += wave_gap
-
-    # Decor arcs (mun_1 ~ mun_4)
-    mun_1_center = circle_center
-    mun_1_radius = circle_radius * 0.9
-    mun_1_span_deg = 15.0
-    mun_1_start = 45.0 - mun_1_span_deg / 2.0
-    mun_1_end = 45.0 + mun_1_span_deg / 2
-    mun_1_path = path_from_points(
-        arc_points(mun_1_center, mun_1_radius, mun_1_start, mun_1_end, segments=24)
-    )
-    ET.SubElement(
-        stroke_group,
-        "path",
-        attrib={
-            "d": mun_1_path,
-            "stroke-width": fmt(inner_stroke),
-            "stroke-opacity": "0.9",
-        },
-    )
-
-    mun_2_center: Point = (
-        circle_center[0] - circle_radius * 0.3,
-        circle_center[1] + circle_radius * 0.4,
-    )
-    mun_2_radius = circle_radius * 1.2
-    mun_2_span_deg = 80.0
-    mun_2_start = 45.0 - mun_2_span_deg / 2
-    mun_2_end = 45.0 + mun_2_span_deg / 2
-    mun_2_path = path_from_points(
-        arc_points(mun_2_center, mun_2_radius, mun_2_start, mun_2_end, segments=48)
-    )
-    ET.SubElement(
-        stroke_group,
-        "path",
-        attrib={
-            "d": mun_2_path,
-            "stroke-width": fmt(inner_stroke),
-            "stroke-opacity": "0.9",
-        },
-    )
-
-    mun_3_center: Point = (
-        circle_center[0] + circle_radius * 2,
-        circle_center[1] - circle_radius * 0.9,
-    )
-    mun_3_radius = circle_radius * 2
-    mun_3_span_deg = 36.0
-    mun_3_start = 210.0 - mun_3_span_deg / 2
-    mun_3_end = 210.0 + mun_3_span_deg / 2
-    mun_3_path = path_from_points(
-        arc_points(mun_3_center, mun_3_radius, mun_3_start, mun_3_end, segments=36)
-    )
-    ET.SubElement(
-        stroke_group,
-        "path",
-        attrib={
-            "d": mun_3_path,
-            "stroke-width": fmt(inner_stroke),
-            "stroke-opacity": "0.9",
-        },
-    )
-
-    mun_4_center: Point = (
-        circle_center[0] - circle_radius * 1.2,
-        circle_center[1] - circle_radius * 1.0,
-    )
-    mun_4_radius = circle_radius * 2
-    mun_4_span_deg = 40.0
-    mun_4_start = -45.0 - mun_4_span_deg / 2
-    mun_4_end = -45.0 + mun_4_span_deg / 2
-    mun_4_path = path_from_points(
-        arc_points(mun_4_center, mun_4_radius, mun_4_start, mun_4_end, segments=48)
-    )
-    ET.SubElement(
-        stroke_group,
-        "path",
-        attrib={
-            "d": mun_4_path,
-            "stroke-width": fmt(inner_stroke),
-            "stroke-opacity": "0.9",
-        },
+        attrib={"d": wave_path(wave_origin_outer, center, wave_outer_radius)},
     )
 
     tree = ET.ElementTree(svg)
@@ -329,7 +172,7 @@ def build_icon(output: Path, size: float = 64.0) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate the redesigned Malsori icon.")
+    parser = argparse.ArgumentParser(description="Generate the Malsori favicon SVG.")
     parser.add_argument(
         "--output",
         "-o",
@@ -341,11 +184,16 @@ def main() -> None:
         "--size",
         "-s",
         type=float,
-        default=64.0,
-        help="Target favicon size (width/height) in CSS pixels (e.g. 16, 32, 64).",
+        default=512.0,
+        help="Target favicon size (width/height) in CSS pixels (e.g. 16, 32, 64, 512).",
+    )
+    parser.add_argument(
+        "--bg-color",
+        default=DEFAULT_BG_COLOR,
+        help="Background circle color.",
     )
     args = parser.parse_args()
-    build_icon(args.output, size=args.size)
+    build_icon(args.output, size=args.size, bg_color=args.bg_color)
 
 
 if __name__ == "__main__":
