@@ -9,6 +9,7 @@ import {
   CardHeader,
   Chip,
   Checkbox,
+  CircularProgress,
   Divider,
   FormControl,
   FormControlLabel,
@@ -45,6 +46,8 @@ import type { LocalTranscription, LocalTranscriptionKind } from "../data/app-db"
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { matchesSearchQueryWithIndex, parseSearchQuery } from "../utils/textSearch";
 import { useI18n, type TranslateOptions } from "../i18n";
+import { useSync } from "../services/cloud/SyncProvider";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -126,6 +129,7 @@ export default function TranscriptionListPage() {
   const searchIndexMap = useTranscriptionSearchIndexes();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
+  const { syncManager } = useSync();
 
   const sortedTranscriptions = useMemo(
     () => transcriptions?.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)) ?? [],
@@ -139,6 +143,7 @@ export default function TranscriptionListPage() {
   const [selectedKinds, setSelectedKinds] = useState<LocalTranscriptionKind[]>(() => [...ALL_KINDS]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedEndpoints, setSelectedEndpoints] = useState<string[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<LocalTranscription | null>(null);
   const modelSelectId = useId();
   const endpointSelectId = useId();
 
@@ -249,9 +254,23 @@ export default function TranscriptionListPage() {
   };
 
   const handleDownload = async (transcription: LocalTranscription) => {
-    // TODO: Trigger download via SyncManager
-    enqueueSnackbar(t("downloadStarted"), { variant: "info" });
+    if (!syncManager) {
+      enqueueSnackbar(t("googleDriveNotConnected", { defaultValue: "Google Drive에 먼저 연결해 주세요." }), { variant: "warning" });
+      return;
+    }
+    enqueueSnackbar(t("downloadStarted", { defaultValue: "다운로드를 시작했습니다." }), { variant: "info" });
     await updateLocalTranscription(transcription.id, { downloadStatus: "downloading" });
+    try {
+      await syncManager.downloadFullRecord(transcription.id);
+      enqueueSnackbar(t("downloadCompleted", { defaultValue: "다운로드가 완료되었습니다." }), { variant: "success" });
+    } catch (error) {
+      console.error("Cloud download failed", error);
+      await updateLocalTranscription(transcription.id, { downloadStatus: "not_downloaded" });
+      enqueueSnackbar(
+        t("downloadFailed", { defaultValue: "다운로드에 실패했습니다." }),
+        { variant: "error" }
+      );
+    }
   };
 
   const handleKindToggle = (kind: LocalTranscriptionKind) => {
@@ -273,18 +292,21 @@ export default function TranscriptionListPage() {
     setSelectedEndpoints(typeof value === "string" ? value.split(",") : value);
   };
 
-  const handleDelete = async (transcription: LocalTranscription) => {
-    if (
-      !window.confirm(
-        t(
-          "전사 기록을 삭제하시겠습니까? 실시간 전사인 경우 로컬에 저장된 오디오 청크도 삭제됩니다."
-        )
-      )
-    ) {
+  const handleDeleteRequest = (transcription: LocalTranscription) => {
+    setDeleteTarget(transcription);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteTarget(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) {
       return;
     }
-    await deleteTranscription(transcription.id);
+    await deleteTranscription(deleteTarget.id);
     enqueueSnackbar(t("theTranscriptionRecordHasBeenDeleted"), { variant: "success" });
+    setDeleteTarget(null);
   };
 
   const hasAnyTranscriptions = sortedTranscriptions.length > 0;
@@ -470,9 +492,18 @@ export default function TranscriptionListPage() {
                     <ListItem
                       secondaryAction={
                         <Stack direction="row" spacing={1}>
-                          {item.downloadStatus === "not_downloaded" ? (
-                            <IconButton edge="end" onClick={() => void handleDownload(item)}>
-                              <CloudDownloadIcon color="primary" />
+                          {item.downloadStatus === "not_downloaded" || item.downloadStatus === "downloading" ? (
+                            <IconButton
+                              edge="end"
+                              onClick={() => void handleDownload(item)}
+                              disabled={!syncManager || item.downloadStatus === "downloading"}
+                              aria-label={t("download")}
+                            >
+                              {item.downloadStatus === "downloading" ? (
+                                <CircularProgress size={20} />
+                              ) : (
+                                <CloudDownloadIcon color="primary" />
+                              )}
                             </IconButton>
                           ) : (
                             <IconButton
@@ -483,7 +514,7 @@ export default function TranscriptionListPage() {
                               {item.isCloudSynced ? <CloudIcon /> : <CloudOffIcon />}
                             </IconButton>
                           )}
-                          <IconButton edge="end" onClick={() => void handleDelete(item)}>
+                          <IconButton edge="end" onClick={() => handleDeleteRequest(item)}>
                             <DeleteIcon />
                           </IconButton>
                         </Stack>
@@ -542,6 +573,17 @@ export default function TranscriptionListPage() {
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={t("delete")}
+        description={t(
+          "전사 기록을 삭제하시겠습니까? 실시간 전사인 경우 로컬에 저장된 오디오 청크도 삭제됩니다."
+        )}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancellation")}
+        onConfirm={() => void handleDeleteConfirm()}
+        onCancel={handleDeleteCancel}
+      />
     </Box>
   );
 }

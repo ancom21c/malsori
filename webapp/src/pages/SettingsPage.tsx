@@ -65,6 +65,7 @@ import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
 import type { BackendEndpointState } from "../services/api/types";
 import { useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type SettingsTab = "file" | "streaming";
 
@@ -202,6 +203,8 @@ export default function SettingsPage() {
   const [backendPresetForm, setBackendPresetForm] = useState<BackendPresetFormState>(
     createEmptyBackendPresetForm()
   );
+  const [backendDeleteOpen, setBackendDeleteOpen] = useState(false);
+  const [presetDeleteOpen, setPresetDeleteOpen] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<{
     microphone: BrowserPermissionState;
     storage: BrowserPermissionState;
@@ -511,11 +514,16 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseSelectTheBackendPresetYouWantToDelete"), { variant: "warning" });
       return;
     }
-    const shouldDelete =
-      typeof window === "undefined"
-        ? true
-        : window.confirm(t("areYouSureYouWantToDeleteTheSelectedBackendPreset"));
-    if (!shouldDelete) {
+    setBackendDeleteOpen(true);
+  };
+
+  const handleBackendPresetDeleteCancel = () => {
+    setBackendDeleteOpen(false);
+  };
+
+  const handleBackendPresetDeleteConfirm = async () => {
+    if (!backendPresetForm.id) {
+      setBackendDeleteOpen(false);
       return;
     }
     try {
@@ -527,6 +535,8 @@ export default function SettingsPage() {
         error instanceof Error ? error.message : t("failedToDeleteBackendPreset"),
         { variant: "error" }
       );
+    } finally {
+      setBackendDeleteOpen(false);
     }
   };
 
@@ -883,12 +893,22 @@ export default function SettingsPage() {
       enqueueSnackbar(t("theLastPresetCannotBeDeleted"), { variant: "warning" });
       return;
     }
-    if (!window.confirm(t("areYouSureYouWantToDeleteTheSelectedPreset"))) {
+    setPresetDeleteOpen(true);
+  };
+
+  const handlePresetDeleteCancel = () => {
+    setPresetDeleteOpen(false);
+  };
+
+  const handlePresetDeleteConfirm = async () => {
+    if (!presetForm.id) {
+      setPresetDeleteOpen(false);
       return;
     }
     await deletePreset(presetForm.id);
     enqueueSnackbar(t("thePresetHasBeenDeleted"), { variant: "info" });
     setSelectedPresetId(null);
+    setPresetDeleteOpen(false);
   };
 
   const handleTabChange = (_: SyntheticEvent, value: SettingsTab) => {
@@ -1568,6 +1588,24 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </Box>
+      <ConfirmDialog
+        open={backendDeleteOpen}
+        title={t("delete")}
+        description={t("areYouSureYouWantToDeleteTheSelectedBackendPreset")}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancellation")}
+        onConfirm={() => void handleBackendPresetDeleteConfirm()}
+        onCancel={handleBackendPresetDeleteCancel}
+      />
+      <ConfirmDialog
+        open={presetDeleteOpen}
+        title={t("delete")}
+        description={t("areYouSureYouWantToDeleteTheSelectedPreset")}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancellation")}
+        onConfirm={() => void handlePresetDeleteConfirm()}
+        onCancel={handlePresetDeleteCancel}
+      />
       <input
         type="file"
         accept="application/json"

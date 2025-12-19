@@ -2199,6 +2199,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Create share link",
     ja: "共有リンクを作成",
   },
+  shareDownloadHtmlButton: {
+    ko: "HTML 다운로드",
+    en: "Download HTML",
+    ja: "HTMLをダウンロード",
+  },
+  shareHtmlGenerating: {
+    ko: "HTML 생성 중...",
+    en: "Building HTML...",
+    ja: "HTMLを生成中...",
+  },
+  shareHtmlIncludesAudio: {
+    ko: "HTML 다운로드에는 오디오가 항상 포함됩니다.",
+    en: "The HTML download always includes audio.",
+    ja: "HTMLダウンロードには常に音声が含まれます。",
+  },
   shareCopyLink: {
     ko: "링크 복사",
     en: "Copy link",
@@ -2228,6 +2243,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "자동 복사에 실패했습니다. 수동으로 복사하세요.",
     en: "Automatic copy failed; please copy manually.",
     ja: "自動コピーに失敗しました。手動でコピーしてください。",
+  },
+  shareHtmlDownloaded: {
+    ko: "오프라인 HTML을 저장했습니다.",
+    en: "Offline HTML saved.",
+    ja: "オフラインHTMLを保存しました。",
+  },
+  shareHtmlDownloadFailed: {
+    ko: "HTML 파일 생성에 실패했습니다.",
+    en: "Failed to build the HTML file.",
+    ja: "HTMLファイルの生成に失敗しました。",
+  },
+  shareHtmlAudioRequired: {
+    ko: "오디오가 없어 HTML에 포함할 수 없습니다.",
+    en: "Audio is required to build the HTML file.",
+    ja: "HTMLファイルの作成には音声が必要です。",
+  },
+  shareHtmlAssetMissing: {
+    ko: "공유 HTML 번들을 가져올 수 없습니다.",
+    en: "Unable to load the share HTML bundle.",
+    ja: "共有HTMLバンドルを読み込めません。",
   },
 };
 

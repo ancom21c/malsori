@@ -62,6 +62,21 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (url.pathname === "/config/malsori-config.js") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match(request)) ?? Response.error())
+    );
+    return;
+  }
+
   const cacheFirstPaths = APP_SHELL_ASSETS;
   const shouldUseCacheFirst =
     cacheFirstPaths.includes(url.pathname) || request.destination === "style" || request.destination === "script";

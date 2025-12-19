@@ -1,6 +1,6 @@
 export const brandColors = {
-  base: "#dc143c",
-  accent: "#dc143c",
-  dark: "#a10d29",
-  soft: "#ffe4ea",
+  base: "#1f6f64",
+  accent: "#1f6f64",
+  dark: "#154a43",
+  soft: "#e4f1ef",
 };

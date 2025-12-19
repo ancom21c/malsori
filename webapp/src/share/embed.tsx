@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { ShareProviders } from "./ShareProviders";
 import ShareViewerPage from "../pages/share/ShareViewerPage";
+import { ShareProviders } from "./ShareProviders";
 
 const rootElement = document.getElementById("share-root");
 if (rootElement) {

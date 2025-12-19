@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
+import DescriptionIcon from "@mui/icons-material/Description";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -23,6 +24,7 @@ import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
 import { useShareLink } from "../hooks/useShareLink";
 import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
 import { TranscriptionView } from "../components/TranscriptionView";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
@@ -83,6 +85,31 @@ function determineVideoExtension(mimeType?: string | null) {
 function buildSessionVideoFileName(title: string | undefined, fallbackId: string, mimeType?: string | null) {
   const extension = determineVideoExtension(mimeType);
   return buildDownloadFileName(title, fallbackId, extension);
+}
+
+function isRiffWavHeader(buffer: ArrayBuffer) {
+  if (buffer.byteLength < 12) {
+    return false;
+  }
+  const bytes = new Uint8Array(buffer, 0, 12);
+  return (
+    bytes[0] === 0x52 && // R
+    bytes[1] === 0x49 && // I
+    bytes[2] === 0x46 && // F
+    bytes[3] === 0x46 && // F
+    bytes[8] === 0x57 && // W
+    bytes[9] === 0x41 && // A
+    bytes[10] === 0x56 && // V
+    bytes[11] === 0x45 // E
+  );
+}
+
+function isWebmEbmlHeader(buffer: ArrayBuffer) {
+  if (buffer.byteLength < 4) {
+    return false;
+  }
+  const bytes = new Uint8Array(buffer, 0, 4);
+  return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
 }
 
 function downloadBlobContent(blob: Blob, fileName: string) {
@@ -354,6 +381,7 @@ export default function TranscriptionDetailPage() {
     currentLabel: string;
   } | null>(null);
   const [speakerEditName, setSpeakerEditName] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
@@ -374,6 +402,7 @@ export default function TranscriptionDetailPage() {
     setSharePassword,
     shareLink,
     shareGenerating,
+    shareHtmlGenerating,
     shareError,
     shareDialogOpen,
     openShareDialog: handleShareDialogOpen,
@@ -381,6 +410,7 @@ export default function TranscriptionDetailPage() {
     audioTranscoding,
     handleIncludeAudioChange,
     handleGenerateShareLink,
+    handleDownloadShareHtml,
     handleCopyShareLink,
   } = useShareLink({
     transcriptionId,
@@ -808,19 +838,45 @@ export default function TranscriptionDetailPage() {
             setAudioError(t("theSavedAudioDataCannotBeFound"));
             return;
           }
-          const buffers = chunks.map((chunk) => chunk.data);
-          const wavBlob = createWavBlobFromPcmChunks(
-            buffers,
-            transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE,
-            transcription.audioChannels ?? 1
-          );
-          if (!wavBlob) {
-            setAudioUrl(null);
-            setAudioError(t("audioCannotBeConverted"));
+          const sourceMimeType = chunks.find((chunk) => chunk.mimeType)?.mimeType;
+          const normalizedMimeType = typeof sourceMimeType === "string" ? sourceMimeType.toLowerCase() : "";
+          const firstChunk = chunks[0]?.data;
+          const mimeIndicatesWav = normalizedMimeType.includes("wav");
+          const mimeIndicatesWebm = normalizedMimeType.includes("webm");
+          const looksLikeEncoded =
+            firstChunk && mimeIndicatesWav
+              ? isRiffWavHeader(firstChunk)
+              : firstChunk && mimeIndicatesWebm
+                ? isWebmEbmlHeader(firstChunk)
+                : true;
+          const isPcm =
+            !sourceMimeType ||
+            normalizedMimeType.startsWith("audio/pcm") ||
+            !looksLikeEncoded;
+
+          if (isPcm) {
+            const buffers = chunks.map((chunk) => chunk.data);
+            const wavBlob = createWavBlobFromPcmChunks(
+              buffers,
+              transcription.audioSampleRate ?? DEFAULT_REALTIME_SAMPLE_RATE,
+              transcription.audioChannels ?? 1
+            );
+            if (!wavBlob) {
+              setAudioUrl(null);
+              setAudioError(t("audioCannotBeConverted"));
+              return;
+            }
+            audioBlobRef.current = wavBlob;
+            objectUrl = URL.createObjectURL(wavBlob);
+            setAudioUrl(objectUrl);
             return;
           }
-          audioBlobRef.current = wavBlob;
-          objectUrl = URL.createObjectURL(wavBlob);
+
+          const blob = new Blob(chunks.map((chunk) => chunk.data), {
+            type: sourceMimeType,
+          });
+          audioBlobRef.current = blob;
+          objectUrl = URL.createObjectURL(blob);
           setAudioUrl(objectUrl);
         } catch (error) {
           console.error(t("localAudioLoadFailed"), error);
@@ -903,11 +959,16 @@ export default function TranscriptionDetailPage() {
     };
   }, [t, transcription]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteDialogOpen(false);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
     if (!transcriptionId) return;
-    if (!window.confirm(t("wouldYouLikeToDeleteYourTranscriptionHistory"))) {
-      return;
-    }
     await deleteTranscription(transcriptionId);
     enqueueSnackbar(t("theTranscriptionRecordHasBeenDeleted"), { variant: "success" });
     navigate("/");
@@ -1192,6 +1253,16 @@ export default function TranscriptionDetailPage() {
         t={t}
       />
 
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title={t("delete")}
+        description={t("wouldYouLikeToDeleteYourTranscriptionHistory")}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancellation")}
+        onConfirm={() => void handleDeleteConfirm()}
+        onCancel={handleDeleteCancel}
+      />
+
       <Dialog
         open={shareDialogOpen}
         onClose={handleShareDialogClose}
@@ -1208,7 +1279,7 @@ export default function TranscriptionDetailPage() {
                   <Switch
                     checked={shareAudioAvailable && includeAudioInShare}
                     onChange={handleIncludeAudioChange}
-                    disabled={!shareAudioAvailable || shareGenerating}
+                    disabled={!shareAudioAvailable || shareGenerating || shareHtmlGenerating}
                   />
                 }
                 label={t("shareIncludeAudioLabel")}
@@ -1224,7 +1295,7 @@ export default function TranscriptionDetailPage() {
               onChange={(event) => setSharePassword(event.target.value)}
               helperText={t("sharePasswordHelper")}
               fullWidth
-              disabled={shareGenerating}
+              disabled={shareGenerating || shareHtmlGenerating}
             />
             {audioTranscoding ? (
               <Typography variant="body2" color="text.secondary">
@@ -1235,17 +1306,34 @@ export default function TranscriptionDetailPage() {
               <Button
                 variant="contained"
                 startIcon={
-                  shareGenerating || audioTranscoding ? (
+                  shareGenerating || audioTranscoding || shareHtmlGenerating ? (
                     <CircularProgress size={16} color="inherit" />
                   ) : (
                     <ShareOutlinedIcon />
                   )
                 }
                 onClick={handleGenerateShareLink}
-                disabled={shareGenerating || audioTranscoding || !transcription}
+                disabled={shareGenerating || shareHtmlGenerating || audioTranscoding || !transcription}
               >
                 {shareGenerating ? t("shareGenerating") : t("shareCreateLinkButton")}
               </Button>
+              <Button
+                variant="outlined"
+                startIcon={
+                  shareHtmlGenerating || audioTranscoding ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    <DescriptionIcon />
+                  )
+                }
+                onClick={() => void handleDownloadShareHtml()}
+                disabled={shareHtmlGenerating || shareGenerating || audioTranscoding || !transcription}
+              >
+                {shareHtmlGenerating ? t("shareHtmlGenerating") : t("shareDownloadHtmlButton")}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                {t("shareHtmlIncludesAudio")}
+              </Typography>
               {shareLink ? (
                 <TextField
                   value={shareLink}

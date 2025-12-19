@@ -42,7 +42,12 @@ export function useTranscriptionSync() {
       let pendingCount = 0;
       try {
         const pending = await appDb.transcriptions
-          .filter((item) => Boolean(item.remoteId) && item.status !== "completed")
+          .filter(
+            (item) =>
+              Boolean(item.remoteId) &&
+              item.status !== "completed" &&
+              item.status !== "failed"
+          )
           .toArray();
         pendingCount = pending.length;
 

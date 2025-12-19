@@ -7,6 +7,7 @@ interface SyncContextType {
     syncManager: SyncManager | null;
     isSyncing: boolean;
     lastSyncedAt: Date | null;
+    accountKey: string | null;
     syncNow: () => Promise<void>;
 }
 
@@ -16,65 +17,93 @@ import { ConflictResolutionDialog } from "../../components/ConflictResolutionDia
 import { appDb } from "../../data/app-db";
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-    const { isAuthenticated, token, userEmail, signOut } = useGoogleAuth();
+    const { isAuthenticated, token, signOut } = useGoogleAuth();
     const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
     const [pendingSyncManager, setPendingSyncManager] = useState<SyncManager | null>(null);
+    const [accountKey, setAccountKey] = useState<string | null>(null);
+    const [pendingAccountKey, setPendingAccountKey] = useState<string | null>(null);
     const syncIntervalRef = useRef<number | null>(null);
     const isSyncingRef = useRef(false);
 
     useEffect(() => {
         const initSync = async () => {
-            if (isAuthenticated && token && userEmail) {
+            if (isAuthenticated && token) {
                 const driveService = new GoogleDriveService(token);
                 const manager = new SyncManager(driveService);
 
-                const lastAccount = localStorage.getItem("last_synced_account");
+                let nextAccountKey: string | null = null;
+                try {
+                    nextAccountKey = await manager.getAccountKey();
+                } catch (error) {
+                    console.error("Failed to resolve Drive account key:", error);
+                }
 
-                if (lastAccount && lastAccount !== userEmail) {
+                const lastAccount = localStorage.getItem("last_synced_account");
+                if (lastAccount && nextAccountKey && lastAccount !== nextAccountKey) {
                     // Conflict detected
                     setPendingSyncManager(manager);
+                    setPendingAccountKey(nextAccountKey);
                     setConflictDialogOpen(true);
                 } else {
                     // No conflict or same account
                     setSyncManager(manager);
-                    localStorage.setItem("last_synced_account", userEmail);
+                    setAccountKey(nextAccountKey);
+                    setPendingAccountKey(null);
+                    if (nextAccountKey) {
+                        localStorage.setItem("last_synced_account", nextAccountKey);
+                    }
                 }
             } else {
                 setSyncManager(null);
                 setPendingSyncManager(null);
+                setAccountKey(null);
+                setPendingAccountKey(null);
             }
         };
         void initSync();
-    }, [isAuthenticated, token, userEmail]);
+    }, [isAuthenticated, token]);
 
     const handleMerge = async () => {
-        if (pendingSyncManager && userEmail) {
+        if (pendingSyncManager) {
             setSyncManager(pendingSyncManager);
-            localStorage.setItem("last_synced_account", userEmail);
+            setAccountKey(pendingAccountKey);
+            if (pendingAccountKey) {
+                localStorage.setItem("last_synced_account", pendingAccountKey);
+            }
             setConflictDialogOpen(false);
             setPendingSyncManager(null);
+            setPendingAccountKey(null);
             // Trigger immediate sync to merge
             setTimeout(() => void syncNow(), 100);
         }
     };
 
     const handleReplace = async () => {
-        if (pendingSyncManager && userEmail) {
+        if (pendingSyncManager) {
             // Wipe local data
-            await appDb.transaction("rw", appDb.transcriptions, appDb.segments, appDb.audioChunks, appDb.videoChunks, async () => {
-                await appDb.transcriptions.clear();
-                await appDb.segments.clear();
-                await appDb.audioChunks.clear();
-                await appDb.videoChunks.clear();
-            });
+            await appDb.transaction(
+                "rw",
+                [appDb.transcriptions, appDb.segments, appDb.audioChunks, appDb.videoChunks, appDb.searchIndexes],
+                async () => {
+                    await appDb.transcriptions.clear();
+                    await appDb.segments.clear();
+                    await appDb.audioChunks.clear();
+                    await appDb.videoChunks.clear();
+                    await appDb.searchIndexes.clear();
+                }
+            );
 
             setSyncManager(pendingSyncManager);
-            localStorage.setItem("last_synced_account", userEmail);
+            setAccountKey(pendingAccountKey);
+            if (pendingAccountKey) {
+                localStorage.setItem("last_synced_account", pendingAccountKey);
+            }
             setConflictDialogOpen(false);
             setPendingSyncManager(null);
+            setPendingAccountKey(null);
             // Trigger immediate sync to download new data
             setTimeout(() => void syncNow(), 100);
         }
@@ -83,6 +112,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const handleCancel = () => {
         setConflictDialogOpen(false);
         setPendingSyncManager(null);
+        setPendingAccountKey(null);
         signOut(); // Disconnect the conflicting account
     };
 
@@ -124,7 +154,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [syncManager, syncNow]);
 
     return (
-        <SyncContext.Provider value={{ syncManager, isSyncing, lastSyncedAt, syncNow }}>
+        <SyncContext.Provider value={{ syncManager, isSyncing, lastSyncedAt, accountKey, syncNow }}>
             {children}
             <ConflictResolutionDialog
                 open={conflictDialogOpen}

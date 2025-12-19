@@ -4,17 +4,29 @@ export const appTheme = createTheme({
   palette: {
     mode: "light",
     primary: {
-      main: "#0050b3",
+      main: "#1f6f64",
     },
     secondary: {
-      main: "#f06418",
+      main: "#d9825b",
     },
     background: {
-      default: "#f5f5f7",
+      default: "#f6f2ee",
+      paper: "#ffffff",
+    },
+    text: {
+      primary: "#1f2a2a",
+      secondary: "#4b5b5a",
     },
   },
   shape: {
     borderRadius: 12,
+  },
+  typography: {
+    fontFamily: '"Noto Sans KR", "Noto Sans", sans-serif',
+    button: {
+      textTransform: "none",
+      fontWeight: 600,
+    },
   },
 });
 

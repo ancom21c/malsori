@@ -65,6 +65,12 @@ import {
   resolveBackendEndpointSnapshot,
 } from "../utils/transcriptionMetadata";
 import { useI18n } from "../i18n";
+import {
+  checkMicrophonePermission,
+  checkPersistentStoragePermission,
+  requestMicrophonePermission,
+  requestPersistentStoragePermission,
+} from "../services/permissions";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -400,6 +406,8 @@ export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const microphonePromptedRef = useRef(false);
+  const storagePromptedRef = useRef(false);
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
   const realtimeAutoSaveSeconds = useSettingsStore((state) => state.realtimeAutoSaveSeconds);
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
@@ -417,6 +425,56 @@ export default function RealtimeSessionPage() {
     () => DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}",
     []
   );
+
+  useEffect(() => {
+    if (microphonePromptedRef.current) {
+      return;
+    }
+    microphonePromptedRef.current = true;
+
+    const requestPermission = async () => {
+      const state = await checkMicrophonePermission();
+      if (state === "granted") {
+        return;
+      }
+      const granted = await requestMicrophonePermission();
+      if (!granted) {
+        enqueueSnackbar(
+          t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
+          { variant: "warning" }
+        );
+      }
+    };
+
+    void requestPermission();
+  }, [enqueueSnackbar, t]);
+
+  useEffect(() => {
+    if (storagePromptedRef.current) {
+      return;
+    }
+    storagePromptedRef.current = true;
+
+    if (typeof navigator === "undefined" || !navigator.storage?.persist) {
+      return;
+    }
+
+    const requestPermission = async () => {
+      const state = await checkPersistentStoragePermission();
+      if (state === "granted") {
+        return;
+      }
+      const granted = await requestPersistentStoragePermission();
+      if (!granted) {
+        enqueueSnackbar(
+          t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
+          { variant: "warning" }
+        );
+      }
+    };
+
+    void requestPermission();
+  }, [enqueueSnackbar, t]);
 
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const sessionStateRef = useRef<SessionState>("idle");

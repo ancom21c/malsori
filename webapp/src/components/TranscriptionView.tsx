@@ -22,6 +22,7 @@ type TranscriptionViewProps = {
   editingWordTimings: LocalWordTiming[] | null;
   savingEdit: boolean;
   audioReady: boolean;
+  readOnly?: boolean;
   onSpeakerClick: (segment: LocalSegment) => void;
   onPlaySegment: (segment: LocalSegment) => void;
   onStartEdit: (segment: LocalSegment) => void;
@@ -46,6 +47,7 @@ export function TranscriptionView({
   editingWordTimings,
   savingEdit,
   audioReady,
+  readOnly,
   onSpeakerClick,
   onPlaySegment,
   onStartEdit,
@@ -58,6 +60,8 @@ export function TranscriptionView({
   segmentCardRefs,
   t,
 }: TranscriptionViewProps) {
+  const allowEditing = !readOnly;
+
   if (!segments || segments.length === 0) {
     return null;
   }
@@ -109,7 +113,7 @@ export function TranscriptionView({
                   }
                   color="primary"
                   variant="outlined"
-                  onClick={() => onSpeakerClick(segment)}
+                  onClick={allowEditing ? () => onSpeakerClick(segment) : undefined}
                 />
                 <Typography variant="caption" color="text.secondary">
                   {timingLabel}
@@ -134,9 +138,11 @@ export function TranscriptionView({
                   }
                   label={t("showWordDetails")}
                 />
-                <Button size="small" variant="outlined" onClick={() => onStartEdit(segment)}>
-                  {t("edit")}
-                </Button>
+                {allowEditing ? (
+                  <Button size="small" variant="outlined" onClick={() => onStartEdit(segment)}>
+                    {t("edit")}
+                  </Button>
+                ) : null}
               </Stack>
               <Divider sx={{ mb: 1 }} />
               {isEditing ? (
@@ -199,8 +205,8 @@ export function TranscriptionView({
               ) : (
                 <Stack
                   spacing={1}
-                  onDoubleClick={() => onStartEdit(segment)}
-                  sx={{ cursor: "text" }}
+                  onDoubleClick={allowEditing ? () => onStartEdit(segment) : undefined}
+                  sx={{ cursor: allowEditing ? "text" : "default" }}
                 >
                   <Typography variant="body1">{resolveSegmentText(segment, true)}</Typography>
                   {segment.correctedText ? (

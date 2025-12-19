@@ -6,7 +6,7 @@ import type { AppSetting } from "../data/app-db";
 const DEFAULT_API_BASE_URL =
   (typeof window !== "undefined" && window.__MALSORI_CONFIG__?.apiBaseUrl) ||
   import.meta.env.VITE_API_BASE ||
-  "http://localhost:8000";
+  "/api";
 
 export type SettingKey =
   | "apiBaseUrl"

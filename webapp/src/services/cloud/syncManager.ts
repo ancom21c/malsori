@@ -1,8 +1,69 @@
 import { appDb } from "../../data/app-db";
 import type { LocalTranscription, LocalSegment } from "../../data/app-db";
 import { GoogleDriveService } from "./googleDriveService";
+import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
+const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
+
+function isPcmMimeType(value: string | undefined): boolean {
+    if (!value) {
+        return false;
+    }
+    return value.toLowerCase().startsWith("audio/pcm");
+}
+
+function parseSampleRateFromMimeType(value: string | undefined): number | null {
+    if (!value) {
+        return null;
+    }
+    const match = value.match(/(?:^|;)\s*rate\s*=\s*(\d+)/i);
+    if (!match) {
+        return null;
+    }
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseIsoMillis(value: string | undefined): number | null {
+    if (!value) {
+        return null;
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function determineVideoFilename(mimeType: string | undefined): string {
+    if (mimeType && mimeType.toLowerCase().includes("mp4")) {
+        return "video.mp4";
+    }
+    return "video.webm";
+}
+
+function isRiffWavHeader(buffer: ArrayBuffer): boolean {
+    if (buffer.byteLength < 12) {
+        return false;
+    }
+    const bytes = new Uint8Array(buffer, 0, 12);
+    return (
+        bytes[0] === 0x52 && // R
+        bytes[1] === 0x49 && // I
+        bytes[2] === 0x46 && // F
+        bytes[3] === 0x46 && // F
+        bytes[8] === 0x57 && // W
+        bytes[9] === 0x41 && // A
+        bytes[10] === 0x56 && // V
+        bytes[11] === 0x45 // E
+    );
+}
+
+function isWebmEbmlHeader(buffer: ArrayBuffer): boolean {
+    if (buffer.byteLength < 4) {
+        return false;
+    }
+    const bytes = new Uint8Array(buffer, 0, 4);
+    return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+}
 
 export class SyncManager {
     private driveService: GoogleDriveService;
@@ -38,6 +99,10 @@ export class SyncManager {
             const folder = await this.driveService.createFolder("transcriptions", rootId);
             return folder.id;
         }
+    }
+
+    async getAccountKey(): Promise<string> {
+        return await this.getRootFolder();
     }
 
     async pullUpdates() {
@@ -89,7 +154,11 @@ export class SyncManager {
     async pushUpdates() {
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const localRecords = await appDb.transcriptions
-            .filter((record) => record.isCloudSynced === true)
+            .filter((record) =>
+                record.isCloudSynced === true &&
+                record.downloadStatus !== "not_downloaded" &&
+                record.downloadStatus !== "downloading"
+            )
             .toArray();
 
         for (const record of localRecords) {
@@ -103,6 +172,15 @@ export class SyncManager {
             } else {
                 const folder = await this.driveService.createFolder(record.id, transcriptionsFolderId);
                 folderId = folder.id;
+            }
+
+            // Avoid overwriting newer cloud metadata with stale/local-only state.
+            const localUpdated = parseIsoMillis(record.updatedAt);
+            const cloudMetadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
+            const cloudMetadataFiles = await this.driveService.listFiles(cloudMetadataQuery);
+            const cloudUpdated = parseIsoMillis(cloudMetadataFiles[0]?.modifiedTime);
+            if (localUpdated !== null && cloudUpdated !== null && cloudUpdated > localUpdated) {
+                continue;
             }
 
             // Upload metadata.json
@@ -123,15 +201,62 @@ export class SyncManager {
         // Audio
         const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(record.id).sortBy("chunkIndex");
         if (audioChunks.length > 0) {
-            const audioBlob = new Blob(audioChunks.map(c => c.data), { type: "audio/webm" });
-            await this.uploadOrUpdateFile("audio.webm", audioBlob, folderId, "audio/webm");
+            const sourceMimeType = audioChunks.find((chunk) => chunk.mimeType)?.mimeType;
+            const firstChunk = audioChunks[0]?.data;
+            const normalizedMimeType = sourceMimeType ? sourceMimeType.toLowerCase() : "";
+            const mimeLooksEncoded =
+                !firstChunk
+                    ? true
+                    : normalizedMimeType.includes("wav")
+                        ? isRiffWavHeader(firstChunk)
+                        : normalizedMimeType.includes("webm")
+                            ? isWebmEbmlHeader(firstChunk)
+                            : true;
+
+            if (!sourceMimeType || isPcmMimeType(sourceMimeType)) {
+                const sampleRate =
+                    record.audioSampleRate ??
+                    parseSampleRateFromMimeType(sourceMimeType) ??
+                    DEFAULT_REALTIME_SAMPLE_RATE;
+                const channels = record.audioChannels ?? 1;
+                const wavBlob = createWavBlobFromPcmChunks(
+                    audioChunks.map((chunk) => chunk.data),
+                    sampleRate,
+                    channels
+                );
+                if (wavBlob) {
+                    await this.uploadOrUpdateFile("audio.wav", wavBlob, folderId, "audio/wav");
+                }
+            } else if (sourceMimeType.toLowerCase().includes("wav") && mimeLooksEncoded) {
+                const audioBlob = new Blob(audioChunks.map((c) => c.data), { type: "audio/wav" });
+                await this.uploadOrUpdateFile("audio.wav", audioBlob, folderId, "audio/wav");
+            } else if (sourceMimeType.toLowerCase().includes("webm") && mimeLooksEncoded) {
+                const audioBlob = new Blob(audioChunks.map((c) => c.data), { type: "audio/webm" });
+                await this.uploadOrUpdateFile("audio.webm", audioBlob, folderId, "audio/webm");
+            } else {
+                const sampleRate =
+                    record.audioSampleRate ??
+                    parseSampleRateFromMimeType(sourceMimeType) ??
+                    DEFAULT_REALTIME_SAMPLE_RATE;
+                const channels = record.audioChannels ?? 1;
+                const wavBlob = createWavBlobFromPcmChunks(
+                    audioChunks.map((chunk) => chunk.data),
+                    sampleRate,
+                    channels
+                );
+                if (wavBlob) {
+                    await this.uploadOrUpdateFile("audio.wav", wavBlob, folderId, "audio/wav");
+                }
+            }
         }
 
         // Video
         const videoChunks = await appDb.videoChunks.where("transcriptionId").equals(record.id).sortBy("chunkIndex");
         if (videoChunks.length > 0) {
-            const videoBlob = new Blob(videoChunks.map(c => c.data), { type: "video/webm" });
-            await this.uploadOrUpdateFile("video.webm", videoBlob, folderId, "video/webm");
+            const mimeType = videoChunks.find((chunk) => chunk.mimeType)?.mimeType ?? "video/webm";
+            const videoName = determineVideoFilename(mimeType);
+            const videoBlob = new Blob(videoChunks.map((c) => c.data), { type: mimeType });
+            await this.uploadOrUpdateFile(videoName, videoBlob, folderId, mimeType);
         }
     }
 
@@ -154,33 +279,44 @@ export class SyncManager {
         if (folders.length === 0) throw new Error("Cloud record not found");
         const folderId = folders[0].id;
 
-        // Download segments.json
-        const segmentsQuery = `name = 'segments.json' and '${folderId}' in parents and trashed = false`;
-        const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
-        if (segmentsFiles.length > 0) {
-            const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
-            const text = await blob.text();
-            const segments: LocalSegment[] = JSON.parse(text);
+        await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloading" });
 
-            await appDb.transaction("rw", appDb.segments, async () => {
-                await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
-                await appDb.segments.bulkAdd(segments);
-            });
+        try {
+            // Download segments.json
+            const segmentsQuery = `name = 'segments.json' and '${folderId}' in parents and trashed = false`;
+            const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
+            if (segmentsFiles.length > 0) {
+                const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
+                const text = await blob.text();
+                const segments: LocalSegment[] = JSON.parse(text);
+
+                await appDb.transaction("rw", appDb.segments, async () => {
+                    await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
+                    await appDb.segments.bulkAdd(segments);
+                });
+            }
+
+            // Download Media Files
+            await this.downloadMediaFiles(transcriptionId, folderId);
+
+            // Update status
+            await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloaded" });
+        } catch (error) {
+            await appDb.transcriptions.update(transcriptionId, { downloadStatus: "not_downloaded" });
+            throw error;
         }
-
-        // Download Media Files
-        await this.downloadMediaFiles(transcriptionId, folderId);
-
-        // Update status
-        await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloaded" });
     }
 
     private async downloadMediaFiles(transcriptionId: string, folderId: string) {
         // Audio
-        const audioQuery = `name = 'audio.webm' and '${folderId}' in parents and trashed = false`;
+        const audioQuery = `(name = 'audio.wav' or name = 'audio.webm') and '${folderId}' in parents and trashed = false`;
         const audioFiles = await this.driveService.listFiles(audioQuery);
         if (audioFiles.length > 0) {
-            const blob = await this.driveService.downloadFile(audioFiles[0].id);
+            const file =
+                audioFiles.find((entry) => entry.name === "audio.wav") ??
+                audioFiles.find((entry) => entry.name === "audio.webm") ??
+                audioFiles[0];
+            const blob = await this.driveService.downloadFile(file.id);
             const buffer = await blob.arrayBuffer();
             // Store as a single chunk for simplicity
             await appDb.transaction("rw", appDb.audioChunks, async () => {
@@ -190,16 +326,21 @@ export class SyncManager {
                     transcriptionId,
                     chunkIndex: 0,
                     data: buffer,
+                    mimeType: file.mimeType,
                     createdAt: new Date().toISOString(),
                 });
             });
         }
 
         // Video
-        const videoQuery = `name = 'video.webm' and '${folderId}' in parents and trashed = false`;
+        const videoQuery = `(name = 'video.webm' or name = 'video.mp4') and '${folderId}' in parents and trashed = false`;
         const videoFiles = await this.driveService.listFiles(videoQuery);
         if (videoFiles.length > 0) {
-            const blob = await this.driveService.downloadFile(videoFiles[0].id);
+            const file =
+                videoFiles.find((entry) => entry.name === "video.webm") ??
+                videoFiles.find((entry) => entry.name === "video.mp4") ??
+                videoFiles[0];
+            const blob = await this.driveService.downloadFile(file.id);
             const buffer = await blob.arrayBuffer();
             await appDb.transaction("rw", appDb.videoChunks, async () => {
                 await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
@@ -208,6 +349,7 @@ export class SyncManager {
                     transcriptionId,
                     chunkIndex: 0,
                     data: buffer,
+                    mimeType: file.mimeType,
                     createdAt: new Date().toISOString(),
                 });
             });

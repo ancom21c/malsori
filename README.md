@@ -55,7 +55,7 @@ The FastAPI app exposes `/docs` for interactive testing, `/v1/transcribe` for ba
 
 ### Connecting the webapp to the Python API
 
-The React app talks only to the Python proxy. When you run `npm run dev`, open the app (default http://localhost:5173) and visit **설정 → 환경 설정** to confirm the “Python API Base URL” points to the proxy (default `http://localhost:8000`). Update the field if the proxy runs elsewhere, then start a realtime session or upload flow—the browser will stream audio to `/v1/streaming` on the FastAPI server, which in turn relays to RTZR.  
+The React app talks only to the Python proxy. When you run `npm run dev`, Vite proxies `/api/*` to `http://localhost:8000` by default, so the “Python API Base URL” can be left as `/api` (**설정 → 환경 설정**). If the proxy runs elsewhere, set the value to a full URL (or adjust the Vite proxy target).  
 Helm deployments can override this default by writing `/config/malsori-config.js` (via ConfigMap) so the SPA automatically targets the ingress-exposed API host.
 
 ### Useful Scripts
