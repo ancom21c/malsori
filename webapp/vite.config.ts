@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
-import { resolve } from "path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "path";
+import type { Plugin, ResolvedConfig } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -16,12 +18,65 @@ const buildHash =
     }
   })();
 
+function assetVersioningPlugin(hash: string): Plugin {
+  const versionParam = `v=${hash}`;
+  let resolvedConfig: ResolvedConfig | null = null;
+
+  const withVersion = (url: string) => {
+    if (url.includes(`?${versionParam}`) || url.includes(`&${versionParam}`)) {
+      return url;
+    }
+    return url.includes("?") ? `${url}&${versionParam}` : `${url}?${versionParam}`;
+  };
+
+  const applyVersionToManifest = (manifestPath: string) => {
+    if (!existsSync(manifestPath)) {
+      return;
+    }
+    let manifest;
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    } catch {
+      return;
+    }
+    if (!manifest || !Array.isArray(manifest.icons)) {
+      return;
+    }
+    manifest.icons = manifest.icons.map((icon: { src?: string }) => {
+      if (!icon?.src) {
+        return icon;
+      }
+      return { ...icon, src: withVersion(icon.src) };
+    });
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf-8");
+  };
+
+  return {
+    name: "malsori-asset-versioning",
+    configResolved(config) {
+      resolvedConfig = config;
+    },
+    transformIndexHtml(html) {
+      return html
+        .replaceAll("/malsori-favicon.svg", withVersion("/malsori-favicon.svg"))
+        .replaceAll("/manifest.webmanifest", withVersion("/manifest.webmanifest"));
+    },
+    closeBundle() {
+      if (!resolvedConfig) {
+        return;
+      }
+      const manifestPath = join(resolvedConfig.build.outDir, "manifest.webmanifest");
+      applyVersionToManifest(manifestPath);
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
     __BUILD_HASH__: JSON.stringify(buildHash),
   },
-  plugins: [react()],
+  plugins: [react(), assetVersioningPlugin(buildHash)],
   server: {
     proxy: {
       "/api": {

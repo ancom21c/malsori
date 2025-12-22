@@ -1,5 +1,13 @@
 const CACHE_VERSION = `malsori-app-cache-${__BUILD_HASH__}`;
+const ASSET_VERSION = `?v=${__BUILD_HASH__}`;
 const APP_SHELL_ASSETS = [
+  "/",
+  "/index.html",
+  "/config/malsori-config.js",
+  `/malsori-favicon.svg${ASSET_VERSION}`,
+  `/manifest.webmanifest${ASSET_VERSION}`,
+];
+const CACHE_FIRST_PATHS = [
   "/",
   "/index.html",
   "/config/malsori-config.js",
@@ -77,9 +85,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const cacheFirstPaths = APP_SHELL_ASSETS;
   const shouldUseCacheFirst =
-    cacheFirstPaths.includes(url.pathname) ||
+    CACHE_FIRST_PATHS.includes(url.pathname) ||
     request.destination === "style" ||
     request.destination === "script";
 
