@@ -10,6 +10,7 @@ export interface LocalTranscription {
   title: string;
   kind: LocalTranscriptionKind;
   status: "pending" | "processing" | "completed" | "failed";
+  processingStage?: "recording" | "finalizing";
   createdAt: string;
   updatedAt: string;
   remoteId?: string;
@@ -20,6 +21,7 @@ export interface LocalTranscription {
   remoteAudioUrl?: string;
   errorMessage?: string;
   transcriptText?: string;
+  configSnapshotJson?: string;
   configPresetId?: string;
   configPresetName?: string;
   modelName?: string;
@@ -33,6 +35,15 @@ export interface LocalTranscription {
   isCloudSynced?: boolean;
   downloadStatus?: "not_downloaded" | "downloading" | "downloaded";
   lastSyncedAt?: string;
+  syncRetryCount?: number;
+  nextSyncAttemptAt?: string;
+  syncErrorMessage?: string;
+  sourceFileName?: string;
+  sourceFileMimeType?: string;
+  sourceFileSize?: number;
+  sourceFileStorageState?: "pending" | "ready" | "failed";
+  sourceFileChunkCount?: number;
+  sourceFileStoredBytes?: number;
 }
 
 export interface LocalWordTiming {
@@ -66,6 +77,7 @@ export interface LocalAudioChunk {
   chunkIndex: number;
   data: ArrayBuffer;
   mimeType?: string;
+  role?: "capture" | "source_file";
   createdAt: string;
 }
 
@@ -242,6 +254,29 @@ class AppDatabase extends Dexie {
       backendEndpoints: "id, deployment, isDefault, createdAt",
       searchIndexes: "transcriptionId",
     });
+
+    this.version(8)
+      .stores({
+        transcriptions: "id, createdAt, kind, status, isCloudSynced",
+        segments: "id, transcriptionId, startMs",
+        audioChunks: "id, transcriptionId, chunkIndex",
+        videoChunks: "id, transcriptionId, chunkIndex",
+        presets: "id, type, isDefault",
+        settings: "key",
+        backendEndpoints: "id, deployment, isDefault, createdAt",
+        searchIndexes: "transcriptionId",
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table("audioChunks")
+          .toCollection()
+          .modify((chunk) => {
+            const typed = chunk as LocalAudioChunk;
+            if (!typed.role) {
+              typed.role = "capture";
+            }
+          });
+      });
   }
 }
 

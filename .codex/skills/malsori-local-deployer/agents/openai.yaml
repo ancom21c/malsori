@@ -1,0 +1,4 @@
+interface:
+  display_name: "Malsori Local Deployer"
+  short_description: "Build/push DEV_BUILD=2 images and helm deploy to malsori"
+  default_prompt: "Run malsori local deploy workflow: DEV_BUILD=2 scripts/build-images.sh, then helm upgrade --install malsori in namespace malsori using infra/deploy values file."

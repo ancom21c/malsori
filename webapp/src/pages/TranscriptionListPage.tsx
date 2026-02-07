@@ -52,6 +52,29 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 type Translator = (key: string, options?: TranslateOptions) => string;
 
 function getStatusChip(transcription: LocalTranscription, t: Translator) {
+  if (transcription.status === "processing" && transcription.kind === "realtime") {
+    if (transcription.processingStage === "finalizing") {
+      return (
+        <Chip
+          label={t("finalizing", { defaultValue: "마무리 중" })}
+          color="warning"
+          size="small"
+          icon={<HourglassTopIcon />}
+        />
+      );
+    }
+    if (transcription.processingStage === "recording") {
+      return (
+        <Chip
+          label={t("recording", { defaultValue: "녹음 중" })}
+          color="secondary"
+          size="small"
+          icon={<GraphicEqIcon />}
+        />
+      );
+    }
+  }
+
   switch (transcription.status) {
     case "completed":
       return (
@@ -122,6 +145,19 @@ function getEndpointKey(transcription: LocalTranscription): string {
     return `name:${transcription.backendEndpointName.toLowerCase()}`;
   }
   return "unknown";
+}
+
+function getDownloadStatusLabel(
+  status: LocalTranscription["downloadStatus"],
+  t: Translator
+): string {
+  if (status === "downloading") {
+    return t("downloading", { defaultValue: "다운로드 중" });
+  }
+  if (status === "downloaded") {
+    return t("downloaded", { defaultValue: "다운로드 완료" });
+  }
+  return t("notDownloaded", { defaultValue: "미다운로드" });
 }
 
 export default function TranscriptionListPage() {
@@ -246,7 +282,12 @@ export default function TranscriptionListPage() {
 
   const handleToggleSync = async (transcription: LocalTranscription) => {
     const newValue = !transcription.isCloudSynced;
-    await updateLocalTranscription(transcription.id, { isCloudSynced: newValue });
+    await updateLocalTranscription(transcription.id, {
+      isCloudSynced: newValue,
+      syncRetryCount: undefined,
+      nextSyncAttemptAt: undefined,
+      syncErrorMessage: undefined,
+    });
     enqueueSnackbar(
       newValue ? t("cloudSyncEnabled") : t("cloudSyncDisabled"),
       { variant: "info" }
@@ -553,6 +594,34 @@ export default function TranscriptionListPage() {
                               {endpointLabel ? (
                                 <Typography variant="body2" color="text.secondary">
                                   {t("endpoint")}: {endpointLabel}
+                                </Typography>
+                              ) : null}
+                              {item.isCloudSynced || item.downloadStatus ? (
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("cloudSync", { defaultValue: "클라우드 동기화" })}:{" "}
+                                  {item.isCloudSynced
+                                    ? t("enabled", { defaultValue: "활성화" })
+                                    : t("disabled", { defaultValue: "비활성화" })}
+                                  {item.downloadStatus
+                                    ? ` · ${getDownloadStatusLabel(item.downloadStatus, t)}`
+                                    : ""}
+                                </Typography>
+                              ) : null}
+                              {item.lastSyncedAt ? (
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("lastSyncedAt", { defaultValue: "마지막 동기화" })}:{" "}
+                                  {dayjs(item.lastSyncedAt).format("YYYY-MM-DD HH:mm:ss")}
+                                </Typography>
+                              ) : null}
+                              {item.nextSyncAttemptAt ? (
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("syncRetryAt", { defaultValue: "동기화 재시도 예정" })}:{" "}
+                                  {dayjs(item.nextSyncAttemptAt).format("YYYY-MM-DD HH:mm:ss")}
+                                </Typography>
+                              ) : null}
+                              {item.syncErrorMessage ? (
+                                <Typography variant="body2" sx={{ color: "warning.main" }}>
+                                  {t("syncError", { defaultValue: "동기화 오류" })}: {item.syncErrorMessage}
                                 </Typography>
                               ) : null}
                               {item.errorMessage ? (

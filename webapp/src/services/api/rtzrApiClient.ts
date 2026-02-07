@@ -156,11 +156,15 @@ function normalizeSegmentPayload(segment: RawSegmentEntry): FileTranscriptionSeg
   const duration = normalizeMillis(segment.duration) ?? normalizeMillis(segment.duration_ms);
   const resolvedEnd = end ?? (start !== undefined && duration !== undefined ? start + duration : undefined);
   const text = (segment.msg ?? segment.text ?? "").toString();
-  const speaker = pickFirstString(segment, ["speaker", "spk", "speaker_label"]);
+  const spk = pickFirstString(segment, ["spk"]);
+  const speakerLabel = pickFirstString(segment, ["speaker_label", "speaker"]);
+  const speaker = speakerLabel ?? spk;
   const language = pickFirstString(segment, ["language", "lang"]);
   const words = normalizeWords(segment.words);
   return {
     speaker,
+    spk,
+    speakerLabel,
     language,
     startMs: start,
     endMs: resolvedEnd,
@@ -251,7 +255,9 @@ export class RtzrApiClient {
       text: data.text,
       audioUrl: data.audio_url,
       error: data.error,
-      segments: data.segments?.map((segment) => normalizeSegmentPayload(segment)) ?? [],
+      segments: Array.isArray(data.segments)
+        ? data.segments.map((segment) => normalizeSegmentPayload(segment))
+        : undefined,
     };
   }
 

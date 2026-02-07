@@ -32,6 +32,14 @@ async function upsertTranscriptionSearchIndex(
 type TranscriptionMetadataPatch = Partial<
   Pick<
     LocalTranscription,
+    | "processingStage"
+    | "configSnapshotJson"
+    | "sourceFileName"
+    | "sourceFileMimeType"
+    | "sourceFileSize"
+    | "sourceFileStorageState"
+    | "sourceFileChunkCount"
+    | "sourceFileStoredBytes"
     | "configPresetId"
     | "configPresetName"
     | "modelName"
@@ -147,6 +155,10 @@ type ReplaceableSegment = {
   words?: ReplaceableWord[];
 };
 
+type ReplaceSegmentsOptions = {
+  preserveCorrections?: boolean;
+};
+
 function normalizeTimestamp(value?: number | null): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.max(0, Math.round(value));
@@ -171,11 +183,65 @@ function normalizeWordTiming(word?: ReplaceableWord | null): LocalWordTiming | n
   };
 }
 
+function normalizeSegmentMatchText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function buildSegmentCorrectionLookupKeys(input: {
+  startMs?: number | null;
+  endMs?: number | null;
+  text: string;
+}): string[] {
+  const normalizedText = normalizeSegmentMatchText(input.text);
+  if (!normalizedText) {
+    return [];
+  }
+  const start = normalizeTimestamp(input.startMs);
+  const end = normalizeTimestamp(input.endMs);
+  const keys: string[] = [];
+  if (start !== undefined && end !== undefined) {
+    keys.push(`${start}:${end}:${normalizedText}`);
+  }
+  if (start !== undefined) {
+    keys.push(`${start}:*:${normalizedText}`);
+  }
+  if (end !== undefined) {
+    keys.push(`*:${end}:${normalizedText}`);
+  }
+  keys.push(`*:*:${normalizedText}`);
+  return keys;
+}
+
 export async function replaceSegments(
   transcriptionId: string,
-  segments: ReplaceableSegment[]
+  segments: ReplaceableSegment[],
+  options?: ReplaceSegmentsOptions
 ) {
   await appDb.transaction("rw", appDb.segments, async () => {
+    const correctionByKey = new Map<string, string>();
+    if (options?.preserveCorrections) {
+      const existingSegments = await appDb.segments
+        .where("transcriptionId")
+        .equals(transcriptionId)
+        .toArray();
+      for (const existing of existingSegments) {
+        const corrected = existing.correctedText?.trim();
+        if (!corrected) {
+          continue;
+        }
+        const keys = buildSegmentCorrectionLookupKeys({
+          startMs: existing.startMs,
+          endMs: existing.endMs,
+          text: existing.text,
+        });
+        for (const key of keys) {
+          if (!correctionByKey.has(key)) {
+            correctionByKey.set(key, corrected);
+          }
+        }
+      }
+    }
+
     await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
     const now = new Date().toISOString();
     if (segments.length > 0) {
@@ -198,6 +264,14 @@ export async function replaceSegments(
             normalizedStart !== undefined ||
             normalizedEnd !== undefined ||
             Boolean(fallbackStartFromWords !== undefined || fallbackEndFromWords !== undefined);
+          const correctionKeys = buildSegmentCorrectionLookupKeys({
+            startMs: derivedStart,
+            endMs: derivedEnd,
+            text: segment.text,
+          });
+          const preservedCorrection = options?.preserveCorrections
+            ? correctionKeys.map((key) => correctionByKey.get(key)).find((value): value is string => Boolean(value))
+            : undefined;
           return {
             id: `${transcriptionId}-segment-${index}`,
             transcriptionId,
@@ -209,7 +283,7 @@ export async function replaceSegments(
             text: segment.text,
             isPartial: segment.isPartial,
             isFinal: segment.isFinal,
-            correctedText: segment.correctedText,
+            correctedText: segment.correctedText ?? preservedCorrection,
             hasTiming,
             words,
             createdAt: now,
@@ -269,23 +343,57 @@ export async function appendAudioChunk(params: {
   chunkIndex: number;
   data: ArrayBuffer;
   mimeType?: string;
+  role?: "capture" | "source_file";
 }) {
   const now = new Date().toISOString();
+  const role = params.role ?? "capture";
+  const idPrefix = role === "source_file" ? "source" : "chunk";
   await appDb.audioChunks.put({
-    id: `${params.transcriptionId}-chunk-${params.chunkIndex}`,
+    id: `${params.transcriptionId}-${idPrefix}-${params.chunkIndex}`,
     transcriptionId: params.transcriptionId,
     chunkIndex: params.chunkIndex,
     data: params.data,
     mimeType: params.mimeType,
+    role,
     createdAt: now,
   });
 }
 
-export async function listAudioChunks(transcriptionId: string) {
-  return await appDb.audioChunks
+export async function deleteAudioChunksByRole(
+  transcriptionId: string,
+  role: "capture" | "source_file"
+) {
+  await appDb.transaction("rw", appDb.audioChunks, async () => {
+    const chunks = await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).toArray();
+    const targetIds = chunks
+      .filter((chunk) => {
+        if (role === "capture") {
+          return chunk.role === "capture" || chunk.role === undefined;
+        }
+        return chunk.role === role;
+      })
+      .map((chunk) => chunk.id);
+    if (targetIds.length > 0) {
+      await appDb.audioChunks.bulkDelete(targetIds);
+    }
+  });
+}
+
+export async function listAudioChunks(
+  transcriptionId: string,
+  options?: { role?: "capture" | "source_file" }
+) {
+  const chunks = await appDb.audioChunks
     .where("transcriptionId")
     .equals(transcriptionId)
     .sortBy("chunkIndex");
+  if (!options?.role) {
+    return chunks;
+  }
+  if (options.role === "capture") {
+    return chunks.filter((chunk) => chunk.role === "capture" || chunk.role === undefined);
+  }
+  return chunks.filter((chunk) => chunk.role === options.role);
 }
 
 export async function appendVideoChunk(params: {

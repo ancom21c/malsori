@@ -5,6 +5,19 @@ import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
+const SYNC_RETRY_BACKOFF_MS = [
+    1 * 60 * 1000,
+    5 * 60 * 1000,
+    15 * 60 * 1000,
+    60 * 60 * 1000,
+    6 * 60 * 60 * 1000,
+];
+
+type SyncRunSummary = {
+    processed: number;
+    failed: number;
+    skipped: number;
+};
 
 function isPcmMimeType(value: string | undefined): boolean {
     if (!value) {
@@ -31,6 +44,33 @@ function parseIsoMillis(value: string | undefined): number | null {
     }
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getRetryBackoffMillis(attempt: number): number {
+    const normalizedAttempt = Number.isFinite(attempt) ? Math.max(1, Math.floor(attempt)) : 1;
+    return SYNC_RETRY_BACKOFF_MS[Math.min(normalizedAttempt - 1, SYNC_RETRY_BACKOFF_MS.length - 1)];
+}
+
+function resolveSyncErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message.trim().length > 0) {
+        return error.message.trim();
+    }
+    if (typeof error === "string" && error.trim().length > 0) {
+        return error.trim();
+    }
+    return "Cloud sync failed";
+}
+
+function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
+    return {
+        ...record,
+        syncRetryCount: undefined,
+        nextSyncAttemptAt: undefined,
+        syncErrorMessage: undefined,
+        sourceFileStorageState: undefined,
+        sourceFileChunkCount: undefined,
+        sourceFileStoredBytes: undefined,
+    };
 }
 
 function determineVideoFilename(mimeType: string | undefined): string {
@@ -105,53 +145,70 @@ export class SyncManager {
         return await this.getRootFolder();
     }
 
-    async pullUpdates() {
+    async pullUpdates(): Promise<SyncRunSummary> {
+        let processed = 0;
+        let failed = 0;
+        let skipped = 0;
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const query = `'${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
         const cloudFolders = await this.driveService.listFiles(query);
 
         for (const folder of cloudFolders) {
-            // Folder name is the UUID of the transcription
             const transcriptionId = folder.name;
+            processed += 1;
+            try {
+                const syncedAt = new Date().toISOString();
+                // Check if exists locally
+                const localRecord = await appDb.transcriptions.get(transcriptionId);
 
-            // Check if exists locally
-            const localRecord = await appDb.transcriptions.get(transcriptionId);
+                // Get metadata.json from cloud folder
+                const metadataQuery = `name = 'metadata.json' and '${folder.id}' in parents and trashed = false`;
+                const metadataFiles = await this.driveService.listFiles(metadataQuery);
 
-            // Get metadata.json from cloud folder
-            const metadataQuery = `name = 'metadata.json' and '${folder.id}' in parents and trashed = false`;
-            const metadataFiles = await this.driveService.listFiles(metadataQuery);
-
-            if (metadataFiles.length === 0) continue;
-
-            const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
-            const metadataText = await metadataBlob.text();
-            const cloudMetadata: LocalTranscription = JSON.parse(metadataText);
-
-            if (!localRecord) {
-                // Create Ghost Record
-                await appDb.transcriptions.put({
-                    ...cloudMetadata,
-                    isCloudSynced: true,
-                    downloadStatus: "not_downloaded",
-                });
-            } else if (localRecord.isCloudSynced) {
-                // Update if cloud is newer
-                const localUpdate = new Date(localRecord.updatedAt).getTime();
-                const cloudUpdate = new Date(cloudMetadata.updatedAt).getTime();
-
-                if (cloudUpdate > localUpdate) {
-                    await appDb.transcriptions.update(transcriptionId, {
-                        ...cloudMetadata,
-                        isCloudSynced: true,
-                        // Keep local download status unless we want to force re-download?
-                        // For now, just update metadata fields.
-                    });
+                if (metadataFiles.length === 0) {
+                    skipped += 1;
+                    continue;
                 }
+
+                const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
+                const metadataText = await metadataBlob.text();
+                const cloudMetadata: LocalTranscription = JSON.parse(metadataText);
+
+                if (!localRecord) {
+                    // Create Ghost Record
+                    await appDb.transcriptions.put({
+                        ...sanitizeCloudMetadata(cloudMetadata),
+                        isCloudSynced: true,
+                        downloadStatus: "not_downloaded",
+                        lastSyncedAt: syncedAt,
+                    });
+                } else if (localRecord.isCloudSynced) {
+                    // Update if cloud is newer
+                    const localUpdate = parseIsoMillis(localRecord.updatedAt) ?? 0;
+                    const cloudUpdate = parseIsoMillis(cloudMetadata.updatedAt) ?? 0;
+
+                    if (cloudUpdate > localUpdate) {
+                        await appDb.transcriptions.update(transcriptionId, {
+                            ...sanitizeCloudMetadata(cloudMetadata),
+                            isCloudSynced: true,
+                            lastSyncedAt: syncedAt,
+                            // Keep local download status unless we want to force re-download?
+                            // For now, just update metadata fields.
+                        });
+                    }
+                }
+            } catch (error) {
+                failed += 1;
+                console.warn(`Failed to pull cloud record "${transcriptionId}".`, error);
             }
         }
+        return { processed, failed, skipped };
     }
 
-    async pushUpdates() {
+    async pushUpdates(): Promise<SyncRunSummary> {
+        let processed = 0;
+        let failed = 0;
+        let skipped = 0;
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const localRecords = await appDb.transcriptions
             .filter((record) =>
@@ -162,44 +219,83 @@ export class SyncManager {
             .toArray();
 
         for (const record of localRecords) {
-            // Check if folder exists
-            const query = `name = '${record.id}' and '${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-            const folders = await this.driveService.listFiles(query);
-
-            let folderId: string;
-            if (folders.length > 0) {
-                folderId = folders[0].id;
-            } else {
-                const folder = await this.driveService.createFolder(record.id, transcriptionsFolderId);
-                folderId = folder.id;
-            }
-
-            // Avoid overwriting newer cloud metadata with stale/local-only state.
-            const localUpdated = parseIsoMillis(record.updatedAt);
-            const cloudMetadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
-            const cloudMetadataFiles = await this.driveService.listFiles(cloudMetadataQuery);
-            const cloudUpdated = parseIsoMillis(cloudMetadataFiles[0]?.modifiedTime);
-            if (localUpdated !== null && cloudUpdated !== null && cloudUpdated > localUpdated) {
+            const nextAttemptAt = parseIsoMillis(record.nextSyncAttemptAt);
+            if (nextAttemptAt !== null && nextAttemptAt > Date.now()) {
+                skipped += 1;
                 continue;
             }
+            processed += 1;
+            try {
+                const syncedAt = new Date().toISOString();
+                // Check if folder exists
+                const query = `name = '${record.id}' and '${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                const folders = await this.driveService.listFiles(query);
 
-            // Upload metadata.json
-            const metadataBlob = new Blob([JSON.stringify(record)], { type: "application/json" });
-            await this.uploadOrUpdateFile("metadata.json", metadataBlob, folderId, "application/json");
+                let folderId: string;
+                if (folders.length > 0) {
+                    folderId = folders[0].id;
+                } else {
+                    const folder = await this.driveService.createFolder(record.id, transcriptionsFolderId);
+                    folderId = folder.id;
+                }
 
-            // Upload segments.json
-            const segments = await appDb.segments.where("transcriptionId").equals(record.id).toArray();
-            const segmentsBlob = new Blob([JSON.stringify(segments)], { type: "application/json" });
-            await this.uploadOrUpdateFile("segments.json", segmentsBlob, folderId, "application/json");
+                // Avoid overwriting newer cloud metadata with stale/local-only state.
+                const localUpdated = parseIsoMillis(record.updatedAt);
+                const cloudMetadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
+                const cloudMetadataFiles = await this.driveService.listFiles(cloudMetadataQuery);
+                const cloudUpdated = parseIsoMillis(cloudMetadataFiles[0]?.modifiedTime);
+                if (localUpdated !== null && cloudUpdated !== null && cloudUpdated > localUpdated) {
+                    await appDb.transcriptions.update(record.id, {
+                        syncRetryCount: undefined,
+                        nextSyncAttemptAt: undefined,
+                        syncErrorMessage: undefined,
+                        lastSyncedAt: syncedAt,
+                    });
+                    continue;
+                }
 
-            // Upload Media Files (Audio/Video)
-            await this.uploadMediaFiles(record, folderId);
+                // Upload metadata.json
+                const cloudMetadata = sanitizeCloudMetadata(record);
+                const metadataBlob = new Blob([JSON.stringify(cloudMetadata)], { type: "application/json" });
+                await this.uploadOrUpdateFile("metadata.json", metadataBlob, folderId, "application/json");
+
+                // Upload segments.json
+                const segments = await appDb.segments.where("transcriptionId").equals(record.id).toArray();
+                const segmentsBlob = new Blob([JSON.stringify(segments)], { type: "application/json" });
+                await this.uploadOrUpdateFile("segments.json", segmentsBlob, folderId, "application/json");
+
+                // Upload Media Files (Audio/Video)
+                await this.uploadMediaFiles(record, folderId);
+                await appDb.transcriptions.update(record.id, {
+                    isCloudSynced: true,
+                    lastSyncedAt: syncedAt,
+                    syncRetryCount: undefined,
+                    nextSyncAttemptAt: undefined,
+                    syncErrorMessage: undefined,
+                });
+            } catch (error) {
+                failed += 1;
+                const currentRetryCount =
+                    typeof record.syncRetryCount === "number" && Number.isFinite(record.syncRetryCount)
+                        ? Math.max(0, Math.floor(record.syncRetryCount))
+                        : 0;
+                const nextRetryCount = currentRetryCount + 1;
+                await appDb.transcriptions.update(record.id, {
+                    syncRetryCount: nextRetryCount,
+                    nextSyncAttemptAt: new Date(Date.now() + getRetryBackoffMillis(nextRetryCount)).toISOString(),
+                    syncErrorMessage: resolveSyncErrorMessage(error),
+                });
+                console.warn(`Failed to push cloud record "${record.id}".`, error);
+            }
         }
+        return { processed, failed, skipped };
     }
 
     private async uploadMediaFiles(record: LocalTranscription, folderId: string) {
         // Audio
-        const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(record.id).sortBy("chunkIndex");
+        const audioChunks = (
+            await appDb.audioChunks.where("transcriptionId").equals(record.id).sortBy("chunkIndex")
+        ).filter((chunk) => chunk.role !== "source_file");
         if (audioChunks.length > 0) {
             const sourceMimeType = audioChunks.find((chunk) => chunk.mimeType)?.mimeType;
             const firstChunk = audioChunks[0]?.data;
@@ -300,7 +396,10 @@ export class SyncManager {
             await this.downloadMediaFiles(transcriptionId, folderId);
 
             // Update status
-            await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloaded" });
+            await appDb.transcriptions.update(transcriptionId, {
+                downloadStatus: "downloaded",
+                lastSyncedAt: new Date().toISOString(),
+            });
         } catch (error) {
             await appDb.transcriptions.update(transcriptionId, { downloadStatus: "not_downloaded" });
             throw error;

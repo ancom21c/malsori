@@ -121,12 +121,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         isSyncingRef.current = true;
         setIsSyncing(true);
+        let hasFailure = false;
         try {
-            await syncManager.pullUpdates();
-            await syncManager.pushUpdates();
-            setLastSyncedAt(new Date());
-        } catch (error) {
-            console.error("Sync failed:", error);
+            try {
+                const pullSummary = await syncManager.pullUpdates();
+                if (pullSummary.failed > 0) {
+                    hasFailure = true;
+                }
+            } catch (error) {
+                hasFailure = true;
+                console.error("Sync pull failed:", error);
+            }
+
+            try {
+                const pushSummary = await syncManager.pushUpdates();
+                if (pushSummary.failed > 0) {
+                    hasFailure = true;
+                }
+            } catch (error) {
+                hasFailure = true;
+                console.error("Sync push failed:", error);
+            }
+
+            if (!hasFailure) {
+                setLastSyncedAt(new Date());
+            }
         } finally {
             setIsSyncing(false);
             isSyncingRef.current = false;

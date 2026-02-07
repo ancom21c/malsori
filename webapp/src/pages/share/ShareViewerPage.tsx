@@ -369,7 +369,7 @@ export default function ShareViewerPage() {
             activeWordHighlightRef.current = null;
           });
         }
-      } catch (error) {
+      } catch {
         segmentEndRef.current = null;
         setActiveSegmentId(null);
         setActiveWordHighlight(null);
@@ -440,7 +440,7 @@ export default function ShareViewerPage() {
     };
   }, [playbackUrl, syncActiveSegmentWithPlayback]);
 
-  const noop = useCallback((..._args: unknown[]) => {}, []);
+  const noop = useCallback(() => {}, []);
   const handleWordDetailsToggle = useCallback((segmentId: string) => {
     setWordDetailsVisibility((prev) => {
       const nextVisible = !(prev[segmentId] ?? false);

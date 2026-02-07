@@ -36,6 +36,8 @@ export interface WordTimestamp {
 
 export interface FileTranscriptionSegment {
   speaker?: string;
+  spk?: string;
+  speakerLabel?: string;
   language?: string;
   startMs?: number;
   endMs?: number;

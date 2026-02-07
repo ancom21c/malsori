@@ -38,10 +38,14 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-          {{- if .Values.pythonApi.secretEnv }}
+          {{- if or .Values.pythonApi.existingSecret .Values.pythonApi.secretEnv }}
           envFrom:
             - secretRef:
+                {{- if .Values.pythonApi.existingSecret }}
+                name: {{ .Values.pythonApi.existingSecret }}
+                {{- else }}
                 name: {{ include "malsori.pythonSecretName" . }}
+                {{- end }}
           {{- end }}
           volumeMounts:
             - name: python-storage

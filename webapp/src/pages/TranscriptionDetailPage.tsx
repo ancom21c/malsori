@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -23,6 +23,7 @@ import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
 import { SpeakerEditDialog } from "../components/SpeakerEditDialog";
 import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
 import { useShareLink } from "../hooks/useShareLink";
+import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
 import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
 import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -50,6 +51,8 @@ interface RtzrStreamingResult {
   is_final: boolean;
   alternatives: RtzrStreamingAlternative[];
 }
+
+type RetrySubmitResult = "success" | "config_missing" | "request_failed";
 
 function buildDownloadFileName(title: string | undefined, fallbackId: string, extension: string) {
   const base = (title?.trim().length ? title.trim() : fallbackId || "transcription")
@@ -86,6 +89,35 @@ function determineVideoExtension(mimeType?: string | null) {
 function buildSessionVideoFileName(title: string | undefined, fallbackId: string, mimeType?: string | null) {
   const extension = determineVideoExtension(mimeType);
   return buildDownloadFileName(title, fallbackId, extension);
+}
+
+function resolveExtensionFromMimeType(mimeType?: string | null) {
+  if (!mimeType) {
+    return "bin";
+  }
+  const normalized = mimeType.toLowerCase();
+  if (normalized.includes("mpeg")) {
+    return "mp3";
+  }
+  if (normalized.includes("wav")) {
+    return "wav";
+  }
+  if (normalized.includes("webm")) {
+    return "webm";
+  }
+  if (normalized.includes("mp4")) {
+    return "mp4";
+  }
+  if (normalized.includes("ogg")) {
+    return "ogg";
+  }
+  if (normalized.includes("aac")) {
+    return "aac";
+  }
+  if (normalized.includes("flac")) {
+    return "flac";
+  }
+  return "bin";
 }
 
 function isRiffWavHeader(buffer: ArrayBuffer) {
@@ -383,6 +415,9 @@ export default function TranscriptionDetailPage() {
   } | null>(null);
   const [speakerEditName, setSpeakerEditName] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const retryFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [retrySubmitting, setRetrySubmitting] = useState(false);
+  const requestFileTranscription = useRequestFileTranscription();
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
@@ -851,7 +886,7 @@ export default function TranscriptionDetailPage() {
       setAudioLoading(true);
       (async () => {
         try {
-          const chunks = await listAudioChunks(transcription.id);
+          const chunks = await listAudioChunks(transcription.id, { role: "capture" });
           if (cancelled) return;
           if (chunks.length === 0) {
             setAudioUrl(null);
@@ -993,6 +1028,144 @@ export default function TranscriptionDetailPage() {
     enqueueSnackbar(t("theTranscriptionRecordHasBeenDeleted"), { variant: "success" });
     navigate("/");
   }, [enqueueSnackbar, navigate, t, transcriptionId]);
+
+  const resolveRetryConfigJson = useCallback(async () => {
+    if (!transcription) {
+      return null;
+    }
+    const snapshot = transcription.configSnapshotJson?.trim();
+    if (snapshot) {
+      return snapshot;
+    }
+    if (transcription.configPresetId) {
+      const preset = await appDb.presets.get(transcription.configPresetId);
+      if (preset?.configJson?.trim()) {
+        return preset.configJson;
+      }
+    }
+    return null;
+  }, [transcription]);
+
+  const submitRetryWithFile = useCallback(
+    async (selectedFile: File): Promise<RetrySubmitResult> => {
+      if (!transcription || transcription.kind !== "file") {
+        return "request_failed";
+      }
+      const configJson = await resolveRetryConfigJson();
+      if (!configJson) {
+        enqueueSnackbar(
+          t("cannotRetryWithoutOriginalConfiguration", {
+            defaultValue: "원본 설정 정보를 찾을 수 없어 재실행할 수 없습니다.",
+          }),
+          { variant: "warning" }
+        );
+        return "config_missing";
+      }
+
+      try {
+        setRetrySubmitting(true);
+        const result = await requestFileTranscription.mutateAsync({
+          title: transcription.title || selectedFile.name,
+          configJson,
+          file: selectedFile,
+          presetId: transcription.configPresetId ?? null,
+          presetName: transcription.configPresetName ?? null,
+        });
+        navigate(`/transcriptions/${result.localId}`);
+        return "success";
+      } catch {
+        // useRequestFileTranscription reports user-facing errors.
+        return "request_failed";
+      } finally {
+        setRetrySubmitting(false);
+      }
+    },
+    [enqueueSnackbar, navigate, requestFileTranscription, resolveRetryConfigJson, t, transcription]
+  );
+
+  const handleRetryRequest = useCallback(() => {
+    if (!transcription || transcription.kind !== "file") {
+      return;
+    }
+    if (retrySubmitting || requestFileTranscription.isPending) {
+      return;
+    }
+    void (async () => {
+      let shouldOpenPicker = true;
+      try {
+        if (transcription.sourceFileStorageState === "ready") {
+          const sourceChunks = await listAudioChunks(transcription.id, {
+            role: "source_file",
+          });
+          const sourceBytes = sourceChunks.reduce((sum, chunk) => sum + chunk.data.byteLength, 0);
+          const expectedBytes =
+            transcription.sourceFileStoredBytes ?? transcription.sourceFileSize ?? null;
+          const expectedChunkCount = transcription.sourceFileChunkCount;
+          const hasChunks = sourceChunks.length > 0;
+          const bytesMatch = expectedBytes === null ? hasChunks : sourceBytes === expectedBytes;
+          const chunkCountMatch =
+            typeof expectedChunkCount === "number"
+              ? sourceChunks.length === expectedChunkCount
+              : hasChunks;
+
+          if (hasChunks && bytesMatch && chunkCountMatch) {
+            shouldOpenPicker = false;
+            const sourceMimeType =
+              transcription.sourceFileMimeType?.trim() ||
+              sourceChunks.find((chunk) => chunk.mimeType)?.mimeType ||
+              "application/octet-stream";
+            const sourceFileName =
+              transcription.sourceFileName?.trim() ||
+              buildDownloadFileName(
+                transcription.title || transcription.id,
+                transcription.id,
+                resolveExtensionFromMimeType(sourceMimeType)
+              );
+            const sourceBlob = new Blob(sourceChunks.map((chunk) => chunk.data), {
+              type: sourceMimeType,
+            });
+            const sourceFile = new File([sourceBlob], sourceFileName, {
+              type: sourceMimeType,
+            });
+            const submitResult = await submitRetryWithFile(sourceFile);
+            if (submitResult === "success") {
+              return;
+            }
+            if (submitResult === "config_missing") {
+              return;
+            }
+            shouldOpenPicker = true;
+          }
+
+          if (!hasChunks || !bytesMatch || !chunkCountMatch) {
+            enqueueSnackbar(
+              t("storedSourceFileDataIsIncomplete", {
+                defaultValue: "저장된 원본 파일 데이터가 불완전하여 파일을 다시 선택해야 합니다.",
+              }),
+              { variant: "warning" }
+            );
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to restore the source file for retry.", error);
+      }
+      if (shouldOpenPicker) {
+        retryFileInputRef.current?.click();
+      }
+    })();
+  }, [enqueueSnackbar, requestFileTranscription.isPending, retrySubmitting, submitRetryWithFile, t, transcription]);
+
+  const handleRetryFileSelected = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = event.target.files?.[0];
+      event.target.value = "";
+      if (!selectedFile) {
+        return;
+      }
+      await submitRetryWithFile(selectedFile);
+    },
+    [submitRetryWithFile]
+  );
 
   const handleDownloadAudio = useCallback(() => {
     if (!transcription) return;
@@ -1268,12 +1441,23 @@ export default function TranscriptionDetailPage() {
         onDownloadText={handleDownloadText}
         onDownloadAudio={handleDownloadAudio}
         onDownloadVideo={handleDownloadVideo}
+        onRetry={transcription.kind === "file" ? handleRetryRequest : undefined}
+        retryDisabled={retrySubmitting || requestFileTranscription.isPending}
         onDelete={handleDelete}
         onShare={handleShareDialogOpen}
         onTitleUpdate={handleTitleUpdate}
         sticky
         compactOnScroll
         t={t}
+      />
+      <input
+        ref={retryFileInputRef}
+        type="file"
+        hidden
+        accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm"
+        onChange={(event) => {
+          void handleRetryFileSelected(event);
+        }}
       />
 
       <ConfirmDialog

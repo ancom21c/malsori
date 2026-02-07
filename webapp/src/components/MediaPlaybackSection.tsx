@@ -25,6 +25,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import ReplayIcon from "@mui/icons-material/Replay";
 import type { LocalTranscription } from "../data/app-db";
 import type { MutableRefObject } from "react";
 
@@ -49,6 +50,8 @@ type MediaPlaybackSectionProps = {
   onDownloadText?: () => void;
   onDownloadAudio?: () => void;
   onDownloadVideo?: () => void;
+  onRetry?: () => void;
+  retryDisabled?: boolean;
   onDelete?: () => void;
   onShare?: () => void;
   onTitleUpdate?: (nextTitle: string) => Promise<void> | void;
@@ -74,6 +77,8 @@ export function MediaPlaybackSection({
   onDownloadText,
   onDownloadAudio,
   onDownloadVideo,
+  onRetry,
+  retryDisabled,
   onDelete,
   onShare,
   onTitleUpdate,
@@ -94,6 +99,7 @@ export function MediaPlaybackSection({
     Boolean(onDownloadText) ||
     Boolean(onDownloadAudio) ||
     (Boolean(onDownloadVideo) && canDownloadVideo) ||
+    Boolean(onRetry) ||
     Boolean(onDelete) ||
     Boolean(onShare);
   const canEditTitle = Boolean(onTitleUpdate);
@@ -340,6 +346,12 @@ export function MediaPlaybackSection({
                 {renderActionFab(t("audio"), <AudiotrackIcon fontSize="small" />, onDownloadAudio, {
                   disabled: !canDownloadAudio,
                 })}
+                {renderActionFab(
+                  t("retryTranscription", { defaultValue: "재실행" }),
+                  <ReplayIcon fontSize="small" />,
+                  onRetry,
+                  { disabled: Boolean(retryDisabled) }
+                )}
                 {onDownloadVideo && canDownloadVideo
                   ? renderActionFab(t("downloadVideo"), <VideocamIcon fontSize="small" />, onDownloadVideo)
                   : null}

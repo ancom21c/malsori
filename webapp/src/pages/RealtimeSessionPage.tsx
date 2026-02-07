@@ -589,6 +589,21 @@ export default function RealtimeSessionPage() {
     }
   };
 
+  const stopRecorder = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder) {
+      return false;
+    }
+    try {
+      recorder.stop();
+    } catch (error) {
+      console.error("Failed to stop recorder", error);
+    } finally {
+      recorderRef.current = null;
+    }
+    return true;
+  }, []);
+
   const stopCameraStream = useCallback(() => {
     const stream = cameraStreamRef.current;
     if (stream) {
@@ -800,12 +815,6 @@ export default function RealtimeSessionPage() {
     }
   }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
 
-  useEffect(() => {
-    if (sessionState === "recording" && cameraShouldRecordRef.current && cameraEnabled) {
-      void startVideoRecordingIfNeeded();
-    }
-  }, [sessionState, cameraEnabled, startVideoRecordingIfNeeded]);
-
   const handleRuntimeSettingChange = (key: RuntimeSettingKey, value: string) => {
     setRuntimeSettings((prev) => ({
       ...prev,
@@ -879,9 +888,9 @@ export default function RealtimeSessionPage() {
     clearCountdown();
     clearAutosave();
     clearStopSafetyTimer();
+    stopRecorder();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
-    recorderRef.current = null;
     streamingConfigRef.current = null;
     transcriptionIdRef.current = null;
     segmentsRef.current = [];
@@ -1167,6 +1176,7 @@ export default function RealtimeSessionPage() {
     clearCountdown();
     clearAutosave();
     clearStopSafetyTimer();
+    stopRecorder();
     streamingClientRef.current?.disconnect();
     streamingClientRef.current = null;
     const id = transcriptionIdRef.current;
@@ -1196,6 +1206,7 @@ export default function RealtimeSessionPage() {
         const transcriptText = segmentsRef.current.map((segment) => segment.text).join("\n");
         await updateLocalTranscription(id, {
           status: aborted ? "failed" : "completed",
+          processingStage: undefined,
           transcriptText,
           durationMs: duration,
           errorMessage: aborted ? errorMessage ?? t("theSessionHasBeenAborted") : undefined,
@@ -1231,15 +1242,17 @@ export default function RealtimeSessionPage() {
     if (sessionState === "countdown") {
       clearCountdown();
       finalizeReasonRef.current = "aborted";
-      if (recorderRef.current) {
-        recorderRef.current.stop();
-      } else {
+      if (!stopRecorder()) {
         void finalizeSession(true);
       }
       return;
     }
     if (!aborted) {
       setSessionState("stopping");
+      const id = transcriptionIdRef.current;
+      if (id) {
+        void updateLocalTranscription(id, { processingStage: "finalizing" });
+      }
 
       // If we have partial text, we should wait for the final result
       if (partialText) {
@@ -1253,23 +1266,20 @@ export default function RealtimeSessionPage() {
             void finalizeSession(false);
           }
         }, 3000);
-        return;
       }
 
-      streamingClientRef.current?.requestFinal();
-      // Safety timer in case server doesn't close connection
-      stopSafetyTimerRef.current = window.setTimeout(() => {
-        if (sessionStateRef.current === "stopping") {
-          void finalizeSession(false);
-        }
-      }, 3000);
-    }
-    if (recorderRef.current) {
-      recorderRef.current.stop();
-    } else {
-      if (aborted) {
-        void finalizeSession(true);
+      if (!waitingForFinalRef.current) {
+        streamingClientRef.current?.requestFinal();
+        // Safety timer in case server doesn't close connection
+        stopSafetyTimerRef.current = window.setTimeout(() => {
+          if (sessionStateRef.current === "stopping") {
+            void finalizeSession(false);
+          }
+        }, 3000);
       }
+    }
+    if (!stopRecorder() && aborted) {
+      void finalizeSession(true);
     }
   };
 
@@ -1403,6 +1413,8 @@ export default function RealtimeSessionPage() {
         kind: "realtime",
         status: "processing",
         metadata: {
+          processingStage: "recording",
+          configSnapshotJson: JSON.stringify(decoderConfig),
           configPresetId: activeStreamingPreset?.id ?? undefined,
           configPresetName: activeStreamingPreset?.name ?? undefined,
           modelName,

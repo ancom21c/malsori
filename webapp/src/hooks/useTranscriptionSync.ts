@@ -61,6 +61,7 @@ export function useTranscriptionSync() {
                 : result.status === "failed"
                 ? "failed"
                 : "processing";
+            const isTerminalStatus = status === "completed" || status === "failed";
             await updateLocalTranscription(item.id, {
               status,
               transcriptText: result.text,
@@ -70,16 +71,29 @@ export function useTranscriptionSync() {
                   ? result.error ?? t("warriorFailure")
                   : undefined,
             });
-            if (result.segments) {
+            const hasSegmentsPayload = Array.isArray(result.segments);
+            const shouldReplaceSegments =
+              hasSegmentsPayload &&
+              ((result.segments?.length ?? 0) > 0 || isTerminalStatus);
+            if (shouldReplaceSegments && result.segments) {
               await replaceSegments(
                 item.id,
                 result.segments.map((segment) => ({
-                  speaker: segment.speaker,
+                  spk:
+                    segment.spk?.trim() ||
+                    (segment.speaker && /^\d+$/.test(segment.speaker.trim())
+                      ? segment.speaker.trim()
+                      : undefined),
+                  speaker_label:
+                    segment.speakerLabel?.trim() ||
+                    (segment.speaker && !/^\d+$/.test(segment.speaker.trim())
+                      ? segment.speaker.trim()
+                      : undefined),
                   language: segment.language,
                   startMs: coerceMilliseconds(segment.startMs),
                   endMs: coerceMilliseconds(segment.endMs),
                   text: segment.text,
-                  isFinal: result.status === "completed" || result.status === "failed",
+                  isFinal: isTerminalStatus,
                   isPartial: result.status === "transcribing" || result.status === "processing",
                   words:
                     segment.words && segment.words.length > 0
@@ -94,7 +108,8 @@ export function useTranscriptionSync() {
                           confidence: word.confidence,
                         }))
                       : undefined,
-                }))
+                })),
+                { preserveCorrections: true }
               );
             }
           } catch (error) {

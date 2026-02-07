@@ -1,0 +1,57 @@
+replicaCount: 1
+
+image:
+  pythonApi:
+    repository: registry.cube.local:5000/malsori/api-server
+    tag: dev
+    pullPolicy: Always
+  webapp:
+    repository: registry.cube.local:5000/malsori/webapp
+    tag: dev
+    pullPolicy: Always
+
+service:
+  type: ClusterIP
+  pythonPort: 8000
+  webPort: 80
+
+pythonApi:
+  deployment: cloud
+  verifySsl: true
+  debug: false
+  existingSecret: ""
+  env:
+    STT_STORAGE_BASE_DIR: /data
+  resources: {}
+  secretEnv:
+    PRONAIA_API_BASE: https://openapi.vito.ai
+    PRONAIA_CLIENT_ID: MvssEACXVeNk2yOXaUiF
+    PRONAIA_CLIENT_SECRET: JBVmP9O8hxu0afBG1tsudr6j_ap8qORYSyPv_K7e
+
+webapp:
+  apiBaseUrl: https://malsori.ancom.duckdns.org
+  env: {}
+  resources: {}
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: malsori.ancom.duckdns.org
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: web
+        - path: /v1
+          pathType: Prefix
+          servicePort: python
+  paths:
+    - path: /
+      pathType: Prefix
+      servicePort: web
+  tls:
+    - hosts:
+        - malsori.ancom.duckdns.org
+      secretName: malsori-ancom-duckdns-org-tls

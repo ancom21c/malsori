@@ -2,7 +2,9 @@ import { useMutation } from "@tanstack/react-query";
 import { useSnackbar } from "notistack";
 import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
 import {
+  appendAudioChunk,
   createLocalTranscription,
+  deleteAudioChunksByRole,
   updateLocalTranscription,
 } from "../services/data/transcriptionRepository";
 import { useSettingsStore } from "../store/settingsStore";
@@ -20,6 +22,8 @@ type RequestPayload = {
   presetName?: string | null;
 };
 
+const SOURCE_FILE_CHUNK_SIZE = 2 * 1024 * 1024;
+
 export function useRequestFileTranscription() {
   const apiClient = useRtzrApiClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -35,6 +39,10 @@ export function useRequestFileTranscription() {
         kind: "file",
         status: "processing",
         metadata: {
+          configSnapshotJson: payload.configJson,
+          sourceFileName: payload.file.name,
+          sourceFileMimeType: payload.file.type || "application/octet-stream",
+          sourceFileSize: payload.file.size,
           configPresetId: payload.presetId ?? undefined,
           configPresetName: payload.presetName ?? undefined,
           modelName,
@@ -47,6 +55,50 @@ export function useRequestFileTranscription() {
       });
 
       try {
+        try {
+          await deleteAudioChunksByRole(localRecord.id, "source_file");
+          await updateLocalTranscription(localRecord.id, {
+            sourceFileStorageState: "pending",
+            sourceFileChunkCount: 0,
+            sourceFileStoredBytes: 0,
+          });
+
+          const totalSize = payload.file.size;
+          let chunkIndex = 0;
+          let storedBytes = 0;
+          for (let offset = 0; offset < totalSize; offset += SOURCE_FILE_CHUNK_SIZE) {
+            const chunkBuffer = await payload.file
+              .slice(offset, offset + SOURCE_FILE_CHUNK_SIZE)
+              .arrayBuffer();
+            await appendAudioChunk({
+              transcriptionId: localRecord.id,
+              chunkIndex,
+              data: chunkBuffer,
+              mimeType: payload.file.type || "application/octet-stream",
+              role: "source_file",
+            });
+            storedBytes += chunkBuffer.byteLength;
+            chunkIndex += 1;
+          }
+          const sourceStorageReady = storedBytes === totalSize;
+          if (!sourceStorageReady) {
+            await deleteAudioChunksByRole(localRecord.id, "source_file");
+          }
+          await updateLocalTranscription(localRecord.id, {
+            sourceFileStorageState: sourceStorageReady ? "ready" : "failed",
+            sourceFileChunkCount: sourceStorageReady ? chunkIndex : 0,
+            sourceFileStoredBytes: sourceStorageReady ? storedBytes : 0,
+          });
+        } catch (error) {
+          await deleteAudioChunksByRole(localRecord.id, "source_file");
+          await updateLocalTranscription(localRecord.id, {
+            sourceFileStorageState: "failed",
+            sourceFileChunkCount: 0,
+            sourceFileStoredBytes: 0,
+          });
+          console.warn("Failed to persist source file for retry.", error);
+        }
+
         const response = await apiClient.requestFileTranscription({
           title: payload.title,
           configJson: payload.configJson,
