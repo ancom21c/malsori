@@ -1054,9 +1054,7 @@ export default function TranscriptionDetailPage() {
       const configJson = await resolveRetryConfigJson();
       if (!configJson) {
         enqueueSnackbar(
-          t("cannotRetryWithoutOriginalConfiguration", {
-            defaultValue: "원본 설정 정보를 찾을 수 없어 재실행할 수 없습니다.",
-          }),
+          t("cannotRetryWithoutOriginalConfiguration"),
           { variant: "warning" }
         );
         return "config_missing";
@@ -1139,9 +1137,7 @@ export default function TranscriptionDetailPage() {
 
           if (!hasChunks || !bytesMatch || !chunkCountMatch) {
             enqueueSnackbar(
-              t("storedSourceFileDataIsIncomplete", {
-                defaultValue: "저장된 원본 파일 데이터가 불완전하여 파일을 다시 선택해야 합니다.",
-              }),
+              t("storedSourceFileDataIsIncomplete"),
               { variant: "warning" }
             );
           }
@@ -1550,7 +1546,11 @@ export default function TranscriptionDetailPage() {
                     endAdornment: (
                       <InputAdornment position="end">
                         <Tooltip title={t("shareCopyLink")}>
-                          <IconButton onClick={handleCopyShareLink} size="small">
+                          <IconButton
+                            onClick={handleCopyShareLink}
+                            size="small"
+                            aria-label={t("shareCopyLink")}
+                          >
                             <ContentCopyOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -1610,6 +1610,20 @@ export default function TranscriptionDetailPage() {
             value={noteModeText}
             InputProps={{ readOnly: true }}
           />
+        ) : segments === undefined ? (
+          <Box
+            sx={{ py: 6, display: "flex", justifyContent: "center" }}
+            role="status"
+            aria-label={t("loading")}
+          >
+            <CircularProgress />
+          </Box>
+        ) : segments.length === 0 ? (
+          <Alert severity="info">
+            {t(
+              "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
+            )}
+          </Alert>
         ) : (
           <TranscriptionView
             segments={segments}

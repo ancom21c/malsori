@@ -495,7 +495,11 @@ export default function ShareViewerPage() {
           ) : null}
 
           {loading && !shareDocument ? (
-            <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Box
+              sx={{ display: "flex", justifyContent: "center" }}
+              role="status"
+              aria-label={t("loading")}
+            >
               <CircularProgress />
             </Box>
           ) : null}
@@ -545,6 +549,12 @@ export default function ShareViewerPage() {
                     value={noteModeText}
                     InputProps={{ readOnly: true }}
                   />
+                ) : segments.length === 0 ? (
+                  <Alert severity="info">
+                    {t(
+                      "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
+                    )}
+                  </Alert>
                 ) : (
                   <TranscriptionView
                     segments={segments}

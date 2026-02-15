@@ -2158,7 +2158,7 @@ export default function RealtimeSessionPage() {
               >
                 <Box>
                   <Typography variant="subtitle2" gutterBottom sx={{ mb: 0 }}>
-                    RuntimeStreamConfig (WebSocket 적용)
+                    {t("runtimeStreamConfigWebsocketTitle")}
                   </Typography>
                   {!runtimeStreamConfigOpen && (
                     <Typography variant="body2" color="text.secondary">
@@ -2176,9 +2176,7 @@ export default function RealtimeSessionPage() {
               </Stack>
               <Collapse in={runtimeStreamConfigOpen} sx={{ mt: 1 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {t(
-                    "gRPC proto(vito-stt-client.proto)에 정의된 RuntimeStreamConfig 값을 WebSocket 세션에도 전달합니다. 입력을 비워두면 해당 필드는 제외됩니다."
-                  )}
+                  {t("runtimeStreamConfigWebsocketHelper")}
                 </Typography>
                 <Box
                   sx={{

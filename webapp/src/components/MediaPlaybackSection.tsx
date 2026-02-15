@@ -347,7 +347,7 @@ export function MediaPlaybackSection({
                   disabled: !canDownloadAudio,
                 })}
                 {renderActionFab(
-                  t("retryTranscription", { defaultValue: "재실행" }),
+                  t("retryTranscription"),
                   <ReplayIcon fontSize="small" />,
                   onRetry,
                   { disabled: Boolean(retryDisabled) }
@@ -364,7 +364,7 @@ export function MediaPlaybackSection({
           ) : null}
           {showHint && !isCompact ? (
             <Typography variant="caption" color="text.secondary">
-              {t("발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.")}
+              {t("editingHintDoubleClickToCorrectAndNavigate")}
             </Typography>
           ) : null}
         </Stack>

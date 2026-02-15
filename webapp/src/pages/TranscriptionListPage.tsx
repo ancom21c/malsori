@@ -56,7 +56,7 @@ function getStatusChip(transcription: LocalTranscription, t: Translator) {
     if (transcription.processingStage === "finalizing") {
       return (
         <Chip
-          label={t("finalizing", { defaultValue: "마무리 중" })}
+          label={t("finalizing")}
           color="warning"
           size="small"
           icon={<HourglassTopIcon />}
@@ -66,7 +66,7 @@ function getStatusChip(transcription: LocalTranscription, t: Translator) {
     if (transcription.processingStage === "recording") {
       return (
         <Chip
-          label={t("recording", { defaultValue: "녹음 중" })}
+          label={t("sessionStateRecording")}
           color="secondary"
           size="small"
           icon={<GraphicEqIcon />}
@@ -114,8 +114,8 @@ function getKindAvatar(kind: LocalTranscription["kind"]) {
 }
 
 const KIND_LABEL: Record<LocalTranscriptionKind, string> = {
-  file: "파일 전사",
-  realtime: "실시간 전사",
+  file: "fileTranscription",
+  realtime: "realTimeTranscription",
 };
 
 const ALL_KINDS: LocalTranscriptionKind[] = ["file", "realtime"];
@@ -152,12 +152,12 @@ function getDownloadStatusLabel(
   t: Translator
 ): string {
   if (status === "downloading") {
-    return t("downloading", { defaultValue: "다운로드 중" });
+    return t("downloading");
   }
   if (status === "downloaded") {
-    return t("downloaded", { defaultValue: "다운로드 완료" });
+    return t("downloaded");
   }
-  return t("notDownloaded", { defaultValue: "미다운로드" });
+  return t("notDownloaded");
 }
 
 export default function TranscriptionListPage() {
@@ -166,6 +166,8 @@ export default function TranscriptionListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
   const { syncManager } = useSync();
+
+  const isLoadingTranscriptions = transcriptions === undefined;
 
   const sortedTranscriptions = useMemo(
     () => transcriptions?.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)) ?? [],
@@ -296,19 +298,19 @@ export default function TranscriptionListPage() {
 
   const handleDownload = async (transcription: LocalTranscription) => {
     if (!syncManager) {
-      enqueueSnackbar(t("googleDriveNotConnected", { defaultValue: "Google Drive에 먼저 연결해 주세요." }), { variant: "warning" });
+      enqueueSnackbar(t("googleDriveNotConnected"), { variant: "warning" });
       return;
     }
-    enqueueSnackbar(t("downloadStarted", { defaultValue: "다운로드를 시작했습니다." }), { variant: "info" });
+    enqueueSnackbar(t("downloadStarted"), { variant: "info" });
     await updateLocalTranscription(transcription.id, { downloadStatus: "downloading" });
     try {
       await syncManager.downloadFullRecord(transcription.id);
-      enqueueSnackbar(t("downloadCompleted", { defaultValue: "다운로드가 완료되었습니다." }), { variant: "success" });
+      enqueueSnackbar(t("downloadCompleted"), { variant: "success" });
     } catch (error) {
       console.error("Cloud download failed", error);
       await updateLocalTranscription(transcription.id, { downloadStatus: "not_downloaded" });
       enqueueSnackbar(
-        t("downloadFailed", { defaultValue: "다운로드에 실패했습니다." }),
+        t("downloadFailed"),
         { variant: "error" }
       );
     }
@@ -350,7 +352,7 @@ export default function TranscriptionListPage() {
     setDeleteTarget(null);
   };
 
-  const hasAnyTranscriptions = sortedTranscriptions.length > 0;
+  const hasAnyTranscriptions = !isLoadingTranscriptions && sortedTranscriptions.length > 0;
   const showNoMatches = hasAnyTranscriptions && filteredTranscriptions.length === 0;
 
   return (
@@ -492,7 +494,20 @@ export default function TranscriptionListPage() {
             </Stack>
           </Box>
           <Divider />
-          {!hasAnyTranscriptions ? (
+          {isLoadingTranscriptions ? (
+            <Box
+              sx={{
+                py: 6,
+                px: 3,
+                display: "flex",
+                justifyContent: "center",
+              }}
+              role="status"
+              aria-label={t("loading")}
+            >
+              <CircularProgress />
+            </Box>
+          ) : !hasAnyTranscriptions ? (
             <Box
               sx={{
                 py: 6,
@@ -551,11 +566,18 @@ export default function TranscriptionListPage() {
                               edge="end"
                               onClick={() => void handleToggleSync(item)}
                               color={item.isCloudSynced ? "primary" : "default"}
+                              aria-label={
+                                item.isCloudSynced ? t("disableCloudSync") : t("enableCloudSync")
+                              }
                             >
                               {item.isCloudSynced ? <CloudIcon /> : <CloudOffIcon />}
                             </IconButton>
                           )}
-                          <IconButton edge="end" onClick={() => handleDeleteRequest(item)}>
+                          <IconButton
+                            edge="end"
+                            onClick={() => handleDeleteRequest(item)}
+                            aria-label={t("delete")}
+                          >
                             <DeleteIcon />
                           </IconButton>
                         </Stack>
@@ -598,10 +620,10 @@ export default function TranscriptionListPage() {
                               ) : null}
                               {item.isCloudSynced || item.downloadStatus ? (
                                 <Typography variant="body2" color="text.secondary">
-                                  {t("cloudSync", { defaultValue: "클라우드 동기화" })}:{" "}
+                                  {t("cloudSync")}:{" "}
                                   {item.isCloudSynced
-                                    ? t("enabled", { defaultValue: "활성화" })
-                                    : t("disabled", { defaultValue: "비활성화" })}
+                                    ? t("enabled")
+                                    : t("disabled")}
                                   {item.downloadStatus
                                     ? ` · ${getDownloadStatusLabel(item.downloadStatus, t)}`
                                     : ""}
@@ -609,19 +631,19 @@ export default function TranscriptionListPage() {
                               ) : null}
                               {item.lastSyncedAt ? (
                                 <Typography variant="body2" color="text.secondary">
-                                  {t("lastSyncedAt", { defaultValue: "마지막 동기화" })}:{" "}
+                                  {t("lastSyncedAt")}:{" "}
                                   {dayjs(item.lastSyncedAt).format("YYYY-MM-DD HH:mm:ss")}
                                 </Typography>
                               ) : null}
                               {item.nextSyncAttemptAt ? (
                                 <Typography variant="body2" color="text.secondary">
-                                  {t("syncRetryAt", { defaultValue: "동기화 재시도 예정" })}:{" "}
+                                  {t("syncRetryAt")}:{" "}
                                   {dayjs(item.nextSyncAttemptAt).format("YYYY-MM-DD HH:mm:ss")}
                                 </Typography>
                               ) : null}
                               {item.syncErrorMessage ? (
                                 <Typography variant="body2" sx={{ color: "warning.main" }}>
-                                  {t("syncError", { defaultValue: "동기화 오류" })}: {item.syncErrorMessage}
+                                  {t("syncError")}: {item.syncErrorMessage}
                                 </Typography>
                               ) : null}
                               {item.errorMessage ? (
@@ -645,9 +667,13 @@ export default function TranscriptionListPage() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title={t("delete")}
-        description={t(
-          "전사 기록을 삭제하시겠습니까? 실시간 전사인 경우 로컬에 저장된 오디오 청크도 삭제됩니다."
-        )}
+        description={
+          deleteTarget?.kind === "realtime"
+            ? `${t("wouldYouLikeToDeleteYourTranscriptionHistory")} ${t(
+              "forRealTimeTranscriptionLocallyStoredAudioChunksWillAlsoBeDeleted"
+            )}`
+            : t("wouldYouLikeToDeleteYourTranscriptionHistory")
+        }
         confirmLabel={t("delete")}
         cancelLabel={t("cancellation")}
         onConfirm={() => void handleDeleteConfirm()}

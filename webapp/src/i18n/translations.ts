@@ -2264,6 +2264,141 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Unable to load the share HTML bundle.",
     ja: "共有HTMLバンドルを読み込めません。",
   },
+  loading: {
+    ko: "불러오는 중",
+    en: "Loading",
+    ja: "読み込み中",
+  },
+  cloudSync: {
+    ko: "클라우드 동기화",
+    en: "Cloud sync",
+    ja: "クラウド同期",
+  },
+  cloudSyncEnabled: {
+    ko: "클라우드 동기화를 활성화했습니다.",
+    en: "Cloud sync enabled.",
+    ja: "クラウド同期を有効にしました。",
+  },
+  cloudSyncDisabled: {
+    ko: "클라우드 동기화를 비활성화했습니다.",
+    en: "Cloud sync disabled.",
+    ja: "クラウド同期を無効にしました。",
+  },
+  enableCloudSync: {
+    ko: "클라우드 동기화 활성화",
+    en: "Enable cloud sync",
+    ja: "クラウド同期を有効化",
+  },
+  disableCloudSync: {
+    ko: "클라우드 동기화 비활성화",
+    en: "Disable cloud sync",
+    ja: "クラウド同期を無効化",
+  },
+  enabled: {
+    ko: "활성화",
+    en: "Enabled",
+    ja: "有効",
+  },
+  disabled: {
+    ko: "비활성화",
+    en: "Disabled",
+    ja: "無効",
+  },
+  lastSyncedAt: {
+    ko: "마지막 동기화",
+    en: "Last synced",
+    ja: "最終同期",
+  },
+  syncRetryAt: {
+    ko: "동기화 재시도 예정",
+    en: "Next sync retry",
+    ja: "同期再試行予定",
+  },
+  syncError: {
+    ko: "동기화 오류",
+    en: "Sync error",
+    ja: "同期エラー",
+  },
+  download: {
+    ko: "다운로드",
+    en: "Download",
+    ja: "ダウンロード",
+  },
+  downloading: {
+    ko: "다운로드 중",
+    en: "Downloading",
+    ja: "ダウンロード中",
+  },
+  downloaded: {
+    ko: "다운로드 완료",
+    en: "Downloaded",
+    ja: "ダウンロード済み",
+  },
+  notDownloaded: {
+    ko: "미다운로드",
+    en: "Not downloaded",
+    ja: "未ダウンロード",
+  },
+  downloadStarted: {
+    ko: "다운로드를 시작했습니다.",
+    en: "Download started.",
+    ja: "ダウンロードを開始しました。",
+  },
+  downloadCompleted: {
+    ko: "다운로드가 완료되었습니다.",
+    en: "Download completed.",
+    ja: "ダウンロードが完了しました。",
+  },
+  downloadFailed: {
+    ko: "다운로드에 실패했습니다.",
+    en: "Download failed.",
+    ja: "ダウンロードに失敗しました。",
+  },
+  googleDriveNotConnected: {
+    ko: "Google Drive에 먼저 연결해 주세요.",
+    en: "Please connect to Google Drive first.",
+    ja: "まず Google Drive に接続してください。",
+  },
+  finalizing: {
+    ko: "마무리 중",
+    en: "Finalizing",
+    ja: "最終処理中",
+  },
+  retryTranscription: {
+    ko: "재실행",
+    en: "Retry transcription",
+    ja: "文字起こしを再実行",
+  },
+  editingHintDoubleClickToCorrectAndNavigate: {
+    ko: "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.",
+    en: "Double-click an utterance or word to correct it. Use h/j/k/l or the arrow keys to move between segments.",
+    ja: "発話や単語をダブルクリックして修正できます。h/j/k/l または矢印キーで区間を移動できます。",
+  },
+  runtimeStreamConfigWebsocketTitle: {
+    ko: "RuntimeStreamConfig (WebSocket 적용)",
+    en: "RuntimeStreamConfig (WebSocket)",
+    ja: "RuntimeStreamConfig (WebSocket)",
+  },
+  runtimeStreamConfigWebsocketHelper: {
+    ko: "gRPC proto(vito-stt-client.proto)에 정의된 RuntimeStreamConfig 값을 WebSocket 세션에도 전달합니다. 입력을 비워두면 해당 필드는 제외됩니다.",
+    en: "Pass RuntimeStreamConfig values defined in the gRPC proto (vito-stt-client.proto) to the WebSocket session as well. Leave a field blank to omit it.",
+    ja: "gRPC proto（vito-stt-client.proto）で定義された RuntimeStreamConfig の値を WebSocket セッションにも渡します。空欄にするとそのフィールドは除外されます。",
+  },
+  cannotRetryWithoutOriginalConfiguration: {
+    ko: "원본 설정 정보를 찾을 수 없어 재실행할 수 없습니다.",
+    en: "Cannot retry because the original configuration is missing.",
+    ja: "元の設定情報が見つからないため再実行できません。",
+  },
+  storedSourceFileDataIsIncomplete: {
+    ko: "저장된 원본 파일 데이터가 불완전하여 파일을 다시 선택해야 합니다.",
+    en: "The stored source file data is incomplete. Please select the file again.",
+    ja: "保存された元ファイルのデータが不完全なため、ファイルを再選択してください。",
+  },
+  forRealTimeTranscriptionLocallyStoredAudioChunksWillAlsoBeDeleted: {
+    ko: "실시간 전사인 경우 로컬에 저장된 오디오 청크도 삭제됩니다.",
+    en: "For real-time transcription, locally stored audio chunks will also be deleted.",
+    ja: "リアルタイム文字起こしの場合、ローカルに保存された音声チャンクも削除されます。",
+  },
 };
 
 const buildLocaleMap = (locale: Locale) => {
