@@ -2359,6 +2359,66 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Please connect to Google Drive first.",
     ja: "まず Google Drive に接続してください。",
   },
+  connectGoogleDrive: {
+    ko: "Drive 연결",
+    en: "Connect Drive",
+    ja: "Drive に接続",
+  },
+  disconnectGoogleDrive: {
+    ko: "연결 해제",
+    en: "Disconnect",
+    ja: "切断",
+  },
+  googleDriveConnected: {
+    ko: "Drive 연결됨",
+    en: "Drive connected",
+    ja: "Drive 接続済み",
+  },
+  googleDriveConnectedWithEmail: {
+    ko: "Drive 연결됨 ({{email}})",
+    en: "Drive connected ({{email}})",
+    ja: "Drive 接続済み（{{email}}）",
+  },
+  googleDriveSyncTooltip: {
+    ko: "Google Drive에 연결하면 전사 기록을 백업/동기화하고, 다른 기기에서 만든 기록을 다운로드할 수 있습니다. Drive에 'Malsori Data' 폴더가 생성됩니다.",
+    en: "Connect Google Drive to back up/sync transcription records and download records created on other devices. A 'Malsori Data' folder will be created in your Drive.",
+    ja: "Google Drive に接続すると文字起こし記録をバックアップ/同期し、他のデバイスで作成した記録をダウンロードできます。Drive に「Malsori Data」フォルダーが作成されます。",
+  },
+  googleDriveAccountConflictDetected: {
+    ko: "계정 충돌 감지",
+    en: "Account conflict detected",
+    ja: "アカウントの競合を検出しました",
+  },
+  googleDriveAccountConflictDetectedDescription: {
+    ko: "이전에 사용한 Google 계정과 다른 계정에 연결하려고 합니다. 어떻게 진행할까요?",
+    en: "You are connecting a different Google account than the one previously used. How would you like to proceed?",
+    ja: "以前に使用した Google アカウントとは別のアカウントに接続しようとしています。どのように進めますか？",
+  },
+  googleDriveConflictMergeButtonLabel: {
+    ko: "병합 (로컬 유지 + 새 계정에 업로드)",
+    en: "Merge (Keep local, upload to new account)",
+    ja: "マージ（ローカルを保持して新しいアカウントへアップロード）",
+  },
+  googleDriveConflictMergeHelper: {
+    ko: "현재 로컬 기록을 유지하고, 새 계정의 Drive로 업로드합니다.",
+    en: "Keep your current local recordings and upload them to the new account.",
+    ja: "現在のローカル記録を保持し、新しいアカウントにアップロードします。",
+  },
+  googleDriveConflictReplaceButtonLabel: {
+    ko: "교체 (로컬 삭제 + 새 계정에서 다운로드)",
+    en: "Replace (Wipe local & download)",
+    ja: "置き換え（ローカル削除してダウンロード）",
+  },
+  googleDriveConflictReplaceWarning: {
+    ko: "주의: 모든 로컬 기록이 삭제되고 새 계정의 데이터가 다운로드됩니다.",
+    en: "Warning: This will delete all local recordings and download data from the new account.",
+    ja: "注意: すべてのローカル記録が削除され、新しいアカウントのデータがダウンロードされます。",
+  },
+  connectGoogleDriveToBackUpAndSyncYourTranscriptionHistory: {
+    ko: "Google Drive에 연결해 전사 기록을 백업·동기화하고 다른 기기 기록을 내려받습니다.",
+    en: "Connect Google Drive to back up/sync your transcription history and download records from other devices.",
+    ja: "Google Drive に接続して文字起こし履歴をバックアップ/同期し、他のデバイスの記録をダウンロードします。",
+  },
   finalizing: {
     ko: "마무리 중",
     en: "Finalizing",

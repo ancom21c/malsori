@@ -67,6 +67,7 @@ const SCREEN_GUIDES: ScreenGuide[] = [
       "exportOrImportTranscriptionPresetsToShareTheSameSettingsWithTeamMembers",
       "youCanCheckWhetherYouHaveMicrophoneAndFileAccessPermissionsAndQuicklyReRequestIt",
       "securelyStoreBackendEndpointUrlsAndCredentials",
+      "connectGoogleDriveToBackUpAndSyncYourTranscriptionHistory",
     ],
     icon: <SettingsIcon fontSize="large" color="primary" />,
   },

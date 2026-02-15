@@ -10,6 +10,7 @@ import {
     Box,
     Alert,
 } from "@mui/material";
+import { useI18n } from "../i18n";
 
 export interface ConflictResolutionDialogProps {
     open: boolean;
@@ -24,13 +25,14 @@ export const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> =
     onReplace,
     onCancel,
 }) => {
+    const { t } = useI18n();
+
     return (
         <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
-            <DialogTitle>Account Conflict Detected</DialogTitle>
+            <DialogTitle>{t("googleDriveAccountConflictDetected")}</DialogTitle>
             <DialogContent>
                 <DialogContentText paragraph>
-                    You are connecting a different Google account than the one previously used.
-                    How would you like to proceed?
+                    {t("googleDriveAccountConflictDetectedDescription")}
                 </DialogContentText>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
@@ -42,10 +44,10 @@ export const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> =
                             onClick={onMerge}
                             sx={{ mb: 1 }}
                         >
-                            Merge (Upload Local to New Account)
+                            {t("googleDriveConflictMergeButtonLabel")}
                         </Button>
                         <Typography variant="caption" color="text.secondary">
-                            Keep your current local recordings and upload them to the new account.
+                            {t("googleDriveConflictMergeHelper")}
                         </Typography>
                     </Box>
 
@@ -57,11 +59,11 @@ export const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> =
                             onClick={onReplace}
                             sx={{ mb: 1 }}
                         >
-                            Replace (Wipe Local & Download)
+                            {t("googleDriveConflictReplaceButtonLabel")}
                         </Button>
                         <Alert severity="warning" sx={{ mt: 1 }}>
                             <Typography variant="caption">
-                                <strong>Warning:</strong> This will delete all local recordings and download data from the new account.
+                                {t("googleDriveConflictReplaceWarning")}
                             </Typography>
                         </Alert>
                     </Box>
@@ -69,7 +71,7 @@ export const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> =
             </DialogContent>
             <DialogActions>
                 <Button onClick={onCancel} color="inherit">
-                    Cancel
+                    {t("cancellation")}
                 </Button>
             </DialogActions>
         </Dialog>
