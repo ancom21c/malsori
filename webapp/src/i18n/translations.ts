@@ -2444,6 +2444,81 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Pass RuntimeStreamConfig values defined in the gRPC proto (vito-stt-client.proto) to the WebSocket session as well. Leave a field blank to omit it.",
     ja: "gRPC proto（vito-stt-client.proto）で定義された RuntimeStreamConfig の値を WebSocket セッションにも渡します。空欄にするとそのフィールドは除外されます。",
   },
+  runtimeSettingMaxUtterDurationLabel: {
+    ko: "max_utter_duration (초)",
+    en: "max_utter_duration (sec)",
+    ja: "max_utter_duration (秒)",
+  },
+  runtimeSettingMaxUtterDurationPlaceholder: {
+    ko: "예: 12",
+    en: "e.g., 12",
+    ja: "例: 12",
+  },
+  runtimeSettingMaxUtterDurationHelper: {
+    ko: "최대 발화 길이. 기본 12초, 값이 크면 긴 발화 하나로 처리됩니다.",
+    en: "Maximum utterance duration. Default is 12 seconds; larger values treat long speech as a single utterance.",
+    ja: "最大発話長。デフォルトは 12 秒で、値が大きいほど長い発話を 1 つの発話として扱います。",
+  },
+  runtimeSettingNoiseThresholdLabel: {
+    ko: "noise_threshold",
+    en: "noise_threshold",
+    ja: "noise_threshold",
+  },
+  runtimeSettingNoiseThresholdPlaceholder: {
+    ko: "예: 0.7",
+    en: "e.g., 0.7",
+    ja: "例: 0.7",
+  },
+  runtimeSettingNoiseThresholdHelper: {
+    ko: "백그라운드 노이즈 감지 임계값. 기본 0.7.",
+    en: "Background noise detection threshold. Default is 0.7.",
+    ja: "バックグラウンドノイズ検知のしきい値。デフォルトは 0.7。",
+  },
+  runtimeSettingEpdTimeLabel: {
+    ko: "epd_time (초)",
+    en: "epd_time (sec)",
+    ja: "epd_time (秒)",
+  },
+  runtimeSettingEpdTimePlaceholder: {
+    ko: "예: 0.5",
+    en: "e.g., 0.5",
+    ja: "例: 0.5",
+  },
+  runtimeSettingEpdTimeHelper: {
+    ko: "무음 감지 시간. 0.5~1.0초 추천.",
+    en: "Silence detection time. Recommended 0.5–1.0 seconds.",
+    ja: "無音検知時間。0.5〜1.0 秒を推奨。",
+  },
+  runtimeSettingActiveThresholdLabel: {
+    ko: "active_threshold",
+    en: "active_threshold",
+    ja: "active_threshold",
+  },
+  runtimeSettingActiveThresholdPlaceholder: {
+    ko: "예: 0.88",
+    en: "e.g., 0.88",
+    ja: "例: 0.88",
+  },
+  runtimeSettingActiveThresholdHelper: {
+    ko: "음성 활성화 임계값. 기본 0.88.",
+    en: "Voice activity threshold. Default is 0.88.",
+    ja: "音声アクティビティのしきい値。デフォルトは 0.88。",
+  },
+  runtimeSettingAcousticScaleLabel: {
+    ko: "acoustic_scale",
+    en: "acoustic_scale",
+    ja: "acoustic_scale",
+  },
+  runtimeSettingAcousticScalePlaceholder: {
+    ko: "예: 1.0",
+    en: "e.g., 1.0",
+    ja: "例: 1.0",
+  },
+  runtimeSettingAcousticScaleHelper: {
+    ko: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
+    en: "Acoustic model scaling. Used for fine-tuning Whisper-family models.",
+    ja: "音響モデルのスケーリング。Whisper 系モデルの微調整に使用します。",
+  },
   cannotRetryWithoutOriginalConfiguration: {
     ko: "원본 설정 정보를 찾을 수 없어 재실행할 수 없습니다.",
     en: "Cannot retry because the original configuration is missing.",
