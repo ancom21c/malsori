@@ -11,6 +11,16 @@ Since there is no backend server, we use **Google Identity Services (GIS)** for 
 - **Scope**: `https://www.googleapis.com/auth/drive.file`
   - *Why?* This grants access *only* to files created by this app. It prevents the app from messing with the user's other Drive files.
 
+### Optional: Auth Broker (Thin Backend)
+
+If the `python_api` is deployed, we can optionally use it as an **auth broker**:
+
+- The backend stores the Google **refresh token** (server-side only).
+- The webapp asks the backend for short-lived **access tokens**.
+- The webapp still talks to Google Drive directly for file upload/download (data plane stays in the browser).
+
+This improves reliability (token refresh) and reduces sensitive token exposure in the browser, at the cost of requiring a backend.
+
 ## 3. Data Mapping Strategy
 We map the IndexedDB structure to a folder hierarchy in Google Drive, using standard file formats for better accessibility.
 
@@ -136,6 +146,8 @@ We will use the **Google Identity Services SDK** (the modern replacement for `ga
 ### C. Token Management
 -   **Storage**: Store the `access_token` in memory (React Context) or `sessionStorage`. Do **NOT** store in `localStorage` for security reasons (though for a purely local app the risk is lower, it's bad practice).
 -   **Expiration**: When an API call fails with `401 Unauthorized`, prompt the user to re-authorize (or try silent refresh if permitted).
+
+When using the auth broker, the backend performs refresh and the webapp can simply request a new access token when needed.
 
 ## 7. Technical Challenges & Mitigations
 -   **Large Files**: Audio/Video chunks can be large.

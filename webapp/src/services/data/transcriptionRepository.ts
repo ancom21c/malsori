@@ -304,7 +304,14 @@ export async function updateSegmentCorrection(
   if (updatedWords) {
     patch.words = updatedWords;
   }
-  await appDb.segments.update(segmentId, patch);
+  const now = new Date().toISOString();
+  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
+    const segment = await appDb.segments.get(segmentId);
+    if (!segment) return;
+    await appDb.segments.update(segmentId, patch);
+    // Ensure cloud sync detects segment-level edits.
+    await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
+  });
 }
 
 export async function updateSegmentSpeakerLabel(
@@ -315,7 +322,8 @@ export async function updateSegmentSpeakerLabel(
   const normalizedNewLabel = newLabel.trim();
   if (!normalizedNewLabel) return;
 
-  await appDb.transaction("rw", appDb.segments, async () => {
+  const now = new Date().toISOString();
+  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
     const segments = await appDb.segments
       .where("transcriptionId")
       .equals(transcriptionId)
@@ -324,6 +332,9 @@ export async function updateSegmentSpeakerLabel(
     const targets = segments.filter((s) => (s.spk ?? "0") === targetSpk);
     for (const segment of targets) {
       await appDb.segments.update(segment.id, { speaker_label: normalizedNewLabel });
+    }
+    if (targets.length > 0) {
+      await appDb.transcriptions.update(transcriptionId, { updatedAt: now });
     }
   });
 }
@@ -335,7 +346,13 @@ export async function updateSingleSegmentSpeakerLabel(
 ) {
   const normalizedNewLabel = newLabel.trim();
   if (!normalizedNewLabel) return;
-  await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
+  const now = new Date().toISOString();
+  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
+    const segment = await appDb.segments.get(segmentId);
+    if (!segment) return;
+    await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
+    await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
+  });
 }
 
 export async function appendAudioChunk(params: {

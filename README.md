@@ -53,6 +53,19 @@ uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 
 The FastAPI app exposes `/docs` for interactive testing, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.
 
+#### Google Drive OAuth (Auth Broker)
+
+If you run the Python API, the repo supports an optional **Google Drive auth broker** mode for cloud sync. In this mode the backend stores the Google **refresh token** under `STT_STORAGE_BASE_DIR` and issues short-lived **access tokens** to the SPA (so the refresh token never lands in the browser).
+
+Environment variables:
+
+- `GOOGLE_OAUTH_CLIENT_ID` – OAuth client ID (Google Cloud Console).
+- `GOOGLE_OAUTH_CLIENT_SECRET` – OAuth client secret.
+- `GOOGLE_OAUTH_REDIRECT_URI` – must point to the API callback URL, e.g. `https://<host>/v1/cloud/google/oauth/callback`.
+- `GOOGLE_OAUTH_SCOPES` – optional space-delimited scopes (defaults to `drive.file openid email profile`).
+
+Once configured, use the “Connect Google Drive” button in the webapp; the API endpoints live under `/v1/cloud/google/*`.
+
 ### Connecting the webapp to the Python API
 
 The React app talks only to the Python proxy. When you run `npm run dev`, Vite proxies `/api/*` to `http://localhost:8000` by default, so the “Python API Base URL” can be left as `/api` (**설정 → 환경 설정**). If the proxy runs elsewhere, set the value to a full URL (or adjust the Vite proxy target).  

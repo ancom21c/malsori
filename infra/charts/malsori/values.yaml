@@ -27,6 +27,8 @@ pythonApi:
 
 webapp:
   apiBaseUrl: ""
+  driveAuthMode: ""
+  googleClientId: ""
   env: {}
   resources: {}
 

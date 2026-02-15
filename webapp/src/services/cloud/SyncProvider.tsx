@@ -18,6 +18,7 @@ import { appDb } from "../../data/app-db";
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, token, signOut } = useGoogleAuth();
+    const tokenRef = useRef<string | null>(null);
     const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -29,9 +30,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const isSyncingRef = useRef(false);
 
     useEffect(() => {
+        tokenRef.current = token;
+    }, [token]);
+
+    useEffect(() => {
         const initSync = async () => {
-            if (isAuthenticated && token) {
-                const driveService = new GoogleDriveService(token);
+            if (isAuthenticated) {
+                const driveService = new GoogleDriveService(async () => {
+                    const current = tokenRef.current;
+                    if (!current) {
+                        throw new Error("Google Drive token is missing");
+                    }
+                    return current;
+                });
                 const manager = new SyncManager(driveService);
 
                 let nextAccountKey: string | null = null;
@@ -64,7 +75,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             }
         };
         void initSync();
-    }, [isAuthenticated, token]);
+    }, [isAuthenticated]);
 
     const handleMerge = async () => {
         if (pendingSyncManager) {

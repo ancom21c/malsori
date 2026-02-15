@@ -51,6 +51,7 @@ from .models import (
 )
 from .stt_client import RTZRClient
 from .protos import vito_stt_client_pb2 as stt_pb2
+from .google_drive_oauth import router as google_drive_oauth_router
 
 
 def _env_flag(name: str) -> bool:
@@ -170,6 +171,7 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressDocsAccessFilter())
 
 
 app = FastAPI(title="RTZR STT Delegation API", version="0.1.0")
+app.include_router(google_drive_oauth_router)
 
 _client: Optional[RTZRClient] = None
 _client_lock = Lock()

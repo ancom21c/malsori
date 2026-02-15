@@ -11,7 +11,13 @@ data:
       {},
       window.__MALSORI_CONFIG__,
       {
-        apiBaseUrl: "{{ .Values.webapp.apiBaseUrl }}"
+        apiBaseUrl: "{{ .Values.webapp.apiBaseUrl }}",
+        {{- if .Values.webapp.driveAuthMode }}
+        driveAuthMode: "{{ .Values.webapp.driveAuthMode }}",
+        {{- end }}
+        {{- if .Values.webapp.googleClientId }}
+        googleClientId: "{{ .Values.webapp.googleClientId }}",
+        {{- end }}
       }
     );
 {{- end }}

@@ -38,6 +38,11 @@ class Settings(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
+    google_oauth_client_id: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_ID")
+    google_oauth_client_secret: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_SECRET")
+    google_oauth_redirect_uri: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_REDIRECT_URI")
+    google_oauth_scopes: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_SCOPES")
+
     pronaia_client_id: Optional[str] = Field(default=None, alias="PRONAIA_CLIENT_ID")
     pronaia_client_secret: Optional[str] = Field(
         default=None, alias="PRONAIA_CLIENT_SECRET"
@@ -95,6 +100,15 @@ class Settings(BaseModel):
     def auth_enabled(self) -> bool:
         """Return True when both client ID and secret are configured."""
         return bool(self.pronaia_client_id and self.pronaia_client_secret)
+
+    @property
+    def google_oauth_enabled(self) -> bool:
+        """Return True when Google OAuth credentials are configured."""
+        return bool(
+            self.google_oauth_client_id
+            and self.google_oauth_client_secret
+            and self.google_oauth_redirect_uri
+        )
 
     @property
     def transcribe_path(self) -> str:

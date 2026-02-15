@@ -10,16 +10,26 @@ export interface DriveFile {
     appProperties?: Record<string, string>;
 }
 
-export class GoogleDriveService {
-    private accessToken: string;
+type AccessTokenProvider = () => string | Promise<string>;
 
-    constructor(accessToken: string) {
+export class GoogleDriveService {
+    private accessToken: string | AccessTokenProvider;
+
+    constructor(accessToken: string | AccessTokenProvider) {
         this.accessToken = accessToken;
     }
 
+    private async resolveAccessToken(): Promise<string> {
+        if (typeof this.accessToken === "function") {
+            return await this.accessToken();
+        }
+        return this.accessToken;
+    }
+
     private async request(endpoint: string, options: RequestInit = {}) {
+        const token = await this.resolveAccessToken();
         const headers = {
-            Authorization: `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${token}`,
             ...options.headers,
         };
         const response = await fetch(`${DRIVE_API_BASE}${endpoint}`, { ...options, headers });
@@ -45,7 +55,8 @@ export class GoogleDriveService {
     }
 
     async downloadFile(fileId: string): Promise<Blob> {
-        const headers = { Authorization: `Bearer ${this.accessToken}` };
+        const token = await this.resolveAccessToken();
+        const headers = { Authorization: `Bearer ${token}` };
         const response = await fetch(`${DRIVE_API_BASE}/files/${fileId}?alt=media`, { headers });
         if (!response.ok) {
             throw new Error(`Failed to download file: ${response.status}`);
@@ -91,9 +102,10 @@ export class GoogleDriveService {
             ? `${UPLOAD_API_BASE}/files/${existingFileId}?uploadType=multipart`
             : `${UPLOAD_API_BASE}/files?uploadType=multipart`;
 
+        const token = await this.resolveAccessToken();
         const response = await fetch(url, {
             method,
-            headers: { Authorization: `Bearer ${this.accessToken}` },
+            headers: { Authorization: `Bearer ${token}` },
             body: form,
         });
 
