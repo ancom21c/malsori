@@ -27,6 +27,7 @@ type GoogleIdentity = {
 };
 
 interface GoogleAuthContextType {
+  isAvailable: boolean;
   isAuthenticated: boolean;
   token: string | null;
   signIn: () => void;
@@ -51,17 +52,19 @@ const SCOPES = "https://www.googleapis.com/auth/drive.file";
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 60_000;
 
 type DriveAuthMode = "auto" | "gis" | "broker";
+type ResolvedDriveAuthMode = "disabled" | "gis" | "broker";
 
-function resolveAuthMode(clientId: string): DriveAuthMode {
+function resolveAuthMode(clientId: string): ResolvedDriveAuthMode {
   const configured =
     (typeof window !== "undefined" && window.__MALSORI_CONFIG__?.driveAuthMode) ||
-    (import.meta.env.VITE_DRIVE_AUTH_MODE as DriveAuthMode | undefined) ||
+    (import.meta.env.VITE_DRIVE_AUTH_MODE as DriveAuthMode | "disabled" | undefined) ||
     "auto";
 
-  if (configured === "gis" || configured === "broker") {
+  if (configured === "disabled" || configured === "gis" || configured === "broker") {
     return configured;
   }
-  return clientId.trim().length > 0 ? "gis" : "broker";
+  // "auto" should not enable Drive unless a deployment explicitly configured it.
+  return clientId.trim().length > 0 ? "gis" : "disabled";
 }
 
 function joinUrl(baseUrl: string, path: string) {
@@ -76,6 +79,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
   const mode = useMemo(() => resolveAuthMode(CLIENT_ID), []);
+  const [brokerEnabled, setBrokerEnabled] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
   const pendingBrokerRefreshRef = useRef(false);
 
@@ -177,6 +181,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     clearRefreshTimer();
     setToken(null);
     setUserEmail(null);
+    setBrokerEnabled(false);
 
     const controller = new AbortController();
 
@@ -195,6 +200,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
           connected?: boolean;
           email?: string | null;
         };
+        setBrokerEnabled(Boolean(data.enabled));
         if (!data.enabled || !data.connected) {
           return;
         }
@@ -215,6 +221,9 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(() => {
     if (mode === "broker") {
+      if (!brokerEnabled) {
+        return;
+      }
       const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const url = joinUrl(
         apiBaseUrl,
@@ -224,12 +233,16 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (mode === "disabled") {
+      return;
+    }
+
     if (!tokenClient) {
       console.warn("Google Identity Services SDK not loaded yet.");
       return;
     }
     tokenClient.requestAccessToken();
-  }, [apiBaseUrl, mode, tokenClient]);
+  }, [apiBaseUrl, brokerEnabled, mode, tokenClient]);
 
   const signOut = useCallback(() => {
     clearRefreshTimer();
@@ -243,6 +256,10 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
           setToken(null);
           setUserEmail(null);
         });
+      return;
+    }
+
+    if (mode === "disabled") {
       return;
     }
 
@@ -261,6 +278,12 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   return (
     <GoogleAuthContext.Provider
       value={{
+        isAvailable:
+          mode === "gis"
+            ? CLIENT_ID.trim().length > 0
+            : mode === "broker"
+              ? brokerEnabled
+              : false,
         isAuthenticated: !!token,
         token,
         signIn,

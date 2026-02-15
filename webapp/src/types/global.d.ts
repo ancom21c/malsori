@@ -5,7 +5,7 @@ declare global {
     __MALSORI_CONFIG__?: {
       apiBaseUrl?: string;
       googleClientId?: string;
-      driveAuthMode?: "auto" | "gis" | "broker";
+      driveAuthMode?: "disabled" | "auto" | "gis" | "broker";
     };
   }
 }

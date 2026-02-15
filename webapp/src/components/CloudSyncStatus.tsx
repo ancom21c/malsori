@@ -14,10 +14,14 @@ const buttonSx = {
 };
 
 export const CloudSyncStatus: React.FC = () => {
-  const { isAuthenticated, signIn, signOut, userEmail } = useGoogleAuth();
+  const { isAvailable, isAuthenticated, signIn, signOut, userEmail } = useGoogleAuth();
   const { t } = useI18n();
 
   const tooltip = t("googleDriveSyncTooltip");
+
+  if (!isAvailable) {
+    return null;
+  }
 
   if (isAuthenticated) {
     const label = userEmail
