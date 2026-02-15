@@ -9,6 +9,7 @@ import type {
   TranscriptionStatus,
   WordTimestamp,
 } from "./types";
+import { tStatic } from "../../i18n/static";
 
 type RawFileTranscribeResponse = {
   id?: string;
@@ -202,7 +203,9 @@ export class RtzrApiClient {
     } catch {
       detail = "";
     }
-    const message = detail?.trim().length ? detail : `요청 실패 (${response.status})`;
+    const message = detail?.trim().length
+      ? detail
+      : tStatic("requestFailedWithStatus", { values: { status: response.status } });
     throw new Error(message);
   }
 
@@ -224,7 +227,7 @@ export class RtzrApiClient {
     const data = (await (await this.ensureOk(response)).json()) as RawFileTranscribeResponse;
     const transcribeId = data.transcribe_id ?? data.id;
     if (!transcribeId) {
-      throw new Error("응답에 transcribe_id가 없습니다.");
+      throw new Error(tStatic("responseIsMissingTranscribeId"));
     }
 
     return {

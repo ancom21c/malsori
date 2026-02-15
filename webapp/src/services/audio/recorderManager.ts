@@ -1,4 +1,5 @@
 import { PcmResampler } from "./pcmResampler";
+import { tStatic } from "../../i18n/static";
 
 export type RecorderState = "idle" | "preparing" | "recording" | "stopped" | "error";
 
@@ -101,7 +102,9 @@ export class RecorderManager {
           this.flushChunks(false);
         } catch (error) {
           this.handleError(
-            error instanceof Error ? error : new Error("오디오 프레임 처리 중 오류가 발생했습니다.")
+            error instanceof Error
+              ? error
+              : new Error(tStatic("anErrorOccurredWhileProcessingAudioFrames"))
           );
         }
       };
@@ -113,7 +116,9 @@ export class RecorderManager {
       this.paused = false;
     } catch (error) {
       this.handleError(
-        error instanceof Error ? error : new Error("녹음 장치 초기화에 실패했습니다.")
+        error instanceof Error
+          ? error
+          : new Error(tStatic("failedToInitializeRecordingDevice"))
       );
     }
   }
@@ -142,7 +147,9 @@ export class RecorderManager {
       this.flushChunks(true);
     } catch (error) {
       this.handleError(
-        error instanceof Error ? error : new Error("오디오 청크를 마무리하는 중 오류가 발생했습니다.")
+        error instanceof Error
+          ? error
+          : new Error(tStatic("anErrorOccurredWhileFinalizingAudioChunks"))
       );
     }
 

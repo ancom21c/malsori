@@ -14,6 +14,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "A fatal error occurred in your streaming session.",
     ja: "ストリーミング セッションで致命的なエラーが発生しました。",
   },
+  aValidApiBaseUrlIsRequired: {
+    ko: "유효한 API Base URL이 필요합니다.",
+    en: "A valid API Base URL is required.",
+    ja: "有効な API Base URL が必要です。",
+  },
   aRecordingErrorOccurred: {
     ko: "녹음 오류가 발생했습니다.",
     en: "A recording error occurred.",
@@ -63,6 +68,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "녹음 도중 오류가 발생했습니다.",
     en: "An error occurred during recording.",
     ja: "録音中にエラーが発生しました。",
+  },
+  anErrorOccurredWhileProcessingAudioFrames: {
+    ko: "오디오 프레임 처리 중 오류가 발생했습니다.",
+    en: "An error occurred while processing audio frames.",
+    ja: "オーディオ フレームの処理中にエラーが発生しました。",
+  },
+  failedToInitializeRecordingDevice: {
+    ko: "녹음 장치 초기화에 실패했습니다.",
+    en: "Failed to initialize recording device.",
+    ja: "録音デバイスの初期化に失敗しました。",
+  },
+  anErrorOccurredWhileFinalizingAudioChunks: {
+    ko: "오디오 청크를 마무리하는 중 오류가 발생했습니다.",
+    en: "An error occurred while finalizing audio chunks.",
+    ja: "オーディオ チャンクの終了処理中にエラーが発生しました。",
   },
   cameraNotSupported: {
     ko: "이 브라우저에서는 카메라 녹화를 지원하지 않습니다.",
@@ -168,6 +188,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "전사 요청 중 오류가 발생했습니다.",
     en: "An error occurred during the transcription request.",
     ja: "文字起こしリクエスト中にエラーが発生しました。",
+  },
+  requestFailedWithStatus: {
+    ko: "요청 실패 ({{status}})",
+    en: "Request failed ({{status}})",
+    ja: "リクエストに失敗しました ({{status}})",
+  },
+  responseIsMissingTranscribeId: {
+    ko: "응답에 transcribe_id가 없습니다.",
+    en: "Response is missing transcribe_id.",
+    ja: "レスポンスに transcribe_id がありません。",
   },
   apiBasics: {
     ko: "API 기본",

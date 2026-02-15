@@ -1,3 +1,5 @@
+import { tStatic } from "../../i18n/static";
+
 export type StreamingConnectionState = "idle" | "connecting" | "open" | "closed" | "error";
 
 export interface StreamingSessionOptions {
@@ -400,6 +402,6 @@ export class RtzrStreamingClient {
     if (baseUrl.startsWith("http")) {
       return baseUrl.replace(/^http/i, "ws").replace(/\/$/, "");
     }
-    throw new Error("유효한 API Base URL이 필요합니다.");
+    throw new Error(tStatic("aValidApiBaseUrlIsRequired"));
   }
 }
