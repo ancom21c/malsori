@@ -1214,6 +1214,46 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Preset list",
     ja: "プリセット一覧",
   },
+  defaultFilePresetName: {
+    ko: "기본 (sommers)",
+    en: "Default (sommers)",
+    ja: "デフォルト (sommers)",
+  },
+  defaultFilePresetDescription: {
+    ko: "sommers 모델, 문단 분리 ON",
+    en: "sommers model, paragraph split ON",
+    ja: "sommers モデル、段落分割 ON",
+  },
+  speakerSeparationPresetName: {
+    ko: "화자 분리",
+    en: "Speaker separation",
+    ja: "話者分離",
+  },
+  speakerSeparationPresetDescription: {
+    ko: "화자 수 2명 고정",
+    en: "Fixed to 2 speakers",
+    ja: "話者数 2 名固定",
+  },
+  defaultStreamingPresetName: {
+    ko: "기본 스트리밍",
+    en: "Default streaming",
+    ja: "デフォルト ストリーミング",
+  },
+  defaultStreamingPresetDescription: {
+    ko: "16kHz LINEAR16, 사용 모델 자동",
+    en: "16kHz LINEAR16, auto model",
+    ja: "16kHz LINEAR16、モデル自動",
+  },
+  defaultBackendPresetName: {
+    ko: "RTZR Cloud (기본)",
+    en: "RTZR Cloud (Default)",
+    ja: "RTZR Cloud (デフォルト)",
+  },
+  defaultBackendPresetDescription: {
+    ko: "공식 RTZR API (openapi.vito.ai)",
+    en: "Official RTZR API (openapi.vito.ai)",
+    ja: "公式 RTZR API (openapi.vito.ai)",
+  },
   preview: {
     ko: "미리보기: {{text}}",
     en: "Preview: {{text}}",
@@ -1508,6 +1548,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "서버 기본 엔드포인트",
     en: "Server default endpoint",
     ja: "サーバーのデフォルトのエンドポイント",
+  },
+  deletedPreset: {
+    ko: "삭제된 프리셋",
+    en: "Deleted preset",
+    ja: "削除されたプリセット",
   },
   serverDefaultSettingsHaveBeenApplied: {
     ko: "서버 기본 설정을 적용했습니다.",

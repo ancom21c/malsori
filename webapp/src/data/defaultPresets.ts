@@ -1,5 +1,6 @@
 import type { BackendEndpointPreset, PresetConfig } from "./app-db";
 import { v4 as uuid } from "uuid";
+import { tStatic } from "../i18n/static";
 
 function buildPreset(partial: Omit<PresetConfig, "id" | "createdAt" | "updatedAt">): PresetConfig {
   const now = new Date().toISOString();
@@ -26,8 +27,8 @@ function buildBackendPreset(
 export const DEFAULT_FILE_PRESETS: PresetConfig[] = [
   buildPreset({
     type: "file",
-    name: "기본 (sommers)",
-    description: "sommers 모델, 문단 분리 ON",
+    name: tStatic("defaultFilePresetName"),
+    description: tStatic("defaultFilePresetDescription"),
     configJson: JSON.stringify(
       {
         model_name: "sommers",
@@ -36,7 +37,7 @@ export const DEFAULT_FILE_PRESETS: PresetConfig[] = [
         use_itn: true,
         use_disfluency_filter: false,
         use_profanity_filter: false,
-        use_word_timestamp: true
+        use_word_timestamp: true,
       },
       null,
       2
@@ -45,8 +46,8 @@ export const DEFAULT_FILE_PRESETS: PresetConfig[] = [
   }),
   buildPreset({
     type: "file",
-    name: "화자 분리",
-    description: "화자 수 2명 고정",
+    name: tStatic("speakerSeparationPresetName"),
+    description: tStatic("speakerSeparationPresetDescription"),
     configJson: JSON.stringify(
       {
         model_name: "sommers",
@@ -66,8 +67,8 @@ export const DEFAULT_FILE_PRESETS: PresetConfig[] = [
 export const DEFAULT_STREAMING_PRESETS: PresetConfig[] = [
   buildPreset({
     type: "streaming",
-    name: "기본 스트리밍",
-    description: "16kHz LINEAR16, 사용 모델 자동",
+    name: tStatic("defaultStreamingPresetName"),
+    description: tStatic("defaultStreamingPresetDescription"),
     configJson: JSON.stringify(
       {
         sample_rate: 16000,
@@ -83,8 +84,8 @@ export const DEFAULT_STREAMING_PRESETS: PresetConfig[] = [
 
 export const DEFAULT_BACKEND_ENDPOINT_PRESETS: BackendEndpointPreset[] = [
   buildBackendPreset({
-    name: "RTZR Cloud (기본)",
-    description: "공식 RTZR API (openapi.vito.ai)",
+    name: tStatic("defaultBackendPresetName"),
+    description: tStatic("defaultBackendPresetDescription"),
     deployment: "cloud",
     apiBaseUrl: "https://openapi.vito.ai",
     verifySsl: true,

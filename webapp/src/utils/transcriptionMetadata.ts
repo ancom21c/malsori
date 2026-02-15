@@ -1,5 +1,6 @@
 import { appDb } from "../data/app-db";
 import type { BackendEndpointDeployment } from "../data/app-db";
+import { tStatic } from "../i18n/static";
 
 export type BackendEndpointSnapshot = {
   id: string | null;
@@ -16,7 +17,7 @@ export async function resolveBackendEndpointSnapshot(
     return {
       id: null,
       source: "server-default",
-      name: "서버 기본 엔드포인트",
+      name: tStatic("serverDefaultEndpoint"),
     } satisfies BackendEndpointSnapshot;
   }
 
@@ -25,7 +26,7 @@ export async function resolveBackendEndpointSnapshot(
     return {
       id: presetId,
       source: "unknown",
-      name: "삭제된 프리셋",
+      name: tStatic("deletedPreset"),
     } satisfies BackendEndpointSnapshot;
   }
 
@@ -64,4 +65,3 @@ export function extractModelNameFromConfigJson(configJson: string): string | und
     return undefined;
   }
 }
-
