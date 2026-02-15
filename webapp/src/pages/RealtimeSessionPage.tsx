@@ -2130,7 +2130,7 @@ export default function RealtimeSessionPage() {
                   multiline
                   minRows={10}
                   fullWidth
-                  label="Runtime RequestConfig"
+                  label={t("runtimeRequestConfig")}
                   value={streamingRequestJson}
                   onChange={(event) => setStreamingRequestJson(event.target.value)}
                   helperText={t("editTheEntireJsonDirectlyToImmediatelyReflectTheOptionsYouNeed")}

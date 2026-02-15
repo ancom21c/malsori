@@ -240,7 +240,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
               </Button>
               <Collapse in={jsonEditorOpen} sx={{ mt: 1 }}>
                 <TextField
-                  label="RequestConfig (JSON)"
+                  label={t("requestConfigJson")}
                   fullWidth
                   multiline
                   minRows={8}
@@ -285,7 +285,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     {t("apiSettingsModifiedHereWillBeSavedInTheOverallAppSettings")}
                   </Typography>
                   <TextField
-                    label="Python API Base URL"
+                    label={t("pythonApiBaseUrl")}
                     value={apiBaseUrl}
                     onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
                     placeholder="http://localhost:8000"

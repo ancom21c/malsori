@@ -179,6 +179,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "API Endpoint Presets",
     ja: "APIエンドポイントのプリセット",
   },
+  apiBaseUrl: {
+    ko: "API Base URL",
+    en: "API Base URL",
+    ja: "API Base URL",
+  },
+  pythonApiBaseUrl: {
+    ko: "Python API Base URL",
+    en: "Python API Base URL",
+    ja: "Python API Base URL",
+  },
   apiSettingsModifiedHereWillBeSavedInTheOverallAppSettings: {
     ko: "여기서 수정한 API 설정은 전체 앱 설정에 저장됩니다.",
     en: "API settings modified here will be saved in the overall app settings.",
@@ -290,9 +300,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "バックエンド設定",
   },
   backendpresetselectorApplysuccess: {
-    ko: "백엔드 프리셋을 적용했습니다.",
-    en: "Backend preset applied successfully.",
-    ja: "バックエンドプリセットが正常に適用されました。",
+    ko: "\"{{name}}\" 프리셋을 적용했습니다.",
+    en: "Applied \"{{name}}\" preset.",
+    ja: "「{{name}}」プリセットを適用しました。",
   },
   basic: {
     ko: "기본",
@@ -338,6 +348,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "확인 중...",
     en: "Checking...",
     ja: "チェック中...",
+  },
+  clientId: {
+    ko: "Client ID",
+    en: "Client ID",
+    ja: "Client ID",
+  },
+  clientSecret: {
+    ko: "Client Secret",
+    en: "Client Secret",
+    ja: "Client Secret",
   },
   clearSavedClientId: {
     ko: "저장된 Client ID 지우기",
@@ -489,6 +509,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Edit JSON directly",
     ja: "JSONを直接編集する",
   },
+  requestConfigJson: {
+    ko: "RequestConfig (JSON)",
+    en: "RequestConfig (JSON)",
+    ja: "RequestConfig (JSON)",
+  },
   editSpeaker: {
     ko: "화자 편집",
     en: "Edit Speaker",
@@ -528,6 +553,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "엔드포인트 종류",
     en: "Endpoint type",
     ja: "エンドポイントの種類",
+  },
+  rtzrApi: {
+    ko: "RTZR API",
+    en: "RTZR API",
+    ja: "RTZR API",
+  },
+  onPrem: {
+    ko: "On-prem",
+    en: "On-prem",
+    ja: "On-prem",
   },
   enterThePythonApiBaseUrlToApplyItToYourServer: {
     ko: "Python API Base URL을 입력하면 서버에 적용할 수 있습니다.",
@@ -2433,6 +2468,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.",
     en: "Double-click an utterance or word to correct it. Use h/j/k/l or the arrow keys to move between segments.",
     ja: "発話や単語をダブルクリックして修正できます。h/j/k/l または矢印キーで区間を移動できます。",
+  },
+  runtimeRequestConfig: {
+    ko: "Runtime RequestConfig",
+    en: "Runtime RequestConfig",
+    ja: "Runtime RequestConfig",
   },
   runtimeStreamConfigWebsocketTitle: {
     ko: "RuntimeStreamConfig (WebSocket 적용)",

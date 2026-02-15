@@ -1223,10 +1223,10 @@ export default function SettingsPage() {
             subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
           />
           <CardContent>
-            <Stack spacing={3}>
+              <Stack spacing={3}>
               <Stack spacing={2}>
                 <TextField
-                  label="Python API Base URL"
+                  label={t("pythonApiBaseUrl")}
                   value={apiBaseUrl}
                   onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
                   placeholder="http://localhost:8000"
@@ -1261,7 +1261,7 @@ export default function SettingsPage() {
                       <Stack direction="row" spacing={1} flexWrap="wrap">
                         <Chip
                           label={
-                            backendState.deployment === "cloud" ? "RTZR API" : "On-prem"
+                            backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")
                           }
                           size="small"
                         />
@@ -1287,7 +1287,9 @@ export default function SettingsPage() {
                           color={backendState.authEnabled ? "success" : "default"}
                         />
                       </Stack>
-                      <Typography variant="body2">{`API Base: ${backendState.apiBaseUrl}`}</Typography>
+                      <Typography variant="body2">
+                        {t("apiBaseUrl")}: {backendState.apiBaseUrl}
+                      </Typography>
                     </Stack>
                   </Alert>
                 )}
@@ -1363,7 +1365,7 @@ export default function SettingsPage() {
                               secondary={
                                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
                                   <Chip
-                                    label={preset.deployment === "cloud" ? "RTZR API" : "On-prem"}
+                                    label={preset.deployment === "cloud" ? t("rtzrApi") : t("onPrem")}
                                     size="small"
                                   />
                                   {preset.isDefault && (
@@ -1456,15 +1458,15 @@ export default function SettingsPage() {
                         sx={{ mt: 1 }}
                       >
                         <ToggleButton value="cloud" sx={{ textTransform: "none" }}>
-                          RTZR API
+                          {t("rtzrApi")}
                         </ToggleButton>
                         <ToggleButton value="onprem" sx={{ textTransform: "none" }}>
-                          On-prem
+                          {t("onPrem")}
                         </ToggleButton>
                       </ToggleButtonGroup>
                     </FormControl>
                     <TextField
-                      label="API Base URL"
+                      label={t("apiBaseUrl")}
                       value={backendPresetForm.apiBaseUrl}
                       onChange={(event) =>
                         setBackendPresetForm((prev) => ({
@@ -1506,7 +1508,7 @@ export default function SettingsPage() {
                       <Stack spacing={1.5}>
                         <Stack spacing={0.5}>
                           <TextField
-                            label="Client ID"
+                            label={t("clientId")}
                             type="password"
                             value={backendPresetForm.clientIdInput}
                             onChange={(event) =>
@@ -1535,7 +1537,7 @@ export default function SettingsPage() {
                         </Stack>
                         <Stack spacing={0.5}>
                           <TextField
-                            label="Client Secret"
+                            label={t("clientSecret")}
                             type="password"
                             value={backendPresetForm.clientSecretInput}
                             onChange={(event) =>

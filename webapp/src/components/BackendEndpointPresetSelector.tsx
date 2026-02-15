@@ -19,20 +19,11 @@ import type { BackendEndpointPreset } from "../data/app-db";
 import { useI18n } from "../i18n";
 
 const SERVER_DEFAULT_OPTION = "server-default";
-const DEPLOYMENT_LABEL: Record<BackendEndpointPreset["deployment"], string> = {
-  cloud: "RTZR API",
-  onprem: "On-prem",
-};
 
 type BackendEndpointPresetSelectorProps = {
   size?: "small" | "medium";
   sx?: SxProps<Theme>;
 };
-
-function buildMenuLabel(preset: BackendEndpointPreset) {
-  const deploymentLabel = DEPLOYMENT_LABEL[preset.deployment] ?? preset.deployment;
-  return `${deploymentLabel} · ${preset.apiBaseUrl}`;
-}
 
 export function BackendEndpointPresetSelector({
   size = "medium",
@@ -50,6 +41,17 @@ export function BackendEndpointPresetSelector({
   const [errorText, setErrorText] = useState<string | null>(null);
   const labelId = useId();
   const apiReady = apiBaseUrl.trim().length > 0;
+
+  const getDeploymentLabel = (deployment: BackendEndpointPreset["deployment"]) => {
+    if (deployment === "cloud") return t("rtzrApi");
+    if (deployment === "onprem") return t("onPrem");
+    return deployment;
+  };
+
+  const buildMenuLabel = (preset: BackendEndpointPreset) => {
+    const deploymentLabel = getDeploymentLabel(preset.deployment);
+    return `${deploymentLabel} · ${preset.apiBaseUrl}`;
+  };
 
   const resolvedActiveValue = useMemo(() => {
     if (
@@ -93,10 +95,7 @@ export function BackendEndpointPresetSelector({
         });
         await updateSetting("activeBackendPresetId", preset.id);
         enqueueSnackbar(
-          t("backendpresetselectorApplysuccess", {
-            defaultValue: `"${preset.name}" 프리셋을 적용했습니다.`,
-            values: { name: preset.name },
-          }),
+          t("backendpresetselectorApplysuccess", { values: { name: preset.name } }),
           { variant: "success" }
         );
       }

@@ -16,7 +16,7 @@ export function MicFab({ onClick }: MicFabProps) {
   }, [onClick]);
 
   return (
-    <Tooltip title={t("startRealTimeTranscription", { defaultValue: "실시간 전사 시작" })}>
+    <Tooltip title={t("startRealTimeTranscription")}>
       <Fab
         color="secondary"
         onClick={handleClick}

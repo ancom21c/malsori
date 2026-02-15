@@ -57,8 +57,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { locale, setLocale, t } = useI18n();
   const localeOptions = useLocaleOptions();
   const currentLocaleOption = localeOptions.find((option) => option.value === locale);
-  const currentLocaleLabel =
-    currentLocaleOption?.label ?? t("language", { defaultValue: "언어" });
+  const currentLocaleLabel = currentLocaleOption?.label ?? t("language");
   const currentLocaleFlag = currentLocaleOption?.flag ?? "🌐";
   const currentLocaleFlagLabel = currentLocaleOption?.flagAriaLabel ?? currentLocaleLabel;
   useTranscriptionSync();
@@ -240,7 +239,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           <Box sx={{ ml: 1 }}>
             <CloudSyncStatus />
           </Box>
-          <Tooltip title={t("selectLanguage", { defaultValue: "언어 선택" })}>
+          <Tooltip title={t("selectLanguage")}>
             <Button
               color="inherit"
               variant="outlined"
