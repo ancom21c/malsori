@@ -81,7 +81,12 @@ spec:
             {{- toYaml .Values.webapp.resources | nindent 12 }}
       volumes:
         - name: python-storage
+          {{- if .Values.pythonApi.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-python-storage" (include "malsori.fullname" .)) .Values.pythonApi.storage.existingClaim }}
+          {{- else }}
           emptyDir: {}
+          {{- end }}
         - name: nginx-config
           configMap:
             name: {{ include "malsori.fullname" . }}-nginx

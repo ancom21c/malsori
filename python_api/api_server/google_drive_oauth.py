@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlparse
 
 import requests
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from .config import get_settings
@@ -43,7 +43,11 @@ DEFAULT_SCOPES = [
     "profile",
 ]
 
-TOKEN_FILENAME = "google_drive.oauth.json"
+SESSION_COOKIE_NAME = "malsori_gdrive_session"
+SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
+
+TOKEN_DIRNAME = "google_drive_oauth"
+TOKEN_FILENAME_PREFIX = "google_drive.oauth"
 
 router = APIRouter(prefix="/v1/cloud/google", tags=["cloud"])
 
@@ -85,8 +89,59 @@ def _sanitize_return_to(value: Optional[str]) -> str:
     return candidate
 
 
-def _token_path(storage_base_dir: Path) -> Path:
-    return storage_base_dir / TOKEN_FILENAME
+def _is_valid_session_id(value: str) -> bool:
+    if not value:
+        return False
+    if len(value) > 128:
+        return False
+    for ch in value:
+        if ch.isalnum() or ch in {"-", "_"}:
+            continue
+        return False
+    return True
+
+
+def _read_session_id(request: Request) -> Optional[str]:
+    raw = request.cookies.get(SESSION_COOKIE_NAME)
+    if not raw:
+        return None
+    candidate = raw.strip()
+    return candidate if _is_valid_session_id(candidate) else None
+
+
+def _new_session_id() -> str:
+    # token_urlsafe generates URL-safe characters (alnum, "-", "_") by default.
+    return secrets.token_urlsafe(32)
+
+
+def _cookie_secure(request: Request) -> bool:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").lower()
+    return proto == "https"
+
+
+def _set_session_cookie(response: Response, request: Request, session_id: str) -> None:
+    # Lax is required so cookies are included on the OAuth redirect back to our callback.
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=_cookie_secure(request),
+        path="/",
+    )
+
+
+def _token_dir(storage_base_dir: Path) -> Path:
+    token_dir = storage_base_dir / TOKEN_DIRNAME
+    token_dir.mkdir(parents=True, exist_ok=True)
+    return token_dir
+
+
+def _token_path(storage_base_dir: Path, session_id: str) -> Path:
+    if not _is_valid_session_id(session_id):
+        raise ValueError("Invalid session ID.")
+    return _token_dir(storage_base_dir) / f"{TOKEN_FILENAME_PREFIX}.{session_id}.json"
 
 
 def _load_token_file(path: Path) -> Dict[str, Any]:
@@ -194,7 +249,7 @@ def _refresh_access_token(config: _OAuthConfig, refresh_token: str) -> Dict[str,
 
 
 @router.get("/status")
-def google_drive_status() -> Dict[str, Any]:
+def google_drive_status(request: Request, response: Response) -> Dict[str, Any]:
     settings = get_settings()
     enabled = bool(settings.google_oauth_enabled)
 
@@ -205,7 +260,11 @@ def google_drive_status() -> Dict[str, Any]:
     connected_at = None
 
     if enabled:
-        path = _token_path(settings.storage_base_dir)
+        session_id = _read_session_id(request)
+        if not session_id:
+            session_id = _new_session_id()
+            _set_session_cookie(response, request, session_id)
+        path = _token_path(settings.storage_base_dir, session_id)
         payload = _load_token_file(path)
         connected = bool(payload.get("refresh_token"))
         user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
@@ -226,11 +285,16 @@ def google_drive_status() -> Dict[str, Any]:
 
 @router.get("/oauth/start")
 def google_drive_oauth_start(
+    request: Request,
     return_to: Optional[str] = Query(default=None),
 ) -> RedirectResponse:
     config = _get_oauth_config()
 
     now = time.time()
+    session_id = _read_session_id(request)
+    cookie_session_id = session_id
+    if not session_id:
+        session_id = _new_session_id()
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = _sha256_base64url(code_verifier)
     state = secrets.token_urlsafe(32)
@@ -238,7 +302,12 @@ def google_drive_oauth_start(
 
     with _state_lock:
         _cleanup_state(now)
-        _oauth_state[state] = {"verifier": code_verifier, "return_to": sanitized_return_to, "ts": now}
+        _oauth_state[state] = {
+            "verifier": code_verifier,
+            "return_to": sanitized_return_to,
+            "session_id": session_id,
+            "ts": now,
+        }
 
     # Always ask for consent so we reliably receive/refresh a refresh_token,
     # and to avoid silently reusing an old refresh token across account switching.
@@ -259,11 +328,15 @@ def google_drive_oauth_start(
         params["prompt"] = prompt
 
     url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
-    return RedirectResponse(url, status_code=302)
+    redirect = RedirectResponse(url, status_code=302)
+    if not cookie_session_id:
+        _set_session_cookie(redirect, request, session_id)
+    return redirect
 
 
 @router.get("/oauth/callback")
 def google_drive_oauth_callback(
+    request: Request,
     code: Optional[str] = Query(default=None),
     state: Optional[str] = Query(default=None),
     error: Optional[str] = Query(default=None),
@@ -276,11 +349,19 @@ def google_drive_oauth_callback(
     config = _get_oauth_config()
     settings = get_settings()
 
+    session_id = _read_session_id(request)
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Missing session cookie. Please retry the connection flow.")
+
     with _state_lock:
         state_payload = _oauth_state.pop(state, None)
 
     if not state_payload:
         raise HTTPException(status_code=400, detail="OAuth state has expired. Please try again.")
+
+    expected_session_id = state_payload.get("session_id")
+    if not isinstance(expected_session_id, str) or expected_session_id != session_id:
+        raise HTTPException(status_code=400, detail="OAuth session mismatch. Please retry the connection flow.")
 
     code_verifier = str(state_payload.get("verifier") or "")
     return_to = _sanitize_return_to(state_payload.get("return_to"))
@@ -291,7 +372,7 @@ def google_drive_oauth_callback(
     refresh_token = token_payload.get("refresh_token")
     scope_str = token_payload.get("scope") if isinstance(token_payload.get("scope"), str) else ""
 
-    token_path = _token_path(settings.storage_base_dir)
+    token_path = _token_path(settings.storage_base_dir, session_id)
 
     with _token_lock:
         userinfo: Dict[str, Any] = {}
@@ -339,10 +420,13 @@ def google_drive_oauth_callback(
 
 
 @router.get("/access-token")
-def google_drive_access_token() -> Dict[str, Any]:
+def google_drive_access_token(request: Request) -> Dict[str, Any]:
     config = _get_oauth_config()
     settings = get_settings()
-    token_path = _token_path(settings.storage_base_dir)
+    session_id = _read_session_id(request)
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Missing session cookie.")
+    token_path = _token_path(settings.storage_base_dir, session_id)
 
     with _token_lock:
         payload = _load_token_file(token_path)
@@ -366,10 +450,13 @@ def google_drive_access_token() -> Dict[str, Any]:
 
 
 @router.post("/disconnect")
-def google_drive_disconnect() -> Dict[str, Any]:
-    config = _get_oauth_config()
+def google_drive_disconnect(request: Request) -> Dict[str, Any]:
+    _get_oauth_config()
     settings = get_settings()
-    token_path = _token_path(settings.storage_base_dir)
+    session_id = _read_session_id(request)
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Missing session cookie.")
+    token_path = _token_path(settings.storage_base_dir, session_id)
 
     refresh_token = None
     with _token_lock:
