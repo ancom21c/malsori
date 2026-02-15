@@ -33,3 +33,9 @@ Malsori is a local-first web application for real-time audio transcription and r
 See `src/data/app-db.ts`.
 - **Tables**: `transcriptions`, `segments`, `audioChunks`, `videoChunks`, `presets`, `settings`.
 - **New Fields**: `LocalTranscription.isCloudSynced`, `LocalTranscription.downloadStatus`.
+
+## 4. Internationalization (i18n)
+- User-facing UI strings should be implemented with `useI18n().t(key)` (see `src/i18n/translations.ts`).
+- Non-React modules (services/data/utils) can use `tStatic(key, options)` from `src/i18n/static.ts`.
+- Comments and console logs can remain in Korean; focus i18n effort on user-facing text.
+- For persisted text (seeded presets, stored metadata), decide whether to store a translated string or a stable key and translate in the UI.
