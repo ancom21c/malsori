@@ -24,6 +24,16 @@ if [[ ! -f "${ROOT_DIR}/${VALUES_FILE}" ]]; then
   exit 1
 fi
 
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker daemon is not reachable. Start Docker (or run on a machine with a working container runtime)." >&2
+  exit 1
+fi
+
+if ! kubectl config current-context >/dev/null 2>&1; then
+  echo "kubectl current-context is not set. Configure kubeconfig before deploying." >&2
+  exit 1
+fi
+
 pushd "${ROOT_DIR}" >/dev/null
 
 echo "[1/4] Building and pushing images with DEV_BUILD=2"

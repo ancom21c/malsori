@@ -57,6 +57,8 @@ The FastAPI app exposes `/docs` for interactive testing, `/v1/transcribe` for ba
 
 If you run the Python API, the repo supports an optional **Google Drive auth broker** mode for cloud sync. In this mode the backend stores the Google **refresh token** under `STT_STORAGE_BASE_DIR` and issues short-lived **access tokens** to the SPA (so the refresh token never lands in the browser).
 
+The broker scopes stored tokens per browser session using an HttpOnly cookie (`malsori_gdrive_session`). Refresh tokens are stored under `STT_STORAGE_BASE_DIR/google_drive_oauth/`.
+
 Environment variables:
 
 - `GOOGLE_OAUTH_CLIENT_ID` – OAuth client ID (Google Cloud Console).

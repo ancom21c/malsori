@@ -28,7 +28,7 @@
      - `GET  /v1/cloud/google/oauth/callback` (exchange code, persist refresh token, redirect back)
      - `GET  /v1/cloud/google/access-token` (refresh -> return access token + expires_in)
      - `POST /v1/cloud/google/disconnect` (revoke + delete stored token)
-   - Persist refresh token under `STT_STORAGE_BASE_DIR` (same volume as existing backend state).
+   - Persist refresh token under `STT_STORAGE_BASE_DIR/google_drive_oauth/` scoped per browser session cookie.
 
 2. webapp: broker support (keep GIS as fallback)
    - Extend `GoogleAuthProvider` to support 2 modes:
@@ -49,6 +49,5 @@
 
 ## Open Questions
 
-- Do we want to require a server-side session/cookie for `access-token` (currently the API has no auth at all)?
+- `access-token` is now scoped by an HttpOnly session cookie (`malsori_gdrive_session`). This is not a full auth system; production deployments should still enforce access control at the ingress/network layer.
 - Should scopes default to `drive.file` only, or include `openid email profile` for better account identity UX?
-

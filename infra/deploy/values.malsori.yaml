@@ -19,14 +19,24 @@ pythonApi:
   deployment: cloud
   verifySsl: true
   debug: false
-  existingSecret: ""
+  # Create this Secret in the malsori namespace with the required env vars:
+  # - PRONAIA_API_BASE
+  # - PRONAIA_CLIENT_ID
+  # - PRONAIA_CLIENT_SECRET
+  # Optional (Drive auth broker):
+  # - GOOGLE_OAUTH_CLIENT_ID
+  # - GOOGLE_OAUTH_CLIENT_SECRET
+  # - GOOGLE_OAUTH_REDIRECT_URI
+  # - GOOGLE_OAUTH_SCOPES
+  existingSecret: "malsori-python-api-secret"
   env:
     STT_STORAGE_BASE_DIR: /data
+  # For Drive auth broker (refresh token) and persistent server-side state, back this with a PVC.
+  # storage:
+  #   enabled: true
+  #   size: 1Gi
   resources: {}
-  secretEnv:
-    PRONAIA_API_BASE: https://openapi.vito.ai
-    PRONAIA_CLIENT_ID: MvssEACXVeNk2yOXaUiF
-    PRONAIA_CLIENT_SECRET: JBVmP9O8hxu0afBG1tsudr6j_ap8qORYSyPv_K7e
+  secretEnv: {}
 
 webapp:
   apiBaseUrl: https://malsori.ancom.duckdns.org
