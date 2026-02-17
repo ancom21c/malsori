@@ -4,10 +4,10 @@ This folder contains environment-specific Helm values files for deploying Malsor
 
 ## Secrets (Required)
 
-`infra/deploy/values.malsori.yaml` is configured to load sensitive env vars from an existing Kubernetes Secret:
+You can provide sensitive env vars via an existing Kubernetes Secret:
 
 - Namespace: `malsori`
-- Secret name: `malsori-python-api-secret` (see `pythonApi.existingSecret`)
+- Example secret name: `malsori-python-api-secret` (set it via `pythonApi.existingSecret`)
 
 Create it like this (example):
 
@@ -45,3 +45,8 @@ pythonApi:
     enabled: true
     size: 1Gi
 ```
+
+## No Secret Mode (Quick Deploy)
+
+If you do not want to manage Kubernetes Secrets yet, you can deploy with `pythonApi.existingSecret` unset.
+In that case, configure RTZR endpoint + credentials from the webapp Settings UI; the API server persists them under `STT_STORAGE_BASE_DIR`.

@@ -19,16 +19,21 @@ pythonApi:
   deployment: cloud
   verifySsl: true
   debug: false
-  # Create this Secret in the malsori namespace with the required env vars:
+  # Optional: point to an existing Secret in the `malsori` namespace.
+  # Recommended keys:
   # - PRONAIA_API_BASE
   # - PRONAIA_CLIENT_ID
   # - PRONAIA_CLIENT_SECRET
+  #
   # Optional (Drive auth broker):
   # - GOOGLE_OAUTH_CLIENT_ID
   # - GOOGLE_OAUTH_CLIENT_SECRET
   # - GOOGLE_OAUTH_REDIRECT_URI
   # - GOOGLE_OAUTH_SCOPES
-  existingSecret: "malsori-python-api-secret"
+  #
+  # If unset, you can configure the RTZR endpoint + credentials from the webapp Settings UI,
+  # which persists to STT_STORAGE_BASE_DIR on the API server.
+  existingSecret: ""
   env:
     STT_STORAGE_BASE_DIR: /data
   # For Drive auth broker (refresh token) and persistent server-side state, back this with a PVC.
