@@ -2,6 +2,7 @@ import { appDb } from "../../data/app-db";
 import type { LocalTranscription, LocalSegment } from "../../data/app-db";
 import { GoogleDriveService } from "./googleDriveService";
 import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
+import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
@@ -71,6 +72,27 @@ function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
         sourceFileChunkCount: undefined,
         sourceFileStoredBytes: undefined,
     };
+}
+
+async function upsertTranscriptionSearchIndex(
+    transcriptionId: string,
+    transcriptText: string | undefined
+) {
+    const normalized = normalizeSearchText(transcriptText);
+    if (!normalized) {
+        await appDb.searchIndexes.delete(transcriptionId);
+        return;
+    }
+    const now = new Date().toISOString();
+    const tokenSet = extractSearchTokens(normalized);
+    const ngramSet = buildCharNgrams(normalized, 3);
+    await appDb.searchIndexes.put({
+        transcriptionId,
+        normalizedTranscript: normalized,
+        tokenSet,
+        ngramSet,
+        updatedAt: now,
+    });
 }
 
 function determineVideoFilename(mimeType: string | undefined): string {
@@ -176,11 +198,14 @@ export class SyncManager {
 
                 if (!localRecord) {
                     // Create Ghost Record
-                    await appDb.transcriptions.put({
-                        ...sanitizeCloudMetadata(cloudMetadata),
-                        isCloudSynced: true,
-                        downloadStatus: "not_downloaded",
-                        lastSyncedAt: syncedAt,
+                    await appDb.transaction("rw", [appDb.transcriptions, appDb.searchIndexes], async () => {
+                        await appDb.transcriptions.put({
+                            ...sanitizeCloudMetadata(cloudMetadata),
+                            isCloudSynced: true,
+                            downloadStatus: "not_downloaded",
+                            lastSyncedAt: syncedAt,
+                        });
+                        await upsertTranscriptionSearchIndex(transcriptionId, cloudMetadata.transcriptText);
                     });
                 } else if (localRecord.isCloudSynced) {
                     // Update if cloud is newer
@@ -188,13 +213,49 @@ export class SyncManager {
                     const cloudUpdate = parseIsoMillis(cloudMetadata.updatedAt) ?? 0;
 
                     if (cloudUpdate > localUpdate) {
-                        await appDb.transcriptions.update(transcriptionId, {
-                            ...sanitizeCloudMetadata(cloudMetadata),
-                            isCloudSynced: true,
-                            lastSyncedAt: syncedAt,
-                            // Keep local download status unless we want to force re-download?
-                            // For now, just update metadata fields.
-                        });
+                        let nextSegments: LocalSegment[] | null = null;
+                        if (localRecord.downloadStatus === "downloaded") {
+                            try {
+                                const segmentsQuery = `name = 'segments.json' and '${folder.id}' in parents and trashed = false`;
+                                const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
+                                if (segmentsFiles.length > 0) {
+                                    const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
+                                    const text = await blob.text();
+                                    const parsed: unknown = JSON.parse(text);
+                                    if (Array.isArray(parsed)) {
+                                        nextSegments = parsed as LocalSegment[];
+                                    }
+                                }
+                            } catch (error) {
+                                console.warn(`Failed to refresh cloud segments for "${transcriptionId}".`, error);
+                            }
+                        }
+
+                        await appDb.transaction(
+                            "rw",
+                            [appDb.transcriptions, appDb.searchIndexes, appDb.segments],
+                            async () => {
+                                await appDb.transcriptions.update(transcriptionId, {
+                                    ...sanitizeCloudMetadata(cloudMetadata),
+                                    isCloudSynced: true,
+                                    lastSyncedAt: syncedAt,
+                                    // Keep local download status unless we want to force re-download.
+                                });
+                                await upsertTranscriptionSearchIndex(
+                                    transcriptionId,
+                                    cloudMetadata.transcriptText
+                                );
+                                if (nextSegments) {
+                                    await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
+                                    await appDb.segments.bulkAdd(
+                                        nextSegments.map((segment) => ({
+                                            ...segment,
+                                            transcriptionId,
+                                        }))
+                                    );
+                                }
+                            }
+                        );
                     }
                 }
             } catch (error) {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { appDb, type LocalTranscription } from "../../data/app-db";
+import { appDb, type LocalSegment, type LocalTranscription } from "../../data/app-db";
 import { SyncManager } from "./syncManager";
 import type { DriveFile, GoogleDriveService } from "./googleDriveService";
 
@@ -115,7 +115,10 @@ function createPushDriveServiceMock(recordId: string, options?: { uploadError?: 
   return { service, listFiles, createFolder, downloadFile, uploadFile };
 }
 
-function createPullDriveServiceMock(cloudRecord: LocalTranscription) {
+function createPullDriveServiceMock(
+  cloudRecord: LocalTranscription,
+  options?: { segments?: LocalSegment[] }
+) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
   const transcriptionsFolder: DriveFile = {
     id: "transcriptions-folder",
@@ -144,6 +147,12 @@ function createPullDriveServiceMock(cloudRecord: LocalTranscription) {
     if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder' in parents")) {
       return [{ id: "meta-file", name: "metadata.json", mimeType: "application/json" }];
     }
+    if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder' in parents")) {
+      if (options?.segments) {
+        return [{ id: "segments-file", name: "segments.json", mimeType: "application/json" }];
+      }
+      return [];
+    }
     return [];
   });
 
@@ -159,6 +168,13 @@ function createPullDriveServiceMock(cloudRecord: LocalTranscription) {
         text: async () => JSON.stringify(cloudRecord),
         arrayBuffer: async () =>
           new TextEncoder().encode(JSON.stringify(cloudRecord)).buffer,
+      } as unknown as Blob;
+    }
+    if (fileId === "segments-file") {
+      const payload = JSON.stringify(options?.segments ?? []);
+      return {
+        text: async () => payload,
+        arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
       } as unknown as Blob;
     }
     return {
@@ -302,5 +318,83 @@ describe("SyncManager", () => {
     expect(stored?.sourceFileStorageState).toBeUndefined();
     expect(stored?.sourceFileChunkCount).toBeUndefined();
     expect(stored?.sourceFileStoredBytes).toBeUndefined();
+  });
+
+  it("refreshes segments and search index when pulling a newer cloud record that is already downloaded", async () => {
+    const recordId = "cloud-refresh";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date(Date.now()).toISOString();
+
+    const localRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      updatedAt: localUpdatedAt,
+      transcriptText: "old transcript",
+    });
+    await appDb.transcriptions.put(localRecord);
+    await appDb.segments.add({
+      id: "seg-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "old text",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "new text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const cloudRecord: LocalTranscription = {
+      ...localRecord,
+      title: "cloud-title",
+      updatedAt: cloudUpdatedAt,
+      transcriptText: "new transcript",
+    };
+
+    const { service, downloadFile } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pullUpdates();
+    expect(summary.failed).toBe(0);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.title).toBe("cloud-title");
+    expect(stored?.transcriptText).toBe("new transcript");
+
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-cloud");
+    expect(downloadFile).toHaveBeenCalledWith("segments-file");
+
+    const searchIndex = await appDb.searchIndexes.get(recordId);
+    expect(searchIndex).toBeTruthy();
+    expect(searchIndex?.normalizedTranscript).toContain("new");
+  });
+
+  it("builds search index for pulled ghost records when transcript text is present", async () => {
+    const recordId = "ghost-idx";
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: new Date().toISOString(),
+      transcriptText: "hello world",
+    });
+    const { service } = createPullDriveServiceMock(cloudRecord);
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pullUpdates();
+    expect(summary.failed).toBe(0);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    const searchIndex = await appDb.searchIndexes.get(recordId);
+    expect(searchIndex).toBeTruthy();
+    expect(searchIndex?.normalizedTranscript).toContain("hello");
   });
 });
