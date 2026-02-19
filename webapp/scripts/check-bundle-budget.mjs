@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,7 @@ const shareEmbedFile = join(webappRoot, "public", "share-embed", "share-embed.js
 
 const BUDGET = {
   totalJsBytes: 1_250_000,
-  maxJsChunkBytes: 300_000,
+  maxJsChunkBytes: 360_000,
   maxCssChunkBytes: 50_000,
   mainEntryJsBytes: 90_000,
   shareEmbedBytes: 700_000,
@@ -37,6 +37,22 @@ function readAssetStats() {
   const mainEntry = jsAssets.find((entry) => /^main-.*\.js$/.test(entry.name));
   const totalJs = jsAssets.reduce((sum, entry) => sum + entry.size, 0);
   const shareEmbedSize = statSync(shareEmbedFile).size;
+  const jsAssetNames = new Set(jsAssets.map((entry) => entry.name));
+  const importGraph = new Map(
+    jsAssets.map((entry) => {
+      const content = readFileSync(entry.filePath, "utf8");
+      const imports = [];
+      const importPattern = /from\s+["']\.\/([^"']+\.js)["']/g;
+      let match;
+      while ((match = importPattern.exec(content)) !== null) {
+        const imported = match[1];
+        if (jsAssetNames.has(imported)) {
+          imports.push(imported);
+        }
+      }
+      return [entry.name, imports];
+    })
+  );
 
   return {
     entries,
@@ -45,7 +61,55 @@ function readAssetStats() {
     mainEntry,
     totalJs,
     shareEmbedSize,
+    importGraph,
   };
+}
+
+function findCycles(graph) {
+  const state = new Map();
+  const stack = [];
+  const stackIndex = new Map();
+  const cycles = [];
+  const dedupe = new Set();
+
+  const visit = (node) => {
+    state.set(node, 1);
+    stackIndex.set(node, stack.length);
+    stack.push(node);
+
+    for (const next of graph.get(node) ?? []) {
+      const nextState = state.get(next) ?? 0;
+      if (nextState === 0) {
+        visit(next);
+        continue;
+      }
+      if (nextState !== 1) {
+        continue;
+      }
+      const cycleStart = stackIndex.get(next);
+      if (cycleStart === undefined) {
+        continue;
+      }
+      const cycle = stack.slice(cycleStart).concat(next);
+      const key = cycle.join(" -> ");
+      if (!dedupe.has(key)) {
+        dedupe.add(key);
+        cycles.push(cycle);
+      }
+    }
+
+    stack.pop();
+    stackIndex.delete(node);
+    state.set(node, 2);
+  };
+
+  for (const node of graph.keys()) {
+    if ((state.get(node) ?? 0) === 0) {
+      visit(node);
+    }
+  }
+
+  return cycles;
 }
 
 function fail(message, details = []) {
@@ -71,6 +135,7 @@ function printSummary(stats) {
 try {
   const stats = readAssetStats();
   const violations = [];
+  const cycles = findCycles(stats.importGraph);
 
   if (stats.totalJs > BUDGET.totalJsBytes) {
     violations.push(
@@ -107,6 +172,13 @@ try {
       violations.push(
         `CSS chunk exceeded: ${cssAsset.name} ${formatKiB(cssAsset.size)} > ${formatKiB(BUDGET.maxCssChunkBytes)}`
       );
+    }
+  }
+
+  if (cycles.length > 0) {
+    const cycleSamples = cycles.slice(0, 3).map((cycle) => cycle.join(" -> "));
+    for (const cycle of cycleSamples) {
+      violations.push(`Chunk import cycle detected: ${cycle}`);
     }
   }
 

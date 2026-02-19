@@ -19,7 +19,7 @@ Open http://localhost:5173/ to view the app.
 
 - `npm run dev` – start Vite dev server.
 - `npm run build` – type-check and build production bundle.
-- `npm run bundle:check` – enforce bundle-size budgets for CI/local verification.
+- `npm run bundle:check` – enforce bundle-size budgets and chunk import cycle checks for CI/local verification.
 - `npm run preview` – preview the production build.
 - `npm run lint` – run ESLint with the flat config.
 - `npm test` – run Vitest unit tests (jsdom + fake-indexeddb).

@@ -20,6 +20,7 @@
 | T002 | P0 | 배포 후 스모크 자동화 | Done | Done | Done | Done | Done | `docs/todo/2026-02-19-execution-loop/T002-post-deploy-smoke.md` |
 | T003 | P1 | CI 품질 게이트 강화 | Done | Done | Done | Done | Done | `docs/todo/2026-02-19-execution-loop/T003-ci-quality-gates.md` |
 | T004 | P1 | Realtime 지연/재연결 UX | Done | Done | Done | Done | Done | `docs/todo/2026-02-19-execution-loop/T004-realtime-latency-reconnect.md` |
+| T006 | P1 | Safe chunking + runtime gate | Done | Done | Done | Done | Done | `docs/todo/2026-02-19-execution-loop/T006-safe-chunking-runtime.md` |
 | T005 | P2 | Waveform/Timeline UX | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-02-19-execution-loop/T005-waveform-timeline.md` |
 
 ## 이번 사이클 원칙

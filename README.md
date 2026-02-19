@@ -78,7 +78,7 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm run lint` – ESLint over the entire project.
 - `npm run build` – Type-check and bundle the production output.
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
-- `npm --prefix webapp run bundle:check` – web bundle budget gate (chunk/entry/total size thresholds).
+- `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + API contract checks).
 
 ## QA & CI
