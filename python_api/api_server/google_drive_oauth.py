@@ -13,7 +13,9 @@ from __future__ import annotations
 import base64
 import contextlib
 import hashlib
+import hmac
 import json
+import logging
 import os
 import secrets
 import time
@@ -48,13 +50,26 @@ SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
 
 TOKEN_DIRNAME = "google_drive_oauth"
 TOKEN_FILENAME_PREFIX = "google_drive.oauth"
+OAUTH_STATE_TTL_SECONDS = 15 * 60
+OAUTH_STATE_CLOCK_SKEW_SECONDS = 60
 
 router = APIRouter(prefix="/v1/cloud/google", tags=["cloud"])
 
-_state_lock = Lock()
-_oauth_state: Dict[str, Dict[str, Any]] = {}
+logger = logging.getLogger(__name__)
 
 _token_lock = Lock()
+
+
+def _raise_oauth_error(
+    status_code: int,
+    code: str,
+    message: str,
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
+    error: Dict[str, Any] = {"code": code, "message": message}
+    if details:
+        error["details"] = details
+    raise HTTPException(status_code=status_code, detail={"error": error})
 
 
 def _base64url(data: bytes) -> str:
@@ -85,6 +100,9 @@ def _sanitize_return_to(value: Optional[str]) -> str:
 
     if not candidate.startswith("/") or candidate.startswith("//"):
         return "/"
+
+    if len(candidate) > 1024:
+        candidate = candidate[:1024]
 
     return candidate
 
@@ -164,28 +182,151 @@ class _OAuthConfig:
     client_secret: str
     redirect_uri: str
     scopes: list[str]
+    state_secret: str
 
 
 def _get_oauth_config() -> _OAuthConfig:
     settings = get_settings()
-    if not settings.google_oauth_enabled:
-        raise HTTPException(status_code=501, detail="Google OAuth is not configured on this server.")
+    if not settings.google_oauth_credentials_configured:
+        _raise_oauth_error(
+            501,
+            "OAUTH_NOT_CONFIGURED",
+            "Google OAuth is not configured on this server.",
+        )
+    if not settings.google_oauth_storage_ready:
+        _raise_oauth_error(
+            503,
+            "OAUTH_STORAGE_REQUIRED",
+            settings.google_oauth_storage_warning
+            or "Google OAuth requires persistent storage.",
+        )
 
     scopes = DEFAULT_SCOPES
     if settings.google_oauth_scopes and settings.google_oauth_scopes.strip():
-        scopes = [token.strip() for token in settings.google_oauth_scopes.split() if token.strip()]
+        scopes = [
+            token.strip()
+            for token in settings.google_oauth_scopes.split()
+            if token.strip()
+        ]
+    state_secret = (
+        (settings.google_oauth_state_secret or "").strip()
+        or (settings.google_oauth_client_secret or "").strip()
+    )
+    if not state_secret:
+        _raise_oauth_error(
+            503,
+            "OAUTH_STATE_SECRET_MISSING",
+            "Google OAuth state secret is not configured.",
+        )
     return _OAuthConfig(
         client_id=str(settings.google_oauth_client_id),
         client_secret=str(settings.google_oauth_client_secret),
         redirect_uri=str(settings.google_oauth_redirect_uri),
         scopes=scopes,
+        state_secret=state_secret,
     )
 
 
-def _cleanup_state(now: float, ttl_seconds: float = 15 * 60) -> None:
-    expired = [key for key, value in _oauth_state.items() if now - float(value.get("ts", 0)) > ttl_seconds]
-    for key in expired:
-        _oauth_state.pop(key, None)
+def _base64url_decode(value: str) -> bytes:
+    padding = "=" * ((4 - (len(value) % 4)) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("utf-8"))
+
+
+def _encode_oauth_state(
+    config: _OAuthConfig,
+    session_id: str,
+    code_verifier: str,
+    return_to: str,
+    now: Optional[float] = None,
+) -> str:
+    issued_at = int(now if now is not None else time.time())
+    payload = {
+        "sid": session_id,
+        "ver": code_verifier,
+        "rt": return_to,
+        "iat": issued_at,
+        "n": secrets.token_urlsafe(10),
+    }
+    encoded_payload = _base64url(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+    signature = hmac.new(
+        config.state_secret.encode("utf-8"),
+        encoded_payload.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return f"{encoded_payload}.{_base64url(signature)}"
+
+
+def _decode_oauth_state(
+    config: _OAuthConfig,
+    state: str,
+    session_id: str,
+    now: Optional[float] = None,
+) -> Dict[str, str]:
+    if "." not in state:
+        logger.warning("OAuth state decode failed: malformed token.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+    encoded_payload, provided_signature = state.split(".", 1)
+    if not encoded_payload or not provided_signature:
+        logger.warning("OAuth state decode failed: malformed token segments.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    expected_signature = _base64url(
+        hmac.new(
+            config.state_secret.encode("utf-8"),
+            encoded_payload.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+    )
+    if not secrets.compare_digest(provided_signature, expected_signature):
+        logger.warning("OAuth state decode failed: signature mismatch.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    try:
+        decoded_payload = _base64url_decode(encoded_payload)
+        payload = json.loads(decoded_payload.decode("utf-8"))
+    except Exception:
+        logger.warning("OAuth state decode failed: payload parse error.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    if not isinstance(payload, dict):
+        logger.warning("OAuth state decode failed: payload is not an object.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    issued_at_raw = payload.get("iat")
+    try:
+        issued_at = int(issued_at_raw)
+    except (TypeError, ValueError):
+        logger.warning("OAuth state decode failed: missing issued-at.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    now_ts = float(now if now is not None else time.time())
+    if issued_at - OAUTH_STATE_CLOCK_SKEW_SECONDS > now_ts:
+        logger.warning("OAuth state decode failed: issued-at is in the future.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+    if now_ts - issued_at > OAUTH_STATE_TTL_SECONDS:
+        logger.warning("OAuth state expired. iat=%s now=%s", issued_at, int(now_ts))
+        _raise_oauth_error(
+            400, "OAUTH_STATE_EXPIRED", "OAuth state has expired. Please try again."
+        )
+
+    expected_session_id = payload.get("sid")
+    if not isinstance(expected_session_id, str) or expected_session_id != session_id:
+        logger.warning("OAuth state decode failed: session mismatch.")
+        _raise_oauth_error(
+            400,
+            "OAUTH_SESSION_MISMATCH",
+            "OAuth session mismatch. Please retry the connection flow.",
+        )
+
+    verifier = payload.get("ver")
+    if not isinstance(verifier, str) or not verifier.strip():
+        logger.warning("OAuth state decode failed: missing verifier.")
+        _raise_oauth_error(400, "OAUTH_STATE_INVALID", "Invalid OAuth state.")
+
+    return_to = _sanitize_return_to(payload.get("rt"))
+    return {"verifier": verifier, "return_to": return_to}
 
 
 def _fetch_userinfo(access_token: str, timeout_seconds: float = 10.0) -> Dict[str, Any]:
@@ -221,7 +362,13 @@ def _exchange_code_for_token(config: _OAuthConfig, code: str, code_verifier: str
     except ValueError:
         payload = {"error": "invalid_response", "error_description": response.text}
     if not response.ok:
-        raise HTTPException(status_code=502, detail=payload.get("error_description") or payload.get("error") or "OAuth token exchange failed.")
+        _raise_oauth_error(
+            502,
+            "OAUTH_TOKEN_EXCHANGE_FAILED",
+            payload.get("error_description")
+            or payload.get("error")
+            or "OAuth token exchange failed.",
+        )
     return payload if isinstance(payload, dict) else {}
 
 
@@ -241,9 +388,12 @@ def _refresh_access_token(config: _OAuthConfig, refresh_token: str) -> Dict[str,
     except ValueError:
         payload = {"error": "invalid_response", "error_description": response.text}
     if not response.ok:
-        raise HTTPException(
-            status_code=502,
-            detail=payload.get("error_description") or payload.get("error") or "OAuth refresh failed.",
+        _raise_oauth_error(
+            502,
+            "OAUTH_REFRESH_FAILED",
+            payload.get("error_description")
+            or payload.get("error")
+            or "OAuth refresh failed.",
         )
     return payload if isinstance(payload, dict) else {}
 
@@ -280,6 +430,8 @@ def google_drive_status(request: Request, response: Response) -> Dict[str, Any]:
         "sub": sub,
         "scopes": scopes,
         "connected_at": connected_at,
+        "storage_persistent": bool(settings.storage_persistent),
+        "configuration_warning": settings.google_oauth_storage_warning,
     }
 
 
@@ -290,24 +442,19 @@ def google_drive_oauth_start(
 ) -> RedirectResponse:
     config = _get_oauth_config()
 
-    now = time.time()
     session_id = _read_session_id(request)
     cookie_session_id = session_id
     if not session_id:
         session_id = _new_session_id()
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = _sha256_base64url(code_verifier)
-    state = secrets.token_urlsafe(32)
     sanitized_return_to = _sanitize_return_to(return_to)
-
-    with _state_lock:
-        _cleanup_state(now)
-        _oauth_state[state] = {
-            "verifier": code_verifier,
-            "return_to": sanitized_return_to,
-            "session_id": session_id,
-            "ts": now,
-        }
+    state = _encode_oauth_state(
+        config=config,
+        session_id=session_id,
+        code_verifier=code_verifier,
+        return_to=sanitized_return_to,
+    )
 
     # Always ask for consent so we reliably receive/refresh a refresh_token,
     # and to avoid silently reusing an old refresh token across account switching.
@@ -342,27 +489,26 @@ def google_drive_oauth_callback(
     error: Optional[str] = Query(default=None),
 ) -> RedirectResponse:
     if error:
-        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+        _raise_oauth_error(400, "OAUTH_FLOW_ERROR", f"OAuth error: {error}")
     if not code or not state:
-        raise HTTPException(status_code=400, detail="Missing OAuth code/state.")
+        _raise_oauth_error(
+            400, "OAUTH_CODE_OR_STATE_MISSING", "Missing OAuth code/state."
+        )
 
     config = _get_oauth_config()
     settings = get_settings()
 
     session_id = _read_session_id(request)
     if not session_id:
-        raise HTTPException(status_code=400, detail="Missing session cookie. Please retry the connection flow.")
+        _raise_oauth_error(
+            400,
+            "OAUTH_SESSION_REQUIRED",
+            "Missing session cookie. Please retry the connection flow.",
+        )
 
-    with _state_lock:
-        state_payload = _oauth_state.pop(state, None)
-
-    if not state_payload:
-        raise HTTPException(status_code=400, detail="OAuth state has expired. Please try again.")
-
-    expected_session_id = state_payload.get("session_id")
-    if not isinstance(expected_session_id, str) or expected_session_id != session_id:
-        raise HTTPException(status_code=400, detail="OAuth session mismatch. Please retry the connection flow.")
-
+    state_payload = _decode_oauth_state(
+        config=config, state=state, session_id=session_id
+    )
     code_verifier = str(state_payload.get("verifier") or "")
     return_to = _sanitize_return_to(state_payload.get("return_to"))
 
@@ -395,9 +541,10 @@ def google_drive_oauth_callback(
             ):
                 effective_refresh = existing_refresh
             else:
-                raise HTTPException(
-                    status_code=502,
-                    detail="OAuth did not return a refresh token. Please retry the connection flow.",
+                _raise_oauth_error(
+                    502,
+                    "OAUTH_REFRESH_TOKEN_MISSING",
+                    "OAuth did not return a refresh token. Please retry the connection flow.",
                 )
 
         payload = {
@@ -425,7 +572,7 @@ def google_drive_access_token(request: Request) -> Dict[str, Any]:
     settings = get_settings()
     session_id = _read_session_id(request)
     if not session_id:
-        raise HTTPException(status_code=401, detail="Missing session cookie.")
+        _raise_oauth_error(401, "OAUTH_SESSION_REQUIRED", "Missing session cookie.")
     token_path = _token_path(settings.storage_base_dir, session_id)
 
     with _token_lock:
@@ -433,13 +580,17 @@ def google_drive_access_token(request: Request) -> Dict[str, Any]:
         refresh_token = payload.get("refresh_token")
 
     if not isinstance(refresh_token, str) or not refresh_token.strip():
-        raise HTTPException(status_code=401, detail="Google Drive is not connected.")
+        _raise_oauth_error(401, "OAUTH_NOT_CONNECTED", "Google Drive is not connected.")
 
     refreshed = _refresh_access_token(config, refresh_token.strip())
 
     access_token = refreshed.get("access_token")
     if not isinstance(access_token, str) or not access_token.strip():
-        raise HTTPException(status_code=502, detail="OAuth refresh returned no access token.")
+        _raise_oauth_error(
+            502,
+            "OAUTH_ACCESS_TOKEN_MISSING",
+            "OAuth refresh returned no access token.",
+        )
 
     return {
         "access_token": access_token,
@@ -455,7 +606,7 @@ def google_drive_disconnect(request: Request) -> Dict[str, Any]:
     settings = get_settings()
     session_id = _read_session_id(request)
     if not session_id:
-        raise HTTPException(status_code=401, detail="Missing session cookie.")
+        _raise_oauth_error(401, "OAUTH_SESSION_REQUIRED", "Missing session cookie.")
     token_path = _token_path(settings.storage_base_dir, session_id)
 
     refresh_token = None

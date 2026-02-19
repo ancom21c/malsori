@@ -41,6 +41,9 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `PRONAIA_API_BASE` – upstream RTZR API base URL (defaults to `https://dev-openapi.vito.ai`).
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
+- `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.
+- `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled; callers must send `X-Malsori-Admin-Token`.
+- `STT_STORAGE_PERSISTENT` – set to `1` when `STT_STORAGE_BASE_DIR` is backed by persistent storage (PVC).
 
 Example launch:
 
@@ -51,7 +54,7 @@ export PRONAIA_CLIENT_SECRET=your-client-secret
 uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
-The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.
+The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay. Backend override endpoints under `/v1/backend/*` are disabled by default and require admin token auth when enabled.
 
 #### Google Drive OAuth (Auth Broker)
 
@@ -65,6 +68,8 @@ Environment variables:
 - `GOOGLE_OAUTH_CLIENT_SECRET` – OAuth client secret.
 - `GOOGLE_OAUTH_REDIRECT_URI` – must point to the API callback URL, e.g. `https://<host>/v1/cloud/google/oauth/callback`.
 - `GOOGLE_OAUTH_SCOPES` – optional space-delimited scopes (defaults to `drive.file openid email profile`).
+- `GOOGLE_OAUTH_STATE_SECRET` – optional HMAC secret for stateless OAuth state signing (defaults to client secret).
+- `GOOGLE_OAUTH_ALLOW_EPHEMERAL_STORAGE` – optional (`1`) dev-only bypass for non-persistent storage.
 
 Once configured, use the “Connect Google Drive” button in the webapp; the API endpoints live under `/v1/cloud/google/*`.
 
@@ -76,16 +81,18 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 ### Useful Scripts
 
 - `npm run lint` – ESLint over the entire project.
+- `npm --prefix webapp run i18n:check` – translation key usage/definition consistency check.
 - `npm run build` – Type-check and bundle the production output.
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
+- `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
 - `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + API contract checks).
 
 ## QA & CI
 
 - Vitest runs with a jsdom environment and `fake-indexeddb` so Dexie code can be exercised.
 - New unit tests cover preset repository default handling and `useTranscriptions` ordering in addition to existing repository specs.
-- GitHub Actions workflow (`.github/workflows/ci.yml`) now has distinct jobs for the React frontend (npm install/lint/build/test + bundle budget check) and the FastAPI proxy (uv sync + `python -m compileall`) so both deliverables are exercised on every push/PR.
+- GitHub Actions workflow (`.github/workflows/ci.yml`) now has distinct jobs for todo-board consistency, the React frontend (npm install/lint/build/test + bundle budget check), and the FastAPI proxy (uv sync + `python -m compileall`) so board/doc workflow and both deliverables are exercised on every push/PR.
 
 ## Repository Layout
 

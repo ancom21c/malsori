@@ -5,7 +5,9 @@ import type {
   FileTranscriptionResponse,
   FileTranscriptionResult,
   FileTranscriptionSegment,
+  HealthStatus,
   RawBackendEndpointState,
+  RawHealthStatus,
   TranscriptionStatus,
   WordTimestamp,
 } from "./types";
@@ -60,6 +62,11 @@ type RawTranscriptionStatusResponse = {
   audio_url?: string;
   error?: string;
   segments?: RawSegmentEntry[];
+};
+
+type ParsedApiError = {
+  code?: string;
+  message?: string;
 };
 
 const TRANSCRIPTION_STATUSES: TranscriptionStatus[] = [
@@ -197,16 +204,112 @@ export class RtzrApiClient {
     if (response.ok) {
       return response;
     }
-    let detail = "";
+    let parsedJson: unknown = null;
     try {
-      detail = await response.text();
+      const bodyText = await response.text();
+      const trimmed = bodyText.trim();
+      if (trimmed.length > 0) {
+        parsedJson = JSON.parse(trimmed);
+      }
     } catch {
-      detail = "";
+      parsedJson = null;
     }
-    const message = detail?.trim().length
-      ? detail
-      : tStatic("requestFailedWithStatus", { values: { status: response.status } });
+
+    const parsedError = this.parseApiErrorPayload(parsedJson);
+    const mappedMessage = this.mapApiErrorCodeToMessage(parsedError.code);
+    const message =
+      mappedMessage ??
+      (parsedError.code ? tStatic("unknownErrorTryAgain") : undefined) ??
+      tStatic("requestFailedWithStatus", { values: { status: response.status } });
     throw new Error(message);
+  }
+
+  private parseApiErrorPayload(payload: unknown): ParsedApiError {
+    if (!payload || typeof payload !== "object") {
+      return {};
+    }
+    const record = payload as Record<string, unknown>;
+
+    const asErrorRecord = (value: unknown): Record<string, unknown> | null =>
+      value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+    const directError = asErrorRecord(record.error);
+    if (directError) {
+      return {
+        code:
+          typeof directError.code === "string" ? directError.code : undefined,
+        message:
+          typeof directError.message === "string" ? directError.message : undefined,
+      };
+    }
+
+    const detailRecord = asErrorRecord(record.detail);
+    if (detailRecord) {
+      const nested = asErrorRecord(detailRecord.error);
+      if (nested) {
+        return {
+          code: typeof nested.code === "string" ? nested.code : undefined,
+          message:
+            typeof nested.message === "string" ? nested.message : undefined,
+        };
+      }
+      return {
+        code: typeof detailRecord.code === "string" ? detailRecord.code : undefined,
+        message:
+          typeof detailRecord.message === "string" ? detailRecord.message : undefined,
+      };
+    }
+    return {};
+  }
+
+  private mapApiErrorCodeToMessage(code: string | undefined): string | undefined {
+    if (!code) {
+      return undefined;
+    }
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) {
+      return undefined;
+    }
+    if (normalized === "BACKEND_ADMIN_DISABLED") {
+      return tStatic("backendAdminDisabled");
+    }
+    if (normalized === "BACKEND_ADMIN_UNAUTHORIZED") {
+      return tStatic("backendAdminUnauthorized");
+    }
+    if (normalized === "BACKEND_ADMIN_MISCONFIGURED") {
+      return tStatic("backendAdminMisconfigured");
+    }
+    if (normalized === "BACKEND_API_BASE_REQUIRED") {
+      return tStatic("pleaseEnterTheApiBaseUrl");
+    }
+    if (normalized === "SERVER_CONFIG_ERROR") {
+      return tStatic("serverConfigurationError");
+    }
+    if (normalized === "INVALID_CONFIG_JSON") {
+      return tStatic("invalidConfigurationJson");
+    }
+    if (normalized === "INVALID_CONFIG_TYPE") {
+      return tStatic("configJsonMustBeObject");
+    }
+    if (normalized === "UPSTREAM_REQUEST_FAILED") {
+      return tStatic("transcriptionRequestFailedTryAgain");
+    }
+    if (normalized.startsWith("OAUTH_")) {
+      return tStatic("googleDriveReconnectRequired");
+    }
+    return undefined;
+  }
+
+  private withAdminHeaders(
+    headers: Record<string, string>,
+    adminToken?: string
+  ): Record<string, string> {
+    const resolved = { ...headers };
+    const trimmed = adminToken?.trim();
+    if (trimmed) {
+      resolved["X-Malsori-Admin-Token"] = trimmed;
+    }
+    return resolved;
   }
 
   async requestFileTranscription(
@@ -278,25 +381,56 @@ export class RtzrApiClient {
     };
   }
 
-  async getBackendEndpointState(): Promise<BackendEndpointState> {
-    const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
+  async getHealthStatus(): Promise<HealthStatus> {
+    const response = await fetch(this.buildUrl("/v1/health"), {
       method: "GET",
       headers: {
         Accept: "application/json",
       },
+    });
+    const raw = (await (await this.ensureOk(response)).json()) as RawHealthStatus;
+    return {
+      status: raw.status,
+      service: raw.service,
+      version: raw.version,
+      deployment: raw.deployment,
+      authEnabled: raw.auth_enabled,
+      source: raw.source,
+      backendAdminEnabled:
+        typeof raw.backend_admin_enabled === "boolean"
+          ? raw.backend_admin_enabled
+          : undefined,
+    };
+  }
+
+  async getBackendEndpointState(options?: {
+    adminToken?: string;
+  }): Promise<BackendEndpointState> {
+    const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
+      method: "GET",
+      headers: this.withAdminHeaders(
+        {
+          Accept: "application/json",
+        },
+        options?.adminToken
+      ),
     });
     const raw = (await (await this.ensureOk(response)).json()) as RawBackendEndpointState;
     return this.normalizeBackendState(raw);
   }
 
   async updateBackendEndpoint(
-    payload: BackendEndpointUpdatePayload
+    payload: BackendEndpointUpdatePayload,
+    options?: { adminToken?: string }
   ): Promise<BackendEndpointState> {
     const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.withAdminHeaders(
+        {
+          "Content-Type": "application/json",
+        },
+        options?.adminToken
+      ),
       body: JSON.stringify({
         deployment: payload.deployment,
         api_base_url: payload.apiBaseUrl,
@@ -309,12 +443,17 @@ export class RtzrApiClient {
     return this.normalizeBackendState(raw);
   }
 
-  async resetBackendEndpoint(): Promise<BackendEndpointState> {
+  async resetBackendEndpoint(options?: {
+    adminToken?: string;
+  }): Promise<BackendEndpointState> {
     const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
       method: "DELETE",
-      headers: {
-        Accept: "application/json",
-      },
+      headers: this.withAdminHeaders(
+        {
+          Accept: "application/json",
+        },
+        options?.adminToken
+      ),
     });
     const raw = (await (await this.ensureOk(response)).json()) as RawBackendEndpointState;
     return this.normalizeBackendState(raw);

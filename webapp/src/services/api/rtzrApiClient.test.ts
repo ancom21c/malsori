@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RtzrApiClient } from "./rtzrApiClient";
+import { tStatic } from "../../i18n/static";
 
 const originalFetch = globalThis.fetch;
 
@@ -63,5 +64,52 @@ describe("RtzrApiClient.getFileTranscriptionStatus", () => {
     expect(segment?.startMs).toBe(120);
     expect(segment?.endMs).toBe(200);
     expect(segment?.text).toBe("안녕하세요");
+  });
+});
+
+describe("RtzrApiClient backend error mapping", () => {
+  it("maps standardized backend admin error codes to localized messages", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(
+        {
+          detail: {
+            error: {
+              code: "BACKEND_ADMIN_UNAUTHORIZED",
+              message: "Invalid backend admin token.",
+            },
+          },
+        },
+        401
+      )
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/api");
+
+    await expect(client.getBackendEndpointState()).rejects.toThrow(
+      tStatic("backendAdminUnauthorized")
+    );
+  });
+
+  it("falls back to unknown error message for unmapped standardized codes", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(
+        {
+          detail: {
+            error: {
+              code: "SOME_UNKNOWN_CODE",
+              message: "Internal debug text",
+            },
+          },
+        },
+        500
+      )
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/api");
+    await expect(client.getBackendEndpointState()).rejects.toThrow(
+      tStatic("unknownErrorTryAgain")
+    );
   });
 });

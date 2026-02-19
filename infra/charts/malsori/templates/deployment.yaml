@@ -30,6 +30,8 @@ spec:
               value: {{ default "cloud" .Values.pythonApi.deployment | quote }}
             - name: STT_VERIFY_SSL
               value: {{ ternary "1" "0" (default true .Values.pythonApi.verifySsl) | quote }}
+            - name: STT_STORAGE_PERSISTENT
+              value: {{ ternary "1" "0" (default false .Values.pythonApi.storage.enabled) | quote }}
             {{- if .Values.pythonApi.debug }}
             - name: MALSORI_DEBUG
               value: "1"

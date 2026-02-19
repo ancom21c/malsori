@@ -14,12 +14,12 @@
 ### 범위
 
 - 포함:
-  - 최소 브라우저 스모크(홈/설정/실시간 페이지 진입)
-  - 핵심 API 스모크(curl 기반)
-  - 실패 시 로그/스크린샷 아티팩트 수집
+  - SPA 라우팅 스모크(HTML root 확인, curl 기반)
+  - 핵심 API 스모크(curl 기반 계약 검증)
+  - 실패 시 단계별 로그 출력
 - 제외:
-  - 전체 E2E 회귀 세트
-  - 장시간 부하 테스트
+  - Playwright/E2E 브라우저 자동화
+  - 스크린샷 아티팩트 수집
 
 ### 수용 기준 (AC)
 
@@ -29,9 +29,9 @@
 
 ## Plan (Review 대상)
 
-1. 스모크 시나리오 정의 (API 2개 + UI 3개 경로)
+1. 스모크 시나리오 정의 (API 계약 + SPA 3개 경로)
 2. 스크립트 위치 확정 (`scripts/` 또는 `webapp` npm script)
-3. `curl` + 계약 검증(JSON assert) 기반 UI/API 체크 구현
+3. `curl` + 계약 검증(JSON assert) 기반 체크 구현
 4. 배포 스킬 후속 단계로 연동 가능한 실행 방법 문서화
 
 ## Review Checklist (Plan Review)
@@ -47,7 +47,7 @@
   - API 경로 `/v1/health`, `/v1/cloud/google/status`, `/v1/backend/endpoint`, `/v1/backend/state`
 - [x] 스크립트 구현
   - `scripts/post-deploy-smoke.sh` 추가 및 실행 권한 부여
-  - rollout/resource snapshot + HTML root 확인 + JSON 계약 assert 포함
+  - rollout/resource snapshot + HTML root 확인 + JSON 계약 assert 포함 (브라우저 자동화 미포함)
 - [x] CI/로컬 실행 검증
   - `bash -n scripts/post-deploy-smoke.sh`
   - `./scripts/post-deploy-smoke.sh` 실배포 환경에서 pass

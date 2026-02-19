@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useGoogleAuth } from "../auth/GoogleAuthProvider";
 import { GoogleDriveService } from "./googleDriveService";
 import { SyncManager } from "./syncManager";
+import { initialSyncState, syncStateReducer, type SyncTrigger } from "./syncStateMachine";
 
 interface SyncContextType {
     syncManager: SyncManager | null;
@@ -19,6 +20,8 @@ import { appDb } from "../../data/app-db";
 export function SyncProvider({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, token, signOut } = useGoogleAuth();
     const tokenRef = useRef<string | null>(null);
+    const syncManagerRef = useRef<SyncManager | null>(null);
+    const runInFlightRef = useRef(false);
     const [syncManager, setSyncManager] = useState<SyncManager | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -27,11 +30,27 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const [accountKey, setAccountKey] = useState<string | null>(null);
     const [pendingAccountKey, setPendingAccountKey] = useState<string | null>(null);
     const syncIntervalRef = useRef<number | null>(null);
-    const isSyncingRef = useRef(false);
+    const [syncState, dispatchSyncEvent] = useReducer(syncStateReducer, initialSyncState);
 
     useEffect(() => {
         tokenRef.current = token;
     }, [token]);
+
+    const requestSync = useCallback((trigger: SyncTrigger) => {
+        if (!syncManagerRef.current) {
+            return;
+        }
+        dispatchSyncEvent({ type: "REQUEST_SYNC", trigger });
+    }, []);
+
+    const syncNow = useCallback(() => {
+        requestSync("manual");
+        return Promise.resolve();
+    }, [requestSync]);
+
+    useEffect(() => {
+        setIsSyncing(syncState.phase === "running");
+    }, [syncState.phase]);
 
     useEffect(() => {
         const initSync = async () => {
@@ -77,8 +96,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         void initSync();
     }, [isAuthenticated]);
 
-    const handleMerge = async () => {
+    const handleMerge = () => {
         if (pendingSyncManager) {
+            syncManagerRef.current = pendingSyncManager;
             setSyncManager(pendingSyncManager);
             setAccountKey(pendingAccountKey);
             if (pendingAccountKey) {
@@ -87,8 +107,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             setConflictDialogOpen(false);
             setPendingSyncManager(null);
             setPendingAccountKey(null);
-            // Trigger immediate sync to merge
-            setTimeout(() => void syncNow(), 100);
+            requestSync("immediate");
         }
     };
 
@@ -108,6 +127,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             );
 
             setSyncManager(pendingSyncManager);
+            syncManagerRef.current = pendingSyncManager;
             setAccountKey(pendingAccountKey);
             if (pendingAccountKey) {
                 localStorage.setItem("last_synced_account", pendingAccountKey);
@@ -115,8 +135,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             setConflictDialogOpen(false);
             setPendingSyncManager(null);
             setPendingAccountKey(null);
-            // Trigger immediate sync to download new data
-            setTimeout(() => void syncNow(), 100);
+            requestSync("immediate");
         }
     };
 
@@ -127,61 +146,88 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         signOut(); // Disconnect the conflicting account
     };
 
-    const syncNow = useCallback(async () => {
-        if (!syncManager || isSyncingRef.current) return;
-
-        isSyncingRef.current = true;
-        setIsSyncing(true);
-        let hasFailure = false;
-        try {
-            try {
-                const pullSummary = await syncManager.pullUpdates();
-                if (pullSummary.failed > 0) {
-                    hasFailure = true;
-                }
-            } catch (error) {
-                hasFailure = true;
-                console.error("Sync pull failed:", error);
-            }
-
-            try {
-                const pushSummary = await syncManager.pushUpdates();
-                if (pushSummary.failed > 0) {
-                    hasFailure = true;
-                }
-            } catch (error) {
-                hasFailure = true;
-                console.error("Sync push failed:", error);
-            }
-
-            if (!hasFailure) {
-                setLastSyncedAt(new Date());
-            }
-        } finally {
-            setIsSyncing(false);
-            isSyncingRef.current = false;
+    useEffect(() => {
+        if (syncState.phase !== "scheduled" || runInFlightRef.current) {
+            return;
         }
-    }, [syncManager]);
+        const manager = syncManagerRef.current;
+        if (!manager) {
+            dispatchSyncEvent({ type: "RESET" });
+            return;
+        }
+
+        runInFlightRef.current = true;
+        dispatchSyncEvent({ type: "RUN_STARTED" });
+
+        const runSyncCycle = async () => {
+            let hasFailure = false;
+            let failureReason: string | undefined;
+            try {
+                try {
+                    const pullSummary = await manager.pullUpdates();
+                    if (pullSummary.failed > 0) {
+                        hasFailure = true;
+                        failureReason = "pull_partial_failure";
+                    }
+                } catch (error) {
+                    hasFailure = true;
+                    failureReason = "pull_failed";
+                    console.error("Sync pull failed:", error);
+                }
+
+                try {
+                    const pushSummary = await manager.pushUpdates();
+                    if (pushSummary.failed > 0) {
+                        hasFailure = true;
+                        failureReason = "push_partial_failure";
+                    }
+                } catch (error) {
+                    hasFailure = true;
+                    failureReason = "push_failed";
+                    console.error("Sync push failed:", error);
+                }
+
+                if (syncManagerRef.current !== manager) {
+                    return;
+                }
+                if (!hasFailure) {
+                    setLastSyncedAt(new Date());
+                    dispatchSyncEvent({ type: "RUN_SUCCESS" });
+                    return;
+                }
+                dispatchSyncEvent({ type: "RUN_FAILURE", error: failureReason });
+            } finally {
+                runInFlightRef.current = false;
+            }
+        };
+
+        void runSyncCycle();
+    }, [syncState.phase]);
 
     // Auto-sync loop
     useEffect(() => {
-        if (syncManager) {
-            // Initial sync
-            void syncNow();
+        syncManagerRef.current = syncManager;
+        dispatchSyncEvent({ type: "RESET" });
 
-            // Periodic sync every 5 minutes
+        if (syncIntervalRef.current !== null) {
+            clearInterval(syncIntervalRef.current);
+            syncIntervalRef.current = null;
+        }
+
+        if (syncManager) {
+            requestSync("startup");
             syncIntervalRef.current = window.setInterval(() => {
-                void syncNow();
+                requestSync("interval");
             }, 5 * 60 * 1000);
         }
 
         return () => {
-            if (syncIntervalRef.current) {
+            if (syncIntervalRef.current !== null) {
                 clearInterval(syncIntervalRef.current);
                 syncIntervalRef.current = null;
             }
         };
-    }, [syncManager, syncNow]);
+    }, [requestSync, syncManager]);
 
     return (
         <SyncContext.Provider value={{ syncManager, isSyncing, lastSyncedAt, accountKey, syncNow }}>

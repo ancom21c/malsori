@@ -94,6 +94,26 @@ export interface RawBackendEndpointState {
   source: "default" | "override";
 }
 
+export interface HealthStatus {
+  status: "ok";
+  service: string;
+  version: string;
+  deployment: BackendDeployment;
+  authEnabled: boolean;
+  source: "default" | "override";
+  backendAdminEnabled?: boolean;
+}
+
+export interface RawHealthStatus {
+  status: "ok";
+  service: string;
+  version: string;
+  deployment: BackendDeployment;
+  auth_enabled: boolean;
+  source: "default" | "override";
+  backend_admin_enabled?: boolean;
+}
+
 export interface BackendEndpointUpdatePayload {
   deployment: BackendDeployment;
   apiBaseUrl: string;

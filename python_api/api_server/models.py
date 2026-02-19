@@ -76,3 +76,4 @@ class HealthStatusResponse(BaseModel):
     deployment: Literal["cloud", "onprem"]
     auth_enabled: bool
     source: Literal["default", "override"]
+    backend_admin_enabled: bool

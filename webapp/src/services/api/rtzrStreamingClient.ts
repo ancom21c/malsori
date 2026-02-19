@@ -7,6 +7,7 @@ export interface StreamingSessionOptions {
   decoderConfig: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   keepAliveIntervalMs?: number;
+  handshakeTimeoutMs?: number;
   reconnectAttempts?: number;
   reconnectBackoffMs?: number;
   onMessage: (message: MessageEvent) => void;
@@ -18,10 +19,11 @@ export interface StreamingSessionOptions {
 }
 
 const DEFAULT_KEEP_ALIVE_MS = 20_000;
+const DEFAULT_HANDSHAKE_TIMEOUT_MS = 3_000;
 const DEFAULT_RECONNECT_ATTEMPTS = 3;
 const DEFAULT_RECONNECT_BACKOFF_MS = 1_500;
 const MAX_PENDING_CHUNKS = 24;
-const HANDSHAKE_TIMEOUT_MS = 1_500;
+const HANDSHAKE_TIMEOUT_REASON = "STREAM_ACK_TIMEOUT";
 
 /**
  * Resilient WebSocket client for the RTZR streaming API.
@@ -33,6 +35,7 @@ export class RtzrStreamingClient {
   private state: StreamingConnectionState = "idle";
   private options: (StreamingSessionOptions & {
     keepAliveIntervalMs: number;
+    handshakeTimeoutMs: number;
     reconnectAttempts: number;
     reconnectBackoffMs: number;
   }) | null = null;
@@ -53,6 +56,7 @@ export class RtzrStreamingClient {
     this.options = {
       ...options,
       keepAliveIntervalMs: options.keepAliveIntervalMs ?? DEFAULT_KEEP_ALIVE_MS,
+      handshakeTimeoutMs: options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS,
       reconnectAttempts: options.reconnectAttempts ?? DEFAULT_RECONNECT_ATTEMPTS,
       reconnectBackoffMs: options.reconnectBackoffMs ?? DEFAULT_RECONNECT_BACKOFF_MS,
     };
@@ -108,8 +112,7 @@ export class RtzrStreamingClient {
     this.state = "connecting";
 
     this.socket.onopen = () => {
-      this.state = "open";
-      this.reconnectAttempt = 0;
+      this.state = "connecting";
       this.startKeepAlive();
       this.initiateHandshake();
     };
@@ -148,9 +151,12 @@ export class RtzrStreamingClient {
 
   private startHandshakeTimer() {
     this.clearHandshakeTimer();
+    if (!this.options) {
+      return;
+    }
     this.handshakeTimer = window.setTimeout(() => {
-      this.markHandshakeComplete();
-    }, HANDSHAKE_TIMEOUT_MS);
+      this.handleHandshakeTimeout();
+    }, this.options.handshakeTimeoutMs);
   }
 
   private clearHandshakeTimer() {
@@ -164,10 +170,29 @@ export class RtzrStreamingClient {
     if (this.handshakeComplete) {
       return;
     }
+    this.state = "open";
     this.handshakeComplete = true;
+    this.reconnectAttempt = 0;
     this.clearHandshakeTimer();
     this.flushPendingChunks();
     this.options?.onOpen?.();
+  }
+
+  private handleHandshakeTimeout() {
+    if (this.handshakeComplete) {
+      return;
+    }
+    this.state = "error";
+    const timeoutEvent =
+      typeof CustomEvent !== "undefined"
+        ? new CustomEvent("streaming-client-error", {
+            detail: { code: HANDSHAKE_TIMEOUT_REASON },
+          })
+        : new Event("streaming-client-error");
+    this.options?.onError?.(timeoutEvent);
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.close(4000, HANDSHAKE_TIMEOUT_REASON);
+    }
   }
 
   private sendHandshakePayload() {

@@ -34,13 +34,25 @@ kubectl -n malsori create secret generic malsori-python-api-secret \
   | kubectl -n malsori apply -f -
 ```
 
+Optional: if you need runtime backend override APIs, add admin keys as well:
+
+```bash
+kubectl -n malsori create secret generic malsori-python-api-secret \
+  --from-literal=BACKEND_ADMIN_TOKEN='REPLACE_ME' \
+  --dry-run=client -o yaml \
+  | kubectl -n malsori apply -f -
+```
+
 ## Persistent Storage (Recommended for broker mode)
 
 If you enable the Drive auth broker, the server stores refresh tokens under `STT_STORAGE_BASE_DIR` (`/data` in the chart).
-Use a PVC so tokens and cached artifacts survive pod restarts:
+Use a PVC so tokens and cached artifacts survive pod restarts. The API now treats persistent storage as required for broker mode unless `GOOGLE_OAUTH_ALLOW_EPHEMERAL_STORAGE=1` is explicitly set:
 
 ```yaml
 pythonApi:
+  env:
+    STT_STORAGE_BASE_DIR: /data
+    BACKEND_ADMIN_ENABLED: "false"
   storage:
     enabled: true
     size: 1Gi

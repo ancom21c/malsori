@@ -314,6 +314,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Backend endpoint applied.",
     ja: "バックエンド エンドポイントが適用されました。",
   },
+  backendAdminToken: {
+    ko: "백엔드 관리자 토큰",
+    en: "Backend admin token",
+    ja: "バックエンド管理者トークン",
+  },
   backendPresetsHaveBeenExported: {
     ko: "백엔드 프리셋을 내보냈습니다.",
     en: "Backend presets have been exported.",
@@ -378,6 +383,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "확인 중...",
     en: "Checking...",
     ja: "チェック中...",
+  },
+  enterAdminTokenBeforeCheckingServerSettings: {
+    ko: "서버 설정을 조회하려면 관리자 토큰을 입력하세요.",
+    en: "Enter an admin token before checking server settings.",
+    ja: "サーバー設定を確認する前に管理者トークンを入力してください。",
+  },
+  enterAdminTokenBeforeApplyingServerSettings: {
+    ko: "서버 설정을 적용하려면 관리자 토큰을 입력하세요.",
+    en: "Enter an admin token before applying server settings.",
+    ja: "サーバー設定を適用する前に管理者トークンを入力してください。",
   },
   clientId: {
     ko: "Client ID",
@@ -1508,6 +1523,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "RTZR Cloud 배포에서 필수입니다.",
     en: "Required for RTZR Cloud deployments.",
     ja: "RTZR クラウド展開に必要です。",
+  },
+  requiredWhenCheckingOrApplyingServerSettings: {
+    ko: "서버 상태 조회/적용 시 필요합니다. 로컬에 저장되지 않습니다.",
+    en: "Required to check or apply server settings. Not saved locally.",
+    ja: "サーバー設定の確認/適用に必要です。ローカルには保存されません。",
   },
   restoringServerDefaultsFailed: {
     ko: "서버 기본값 복원에 실패했습니다.",
@@ -2748,6 +2768,81 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "음향 모델 스케일링. Whisper 계열 미세 조정 시 사용.",
     en: "Acoustic model scaling. Used for fine-tuning Whisper-family models.",
     ja: "音響モデルのスケーリング。Whisper 系モデルの微調整に使用します。",
+  },
+  automaticCopyFailedPleaseCopyManually: {
+    ko: "자동 복사에 실패했습니다. 수동으로 복사해 주세요.",
+    en: "Automatic copy failed. Please copy manually.",
+    ja: "自動コピーに失敗しました。手動でコピーしてください。",
+  },
+  edit: {
+    ko: "수정",
+    en: "Edit",
+    ja: "編集",
+  },
+  raw: {
+    ko: "원문",
+    en: "Raw",
+    ja: "原文",
+  },
+  stopping: {
+    ko: "중지 중",
+    en: "Stopping",
+    ja: "停止中",
+  },
+  wordLevelDetails: {
+    ko: "단어 단위 상세",
+    en: "Word-level details",
+    ja: "単語単位の詳細",
+  },
+  unknownErrorTryAgain: {
+    ko: "알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    en: "An unknown error occurred. Please try again.",
+    ja: "不明なエラーが発生しました。しばらくしてから再試行してください。",
+  },
+  backendAdminDisabled: {
+    ko: "백엔드 관리자 기능이 비활성화되어 있습니다.",
+    en: "Backend admin is disabled.",
+    ja: "バックエンド管理機能は無効です。",
+  },
+  backendAdminUnauthorized: {
+    ko: "백엔드 관리자 토큰이 유효하지 않습니다.",
+    en: "Invalid backend admin token.",
+    ja: "バックエンド管理者トークンが無効です。",
+  },
+  backendAdminMisconfigured: {
+    ko: "백엔드 관리자 설정이 올바르지 않습니다.",
+    en: "Backend admin is misconfigured.",
+    ja: "バックエンド管理設定が不正です。",
+  },
+  streamAckTimeoutTryAgain: {
+    ko: "스트리밍 준비 응답이 지연되어 연결을 재시도합니다.",
+    en: "Streaming ready acknowledgement timed out. Reconnecting.",
+    ja: "ストリーミング準備応答がタイムアウトしました。再接続します。",
+  },
+  serverConfigurationError: {
+    ko: "서버 설정을 불러오지 못했습니다.",
+    en: "Failed to load server configuration.",
+    ja: "サーバー設定を読み込めませんでした。",
+  },
+  invalidConfigurationJson: {
+    ko: "설정 JSON 형식이 올바르지 않습니다.",
+    en: "Configuration JSON is invalid.",
+    ja: "設定 JSON の形式が正しくありません。",
+  },
+  configJsonMustBeObject: {
+    ko: "설정 JSON은 객체 형태여야 합니다.",
+    en: "Configuration JSON must be an object.",
+    ja: "設定 JSON はオブジェクト形式である必要があります。",
+  },
+  transcriptionRequestFailedTryAgain: {
+    ko: "전사 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    en: "Transcription request failed. Please try again shortly.",
+    ja: "文字起こしリクエストに失敗しました。しばらくしてから再試行してください。",
+  },
+  googleDriveReconnectRequired: {
+    ko: "Google Drive 연결 상태가 만료되었습니다. 다시 연결해 주세요.",
+    en: "Google Drive session expired. Please reconnect.",
+    ja: "Google Drive セッションが期限切れです。再接続してください。",
   },
   cannotRetryWithoutOriginalConfiguration: {
     ko: "원본 설정 정보를 찾을 수 없어 재실행할 수 없습니다.",

@@ -1224,11 +1224,38 @@ export default function RealtimeSessionPage() {
     void processStreamingMessage(event);
   };
 
+  const resolveStreamingEventMessage = (event: Event | CloseEvent) => {
+    const closeReason =
+      event instanceof CloseEvent && typeof event.reason === "string"
+        ? event.reason.trim()
+        : "";
+    const detailCode = (
+      event as Event & { detail?: { code?: string } }
+    ).detail?.code;
+    const code = closeReason || (typeof detailCode === "string" ? detailCode : "");
+    if (code === "STREAM_ACK_TIMEOUT") {
+      return t("streamAckTimeoutTryAgain");
+    }
+    if (event instanceof CloseEvent) {
+      return closeReason || t("yourStreamingConnectionHasEnded");
+    }
+    return t("aFatalErrorOccurredInYourStreamingSession");
+  };
+
   const handleStreamingError = (event: Event) => {
     console.error(t("streamingError"), event);
     if (finalizingRef.current) return;
-    setErrorMessage(t("aStreamingErrorOccurredTheConnectionIsBeingRestored"));
-    setConnectionEventMessage(t("aStreamingErrorOccurredTryReconnecting"));
+    const resolvedMessage = resolveStreamingEventMessage(event);
+    setErrorMessage(
+      resolvedMessage === t("streamAckTimeoutTryAgain")
+        ? resolvedMessage
+        : t("aStreamingErrorOccurredTheConnectionIsBeingRestored")
+    );
+    setConnectionEventMessage(
+      resolvedMessage === t("streamAckTimeoutTryAgain")
+        ? resolvedMessage
+        : t("aStreamingErrorOccurredTryReconnecting")
+    );
     setConnectionUxState((prev) =>
       reduceRealtimeConnectionUxState(prev, { type: "streaming-error" })
     );
@@ -1289,7 +1316,7 @@ export default function RealtimeSessionPage() {
           void finalizeSession(false);
           return;
         }
-        const reason = event.reason || t("yourStreamingConnectionHasEnded");
+        const reason = resolveStreamingEventMessage(event);
         setErrorMessage(reason);
         setConnectionEventMessage(reason);
         setRetryingConnection(false);
@@ -1310,10 +1337,7 @@ export default function RealtimeSessionPage() {
       },
       onPermanentFailure: (event) => {
         if (finalizingRef.current) return;
-        const message =
-          event instanceof CloseEvent
-            ? event.reason || t("yourStreamingSessionHasEnded")
-            : t("aFatalErrorOccurredInYourStreamingSession");
+        const message = resolveStreamingEventMessage(event);
         setErrorMessage(message);
         setConnectionEventMessage(message);
         setRetryingConnection(false);

@@ -225,6 +225,8 @@ export default function SettingsPage() {
   const [backendStateLoading, setBackendStateLoading] = useState(false);
   const [backendStateError, setBackendStateError] = useState<string | null>(null);
   const [backendStateLastSuccessAt, setBackendStateLastSuccessAt] = useState<string | null>(null);
+  const [backendAdminEnabled, setBackendAdminEnabled] = useState(false);
+  const [backendAdminToken, setBackendAdminToken] = useState("");
   const backendImportInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptionImportInputRef = useRef<HTMLInputElement | null>(null);
   const sectionRefs = {
@@ -232,6 +234,13 @@ export default function SettingsPage() {
     permissions: permissionsSectionRef,
     backend: backendSectionRef,
   };
+  const visibleSections = useMemo(
+    () =>
+      SETTINGS_SECTIONS.filter(
+        (section) => section.id !== "backend" || backendAdminEnabled
+      ),
+    [backendAdminEnabled]
+  );
   const selectedBackendPreset = useMemo(() => {
     if (!selectedBackendPresetId) return null;
     return backendPresets.find((preset) => preset.id === selectedBackendPresetId) ?? null;
@@ -294,12 +303,28 @@ export default function SettingsPage() {
       setBackendState(null);
       setBackendStateError(null);
       setBackendStateLastSuccessAt(null);
+      setBackendAdminEnabled(false);
       return;
     }
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
-      const state = await apiClient.getBackendEndpointState();
+      const health = await apiClient.getHealthStatus();
+      const adminEnabled = health.backendAdminEnabled ?? true;
+      setBackendAdminEnabled(adminEnabled);
+      if (!adminEnabled) {
+        setBackendState(null);
+        setBackendStateLastSuccessAt(new Date().toISOString());
+        return;
+      }
+      const adminToken = backendAdminToken.trim();
+      if (!adminToken) {
+        setBackendState(null);
+        setBackendStateLastSuccessAt(null);
+        setBackendStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+        return;
+      }
+      const state = await apiClient.getBackendEndpointState({ adminToken });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
     } catch (error) {
@@ -309,11 +334,18 @@ export default function SettingsPage() {
     } finally {
       setBackendStateLoading(false);
     }
-  }, [apiBaseUrl, apiClient, t]);
+  }, [apiBaseUrl, apiClient, backendAdminToken, t]);
 
   useEffect(() => {
     void handleRefreshBackendState();
   }, [handleRefreshBackendState]);
+
+  useEffect(() => {
+    if (visibleSections.some((section) => section.id === activeSection)) {
+      return;
+    }
+    setActiveSection("transcription");
+  }, [activeSection, visibleSections]);
 
   useEffect(() => {
     if (!backendPresets.length) {
@@ -708,6 +740,13 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseEnterThePythonApiBaseUrlFirst"), { variant: "warning" });
       return;
     }
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
+        variant: "warning",
+      });
+      return;
+    }
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
@@ -717,7 +756,7 @@ export default function SettingsPage() {
         clientId: selectedBackendPreset.clientId ?? null,
         clientSecret: selectedBackendPreset.clientSecret ?? null,
         verifySsl: selectedBackendPreset.verifySsl ?? true,
-      });
+      }, { adminToken });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
@@ -741,10 +780,17 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseEnterThePythonApiBaseUrlFirst"), { variant: "warning" });
       return;
     }
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
+        variant: "warning",
+      });
+      return;
+    }
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
-      const state = await apiClient.resetBackendEndpoint();
+      const state = await apiClient.resetBackendEndpoint({ adminToken });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
@@ -1038,7 +1084,7 @@ export default function SettingsPage() {
             textColor="primary"
             indicatorColor="primary"
           >
-            {SETTINGS_SECTIONS.map((section) => (
+            {visibleSections.map((section) => (
               <Tab key={section.id} value={section.id} label={t(section.labelKey)} />
             ))}
           </Tabs>
@@ -1072,6 +1118,33 @@ export default function SettingsPage() {
                 fullWidth
                 margin="normal"
               />
+              <Stack spacing={2} sx={{ mt: 2 }}>
+                <TextField
+                  label={t("pythonApiBaseUrl")}
+                  value={apiBaseUrl}
+                  onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
+                  placeholder="http://localhost:8000"
+                  helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
+                />
+                <TextField
+                  label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
+                  type="number"
+                  value={realtimeAutoSaveSeconds}
+                  onChange={(event) => {
+                    const value = Number(event.target.value) || 0;
+                    if (value <= 0) {
+                      enqueueSnackbar(t("theAutoSaveIntervalMustBeAtLeast1Second"), {
+                        variant: "warning",
+                      });
+                      return;
+                    }
+                    void updateSetting("realtimeAutoSaveSeconds", value);
+                  }}
+                  helperText={t(
+                    "localTemporaryStorageCycleDuringRealTimeSessionsDefaultIs10Seconds"
+                  )}
+                />
+              </Stack>
             </Box>
             <Divider sx={{ mb: 3 }} />
             <Stack
@@ -1323,144 +1396,143 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
-          <CardHeader
-            title={t("backendSettings")}
-            subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
-          />
-          <CardContent>
+        {backendAdminEnabled ? (
+          <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
+            <CardHeader
+              title={t("backendSettings")}
+              subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
+            />
+            <CardContent>
               <Stack spacing={3}>
-              <Stack spacing={2}>
-                <TextField
-                  label={t("pythonApiBaseUrl")}
-                  value={apiBaseUrl}
-                  onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
-                  placeholder="http://localhost:8000"
-                  helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
-                />
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "flex-start", sm: "center" }}
-                >
-                  <Button
-                    variant="outlined"
-                    onClick={() => void handleRefreshBackendState()}
-                    disabled={backendStateLoading || !apiBaseUrl.trim()}
+                <Stack spacing={2}>
+                  <TextField
+                    label={t("backendAdminToken")}
+                    type="password"
+                    value={backendAdminToken}
+                    onChange={(event) => setBackendAdminToken(event.target.value)}
+                    placeholder="X-Malsori-Admin-Token"
+                    helperText={t("requiredWhenCheckingOrApplyingServerSettings")}
+                  />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
                   >
-                    {backendStateLoading ? t("checking") : t("refreshServerStatus")}
-                  </Button>
-                  <Button
-                    variant="text"
-                    color="secondary"
-                    onClick={() => void handleResetBackendEndpoint()}
-                    disabled={backendStateLoading || !apiBaseUrl.trim() || backendStatusUnavailable}
-                  >
-                    {t("returnToServerDefault")}
-                  </Button>
-                </Stack>
-                {backendStateError && (
-                  <Alert
-                    severity="error"
-                    action={(
-                      <Button
-                        size="small"
-                        color="inherit"
-                        onClick={() => void handleRefreshBackendState()}
-                        disabled={backendStateLoading || !apiBaseUrl.trim()}
-                      >
-                        {backendStateLoading ? t("checking") : t("refreshServerStatus")}
-                      </Button>
-                    )}
-                  >
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {t("failedToLoadBackendState")}
-                      </Typography>
-                      <Typography variant="body2">{backendStateError}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {backendState
-                          ? t("showingLastKnownServerSettings")
-                          : t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")}
-                      </Typography>
-                      {backendStateLastSuccessAt ? (
-                        <Typography variant="caption" color="text.secondary">
-                          {t("lastSuccessfulCheckAt", {
-                            values: {
-                              time: new Date(backendStateLastSuccessAt).toLocaleString(),
-                            },
-                          })}
+                    <Button
+                      variant="outlined"
+                      onClick={() => void handleRefreshBackendState()}
+                      disabled={
+                        backendStateLoading ||
+                        !apiBaseUrl.trim() ||
+                        !backendAdminToken.trim()
+                      }
+                    >
+                      {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                    </Button>
+                    <Button
+                      variant="text"
+                      color="secondary"
+                      onClick={() => void handleResetBackendEndpoint()}
+                      disabled={
+                        backendStateLoading ||
+                        !apiBaseUrl.trim() ||
+                        backendStatusUnavailable ||
+                        !backendAdminToken.trim()
+                      }
+                    >
+                      {t("returnToServerDefault")}
+                    </Button>
+                  </Stack>
+                  {backendStateError && (
+                    <Alert
+                      severity="error"
+                      action={(
+                        <Button
+                          size="small"
+                          color="inherit"
+                          onClick={() => void handleRefreshBackendState()}
+                          disabled={
+                            backendStateLoading ||
+                            !apiBaseUrl.trim() ||
+                            !backendAdminToken.trim()
+                          }
+                        >
+                          {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                        </Button>
+                      )}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {t("failedToLoadBackendState")}
                         </Typography>
-                      ) : null}
-                    </Stack>
-                  </Alert>
-                )}
-                {backendState && (
-                  <Alert severity="info" variant="outlined">
-                    <Stack spacing={1}>
-                      <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap">
-                        <Chip
-                          label={
-                            backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")
-                          }
-                          size="small"
-                        />
-                        <Chip
-                          label={
-                            backendState.source === "override" ? t("custom") : t("serverDefault")
-                          }
-                          size="small"
-                          color={backendState.source === "override" ? "primary" : "default"}
-                        />
-                        <Chip
-                          label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
-                          size="small"
-                          color={backendState.verifySsl ? "success" : "warning"}
-                        />
-                        <Chip
-                          label={
-                            backendState.authEnabled
-                              ? t("useClientCredentials")
-                              : t("credentialsNotUsed")
-                          }
-                          size="small"
-                          color={backendState.authEnabled ? "success" : "default"}
-                        />
+                        <Typography variant="body2">{backendStateError}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {backendState
+                            ? t("showingLastKnownServerSettings")
+                            : t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")}
+                        </Typography>
+                        {backendStateLastSuccessAt ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {t("lastSuccessfulCheckAt", {
+                              values: {
+                                time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                              },
+                            })}
+                          </Typography>
+                        ) : null}
                       </Stack>
-                      <Typography variant="body2">
-                        {t("apiBaseUrl")}: {backendState.apiBaseUrl}
-                      </Typography>
-                      {backendStateLastSuccessAt ? (
-                        <Typography variant="caption" color="text.secondary">
-                          {t("lastSuccessfulCheckAt", {
-                            values: {
-                              time: new Date(backendStateLastSuccessAt).toLocaleString(),
-                            },
-                          })}
+                    </Alert>
+                  )}
+                  {backendState && (
+                    <Alert severity="info" variant="outlined">
+                      <Stack spacing={1}>
+                        <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                          <Chip
+                            label={
+                              backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")
+                            }
+                            size="small"
+                          />
+                          <Chip
+                            label={
+                              backendState.source === "override" ? t("custom") : t("serverDefault")
+                            }
+                            size="small"
+                            color={backendState.source === "override" ? "primary" : "default"}
+                          />
+                          <Chip
+                            label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
+                            size="small"
+                            color={backendState.verifySsl ? "success" : "warning"}
+                          />
+                          <Chip
+                            label={
+                              backendState.authEnabled
+                                ? t("useClientCredentials")
+                                : t("credentialsNotUsed")
+                            }
+                            size="small"
+                            color={backendState.authEnabled ? "success" : "default"}
+                          />
+                        </Stack>
+                        <Typography variant="body2">
+                          {t("apiBaseUrl")}: {backendState.apiBaseUrl}
                         </Typography>
-                      ) : null}
-                    </Stack>
-                  </Alert>
-                )}
-              </Stack>
-              <TextField
-                label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
-                type="number"
-                value={realtimeAutoSaveSeconds}
-                onChange={(event) => {
-                  const value = Number(event.target.value) || 0;
-                  if (value <= 0) {
-                    enqueueSnackbar(t("theAutoSaveIntervalMustBeAtLeast1Second"), {
-                      variant: "warning",
-                    });
-                    return;
-                  }
-                  void updateSetting("realtimeAutoSaveSeconds", value);
-                }}
-                helperText={t("localTemporaryStorageCycleDuringRealTimeSessionsDefaultIs10Seconds")}
-              />
-              <Divider />
+                        {backendStateLastSuccessAt ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {t("lastSuccessfulCheckAt", {
+                              values: {
+                                time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                              },
+                            })}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </Alert>
+                  )}
+                </Stack>
+                <Divider />
               <Stack spacing={1}>
                 <Typography variant="subtitle1">{t("backendApiEndpointPresets")}</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -1559,7 +1631,12 @@ export default function SettingsPage() {
                           color="success"
                           onClick={() => void handleApplyBackendPreset()}
                           fullWidth
-                          disabled={!selectedBackendPreset || backendStateLoading || backendStatusUnavailable}
+                          disabled={
+                            !selectedBackendPreset ||
+                            backendStateLoading ||
+                            backendStatusUnavailable ||
+                            !backendAdminToken.trim()
+                          }
                         >
                           {t("applyToServer")}
                         </Button>
@@ -1739,7 +1816,8 @@ export default function SettingsPage() {
               </Stack>
             </Stack>
           </CardContent>
-        </Card>
+          </Card>
+        ) : null}
       </Box>
       <ConfirmDialog
         open={backendDeleteOpen}

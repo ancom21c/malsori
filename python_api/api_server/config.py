@@ -42,6 +42,12 @@ class Settings(BaseModel):
     google_oauth_client_secret: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_CLIENT_SECRET")
     google_oauth_redirect_uri: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_REDIRECT_URI")
     google_oauth_scopes: Optional[str] = Field(default=None, alias="GOOGLE_OAUTH_SCOPES")
+    google_oauth_state_secret: Optional[str] = Field(
+        default=None, alias="GOOGLE_OAUTH_STATE_SECRET"
+    )
+    google_oauth_allow_ephemeral_storage: bool = Field(
+        False, alias="GOOGLE_OAUTH_ALLOW_EPHEMERAL_STORAGE"
+    )
 
     pronaia_client_id: Optional[str] = Field(default=None, alias="PRONAIA_CLIENT_ID")
     pronaia_client_secret: Optional[str] = Field(
@@ -63,6 +69,9 @@ class Settings(BaseModel):
         10.0, alias="STT_COLLECTOR_TIMEOUT", gt=0.0
     )
     stt_config_path: Optional[Path] = Field(default=None, alias="STT_CONFIG_PATH")
+    storage_persistent: bool = Field(False, alias="STT_STORAGE_PERSISTENT")
+    backend_admin_enabled: bool = Field(False, alias="BACKEND_ADMIN_ENABLED")
+    backend_admin_token: Optional[str] = Field(default=None, alias="BACKEND_ADMIN_TOKEN")
 
     _transcribe_path: str = PrivateAttr("/v1/transcribe")
     _transcribe_status_path: str = PrivateAttr("/v1/transcribe/{transcribe_id}")
@@ -102,12 +111,44 @@ class Settings(BaseModel):
         return bool(self.pronaia_client_id and self.pronaia_client_secret)
 
     @property
-    def google_oauth_enabled(self) -> bool:
+    def backend_admin_token_configured(self) -> bool:
+        """Return True when an admin token is configured."""
+        return bool((self.backend_admin_token or "").strip())
+
+    @property
+    def google_oauth_credentials_configured(self) -> bool:
         """Return True when Google OAuth credentials are configured."""
         return bool(
             self.google_oauth_client_id
             and self.google_oauth_client_secret
             and self.google_oauth_redirect_uri
+        )
+
+    @property
+    def google_oauth_storage_ready(self) -> bool:
+        """Return True when the storage policy allows OAuth token persistence."""
+        return bool(
+            self.storage_persistent or self.google_oauth_allow_ephemeral_storage
+        )
+
+    @property
+    def google_oauth_storage_warning(self) -> Optional[str]:
+        """Explain why OAuth is disabled when credentials exist but storage policy blocks it."""
+        if (
+            self.google_oauth_credentials_configured
+            and not self.google_oauth_storage_ready
+        ):
+            return (
+                "Google OAuth requires persistent storage. "
+                "Set STT_STORAGE_PERSISTENT=1 or GOOGLE_OAUTH_ALLOW_EPHEMERAL_STORAGE=1."
+            )
+        return None
+
+    @property
+    def google_oauth_enabled(self) -> bool:
+        """Return True when Google OAuth credentials are configured."""
+        return bool(
+            self.google_oauth_credentials_configured and self.google_oauth_storage_ready
         )
 
     @property

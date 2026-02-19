@@ -9,6 +9,7 @@ import contextlib
 import json
 import logging
 import os
+import secrets
 import sys
 import uuid
 from datetime import datetime
@@ -19,9 +20,11 @@ from typing import Any, Dict, List, Literal, Optional
 from copy import deepcopy
 
 from fastapi import (
+    Depends,
     FastAPI,
     File,
     Form,
+    Header,
     HTTPException,
     UploadFile,
     WebSocket,
@@ -192,13 +195,61 @@ FAILURE_CODE = -1
 _FILE_TRANSCRIBE_DIRNAME = "file_transcriptions"
 
 
+def _raise_api_error(
+    status_code: int,
+    code: str,
+    message: str,
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
+    error: Dict[str, Any] = {"code": code, "message": message}
+    if details:
+        error["details"] = details
+    raise HTTPException(status_code=status_code, detail={"error": error})
+
+
 def _resolve_backend_source() -> Literal["default", "override"]:
     """Resolve whether backend endpoint settings come from defaults or override file."""
     try:
         override_payload = get_backend_override()
     except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
     return "override" if override_payload else "default"
+
+
+def _require_backend_admin(
+    x_malsori_admin_token: Optional[str] = Header(
+        default=None, alias="X-Malsori-Admin-Token"
+    ),
+) -> Settings:
+    """Guard backend endpoint admin APIs behind explicit feature flag + token."""
+    try:
+        settings = get_settings()
+    except RuntimeError as exc:
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
+
+    if not settings.backend_admin_enabled:
+        _raise_api_error(404, "BACKEND_ADMIN_DISABLED", "Backend admin is disabled.")
+
+    expected_token = (settings.backend_admin_token or "").strip()
+    if not expected_token:
+        logger.error(
+            "BACKEND_ADMIN_ENABLED is true but BACKEND_ADMIN_TOKEN is not configured."
+        )
+        _raise_api_error(
+            503,
+            "BACKEND_ADMIN_MISCONFIGURED",
+            "Backend admin endpoint is misconfigured.",
+        )
+
+    provided_token = (x_malsori_admin_token or "").strip()
+    if not provided_token or not secrets.compare_digest(
+        provided_token, expected_token
+    ):
+        _raise_api_error(
+            401, "BACKEND_ADMIN_UNAUTHORIZED", "Invalid backend admin token."
+        )
+
+    return settings
 
 
 @app.get("/v1/health", response_model=HealthStatusResponse)
@@ -207,7 +258,7 @@ async def health_status() -> HealthStatusResponse:
     try:
         settings = get_settings()
     except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
     return HealthStatusResponse(
         status="ok",
         service="malsori-python-api",
@@ -215,34 +266,37 @@ async def health_status() -> HealthStatusResponse:
         deployment=settings.deployment,
         auth_enabled=settings.auth_enabled,
         source=_resolve_backend_source(),
+        backend_admin_enabled=settings.backend_admin_enabled,
     )
 
 
 @app.get("/v1/backend/endpoint", response_model=BackendEndpointState)
-async def get_backend_endpoint() -> BackendEndpointState:
+async def get_backend_endpoint(
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendEndpointState:
     """Return the current upstream endpoint configuration."""
-    try:
-        settings = get_settings()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
     source = _resolve_backend_source()
     return _build_backend_state(settings, source)
 
 
 @app.get("/v1/backend/state", response_model=BackendEndpointState)
-async def get_backend_state_legacy() -> BackendEndpointState:
+async def get_backend_state_legacy(
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendEndpointState:
     """Backward-compatible alias for backend endpoint state."""
-    return await get_backend_endpoint()
+    source = _resolve_backend_source()
+    return _build_backend_state(settings, source)
 
 
 @app.post("/v1/backend/endpoint", response_model=BackendEndpointState)
 async def set_backend_endpoint(
     payload: BackendEndpointUpdateRequest,
+    _: Settings = Depends(_require_backend_admin),
 ) -> BackendEndpointState:
     """Persist a new upstream endpoint configuration."""
     base_url = payload.api_base_url.strip()
     if not base_url:
-        raise HTTPException(status_code=400, detail="api_base_url is required.")
+        _raise_api_error(400, "BACKEND_API_BASE_REQUIRED", "api_base_url is required.")
     updates: Dict[str, Any] = {
         "pronaia_api_base": base_url,
         "deployment": payload.deployment,
@@ -257,7 +311,9 @@ async def set_backend_endpoint(
     try:
         settings = apply_backend_override(updates)
     except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        _raise_api_error(
+            500, "BACKEND_OVERRIDE_APPLY_FAILED", "Failed to apply backend override."
+        )
     _reset_client()
     try:
         source = _resolve_backend_source()
@@ -268,12 +324,16 @@ async def set_backend_endpoint(
 
 
 @app.delete("/v1/backend/endpoint", response_model=BackendEndpointState)
-async def reset_backend_endpoint() -> BackendEndpointState:
+async def reset_backend_endpoint(
+    _: Settings = Depends(_require_backend_admin),
+) -> BackendEndpointState:
     """Remove the override file and revert to server defaults."""
     try:
         settings = clear_backend_override()
     except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        _raise_api_error(
+            500, "BACKEND_OVERRIDE_CLEAR_FAILED", "Failed to clear backend override."
+        )
     _reset_client()
     return _build_backend_state(settings, "default")
 
@@ -628,7 +688,7 @@ def _ensure_settings() -> Settings:
         return get_settings()
     except RuntimeError as exc:
         logger.error("Configuration error: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
 
 
 @app.post("/v1/transcribe")
@@ -642,16 +702,23 @@ async def proxy_transcribe(
 
     file_bytes = await file.read()
     if not file_bytes:
-        raise HTTPException(status_code=400, detail="업로드된 파일이 비어 있습니다.")
+        _raise_api_error(400, "FILE_EMPTY", "Uploaded file is empty.")
 
     config_text = (config or "").strip()
     if config_text:
         try:
             config_payload = json.loads(config_text)
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=400, detail=f"config JSON 파싱 오류: {exc}") from exc
+            _raise_api_error(
+                400,
+                "INVALID_CONFIG_JSON",
+                "config JSON parsing failed.",
+                {"reason": str(exc)},
+            )
         if not isinstance(config_payload, dict):
-            raise HTTPException(status_code=400, detail="config 값은 JSON 객체여야 합니다.")
+            _raise_api_error(
+                400, "INVALID_CONFIG_TYPE", "config must be a JSON object."
+            )
     else:
         config_payload = {}
 
@@ -663,10 +730,12 @@ async def proxy_transcribe(
         )
     except Exception as exc:  # pragma: no cover - upstream failure
         logger.exception("파일 전사 프록시 중 오류", exc_info=exc)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Upstream transcription request failed: {exc}",
-        ) from exc
+        _raise_api_error(
+            502,
+            "UPSTREAM_REQUEST_FAILED",
+            "Upstream transcription request failed.",
+            {"reason": str(exc)},
+        )
 
     upstream_response.setdefault("created_at", datetime.utcnow().isoformat())
     transcribe_id = upstream_response.get("transcribe_id") or upstream_response.get("id")
@@ -687,10 +756,12 @@ async def proxy_transcription_status(transcribe_id: str):
         status_payload = await client.get_transcription(transcribe_id)
     except Exception as exc:  # pragma: no cover - upstream failure
         logger.exception("전사 상태 조회 프록시 오류 (%s)", transcribe_id, exc_info=exc)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Upstream transcription status request failed: {exc}",
-        ) from exc
+        _raise_api_error(
+            502,
+            "UPSTREAM_STATUS_FAILED",
+            "Upstream transcription status request failed.",
+            {"reason": str(exc)},
+        )
 
     status_payload.setdefault("id", transcribe_id)
     status_payload.setdefault("transcribe_id", transcribe_id)
@@ -714,7 +785,7 @@ async def download_transcription_audio(transcribe_id: str):
     settings = _ensure_settings()
     artifacts = _audio_artifacts(settings, transcribe_id)
     if not artifacts["data"].exists():
-        raise HTTPException(status_code=404, detail="Audio not available.")
+        _raise_api_error(404, "AUDIO_NOT_FOUND", "Audio is not available.")
     metadata = _load_audio_metadata(artifacts["meta"])
     return FileResponse(
         path=artifacts["data"],
