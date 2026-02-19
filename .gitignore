@@ -43,3 +43,6 @@ __pycache__/
 *.pyc
 
 .vscode/
+
+# local automation artifacts
+.playwright-cli/

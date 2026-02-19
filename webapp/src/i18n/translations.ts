@@ -400,9 +400,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "保存されたクライアント シークレットをクリアする",
   },
   clickTheButtonInTheBottomRightToRequestFileTranscriptionOrStartRealTimeTranscription: {
-    ko: "우측 하단의 + 버튼을 눌러 파일 전사를 요청하거나 실시간 전사를 시작해 보세요.",
-    en: "Click the + button in the bottom right to request file transcription or start real-time transcription.",
-    ja: "右下の + ボタンをクリックして、ファイルの転写をリクエストするか、リアルタイムの転写を開始します。",
+    ko: "아래 버튼에서 파일 전사를 요청하거나 실시간 전사를 시작해 보세요.",
+    en: "Use the buttons below to request file transcription or start real-time transcription.",
+    ja: "下のボタンからファイルの転写をリクエストするか、リアルタイムの転写を開始してください。",
   },
   clickingOnEachListItemTakesYouToTheDetailedTranscriptionResultsScreen: {
     ko: "각 리스트 항목을 클릭하면 세부 전사 결과 화면으로 이동합니다.",
@@ -539,6 +539,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Edit JSON directly",
     ja: "JSONを直接編集する",
   },
+  formatJson: {
+    ko: "JSON 정리",
+    en: "Format JSON",
+    ja: "JSONを整形",
+  },
+  copyJson: {
+    ko: "JSON 복사",
+    en: "Copy JSON",
+    ja: "JSONをコピー",
+  },
+  copiedToClipboard: {
+    ko: "클립보드에 복사했습니다.",
+    en: "Copied to clipboard.",
+    ja: "クリップボードにコピーしました。",
+  },
   requestConfigJson: {
     ko: "RequestConfig (JSON)",
     en: "RequestConfig (JSON)",
@@ -668,6 +683,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "백엔드 상태를 불러오지 못했습니다.",
     en: "Failed to load backend state.",
     ja: "バックエンド状態のロードに失敗しました。",
+  },
+  showingLastKnownServerSettings: {
+    ko: "마지막으로 확인된 서버 설정을 표시 중입니다.",
+    en: "Showing the last known server settings.",
+    ja: "最後に確認したサーバー設定を表示しています。",
+  },
+  pleaseCheckPythonApiBaseUrlAndRetryServerStatus: {
+    ko: "Python API Base URL과 서버 상태를 확인한 뒤 다시 시도해 주세요.",
+    en: "Check the Python API Base URL and server status, then retry.",
+    ja: "Python API Base URL とサーバー状態を確認してから再試行してください。",
+  },
+  lastSuccessfulCheckAt: {
+    ko: "마지막 정상 확인: {{time}}",
+    en: "Last successful check: {{time}}",
+    ja: "最後に正常確認した時刻: {{time}}",
   },
   failedToLoadWarriorPreset: {
     ko: "전사 프리셋 불러오기에 실패했습니다.",
@@ -1073,6 +1103,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "메뉴 열기",
     en: "Open menu",
     ja: "メニューを開く",
+  },
+  quickActions: {
+    ko: "빠른 작업",
+    en: "Quick actions",
+    ja: "クイックアクション",
   },
   openRealTimeTranscriptionSettings: {
     ko: "실시간 전사 설정 열기",
@@ -1964,6 +1999,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Unable to request storage permission. Please check your browser settings.",
     ja: "ストレージ許可を要求できません。ブラウザの設定を確認してください。",
   },
+  openBrowserSiteSettingsAndAllowPermissionThenRetry: {
+    ko: "브라우저 주소창의 자물쇠 아이콘 > 사이트 설정에서 {{permission}} 권한을 허용한 뒤 다시 시도해 주세요.",
+    en: "In your browser, open the lock icon in the address bar > Site settings, allow {{permission}}, then retry.",
+    ja: "ブラウザのアドレスバーの鍵アイコン > サイト設定で {{permission}} を許可してから、もう一度お試しください。",
+  },
   useClientCredentials: {
     ko: "클라이언트 자격증명 사용",
     en: "Use client credentials",
@@ -1988,6 +2028,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "상단 필터로 제목·모델·날짜·내용을 조합하여 원하는 기록만 조회합니다.",
     en: "Use the top filter to combine title, model, date, and content to view only the records you want.",
     ja: "上部のフィルターを使用してタイトル、モデル、日付、コンテンツを組み合わせて、必要なレコードのみを表示します。",
+  },
+  advancedFiltersApplied: {
+    ko: "고급 필터 적용됨",
+    en: "Advanced filters applied",
+    ja: "詳細フィルター適用中",
   },
   viewAdvancedSettings: {
     ko: "고급 설정 보기",

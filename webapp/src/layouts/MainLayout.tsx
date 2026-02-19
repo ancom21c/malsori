@@ -10,10 +10,15 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon,
   Toolbar,
   Tooltip,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../store/settingsStore";
 import { useTranscriptionSync } from "../hooks/useTranscriptionSync";
@@ -42,13 +47,18 @@ type MainLayoutProps = {
 };
 
 export default function MainLayout({ children }: MainLayoutProps) {
+  const theme = useTheme();
+  const compactActions = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
   const hydrateSettings = useSettingsStore((state) => state.hydrate);
   const hydrated = useSettingsStore((state) => state.hydrated);
   const floatingActionsVisible = useUiStore((state) => state.floatingActionsVisible);
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const uploadDialogOpen = useUiStore((state) => state.uploadDialogOpen);
+  const openUploadDialog = useUiStore((state) => state.openUploadDialog);
+  const closeUploadDialog = useUiStore((state) => state.closeUploadDialog);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
+  const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const uploadFabRef = useRef<HTMLButtonElement | null>(null);
   const prevUploadDialogOpenRef = useRef(false);
   const navigate = useNavigate();
@@ -68,7 +78,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         key: "upload",
         label: t("fileUpload"),
         icon: <CloudUploadIcon fontSize="small" />,
-        action: () => setUploadDialogOpen(true),
+        action: () => openUploadDialog(),
       },
       {
         key: "realtime",
@@ -101,7 +111,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         icon: <HelpOutlineIcon fontSize="small" />,
       },
     ],
-    [setUploadDialogOpen, t]
+    [openUploadDialog, t]
   );
 
   const activePath = useMemo(() => {
@@ -154,7 +164,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   const handleUploadFabClick = () => {
     uploadFabRef.current?.blur();
-    setUploadDialogOpen(true);
+    openUploadDialog();
   };
 
   const handleInstallClick = async () => {
@@ -283,6 +293,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 backgroundColor: brandColors.soft,
                 color: brandColors.dark,
                 minWidth: 180,
+                border: "1px solid rgba(21,74,67,0.12)",
               },
             }}
           >
@@ -301,13 +312,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 sx={{
                   fontWeight: 600,
                   "&.Mui-selected": {
-                    backgroundColor: "rgba(231,89,89,0.2)",
+                    backgroundColor: "rgba(31,111,100,0.18)",
                   },
                   "&.Mui-selected:hover": {
-                    backgroundColor: "rgba(231,89,89,0.3)",
+                    backgroundColor: "rgba(31,111,100,0.24)",
                   },
                   "&:hover": {
-                    backgroundColor: "rgba(231,89,89,0.15)",
+                    backgroundColor: "rgba(31,111,100,0.12)",
                   },
                 }}
               >
@@ -365,22 +376,71 @@ export default function MainLayout({ children }: MainLayoutProps) {
         maxWidth="lg"
         sx={{
           flex: 1,
-          py: 4,
+          pt: 4,
+          pb: {
+            xs: "calc(120px + env(safe-area-inset-bottom))",
+            sm: 4,
+          },
           display: "flex",
           flexDirection: "column",
         }}
       >
-        {children}
+        <Box
+          key={location.pathname}
+          className="malsori-page"
+          sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+        >
+          {children}
+        </Box>
       </Container>
-      {floatingActionsVisible && (
-        <UploadFab onClick={handleUploadFabClick} ref={uploadFabRef} />
-      )}
-      {floatingActionsVisible && !isRealtimeRoute && (
-        <MicFab onClick={() => navigate("/realtime")} />
-      )}
+      {floatingActionsVisible ? (
+        compactActions ? (
+          <SpeedDial
+            ariaLabel={t("quickActions")}
+            open={speedDialOpen}
+            onOpen={() => setSpeedDialOpen(true)}
+            onClose={() => setSpeedDialOpen(false)}
+            icon={<SpeedDialIcon />}
+            sx={{
+              position: "fixed",
+              right: 16,
+              bottom: "calc(16px + env(safe-area-inset-bottom))",
+              "& .MuiFab-primary": {
+                bgcolor: brandColors.base,
+                color: "common.white",
+                "&:hover": { bgcolor: brandColors.dark },
+              },
+            }}
+          >
+            <SpeedDialAction
+              icon={<CloudUploadIcon />}
+              tooltipTitle={t("fileTranscriptionRequest")}
+              onClick={() => {
+                setSpeedDialOpen(false);
+                openUploadDialog();
+              }}
+            />
+            {!isRealtimeRoute ? (
+              <SpeedDialAction
+                icon={<GraphicEqIcon />}
+                tooltipTitle={t("startRealTimeTranscription")}
+                onClick={() => {
+                  setSpeedDialOpen(false);
+                  navigate("/realtime");
+                }}
+              />
+            ) : null}
+          </SpeedDial>
+        ) : (
+          <>
+            <UploadFab onClick={handleUploadFabClick} ref={uploadFabRef} />
+            {!isRealtimeRoute ? <MicFab onClick={() => navigate("/realtime")} /> : null}
+          </>
+        )
+      ) : null}
       <UploadDialog
         open={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
+        onClose={closeUploadDialog}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useId } from "react";
+import { useCallback, useEffect, useMemo, useState, useId } from "react";
 import dayjs from "dayjs";
 import {
   Avatar,
@@ -10,6 +10,7 @@ import {
   Chip,
   Checkbox,
   CircularProgress,
+  Collapse,
   Divider,
   FormControl,
   FormControlLabel,
@@ -25,6 +26,7 @@ import {
   Select,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -37,6 +39,9 @@ import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { Link as RouterLink } from "react-router-dom";
 import { useSnackbar } from "notistack";
 import { useTranscriptions } from "../hooks/useTranscriptions";
@@ -48,6 +53,9 @@ import { matchesSearchQueryWithIndex, parseSearchQuery } from "../utils/textSear
 import { useI18n, type TranslateOptions } from "../i18n";
 import { useSync } from "../services/cloud/SyncProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useUiStore } from "../store/uiStore";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -161,11 +169,14 @@ function getDownloadStatusLabel(
 }
 
 export default function TranscriptionListPage() {
+  const theme = useTheme();
+  const showTopActions = useMediaQuery(theme.breakpoints.up("sm"));
   const transcriptions = useTranscriptions();
   const searchIndexMap = useTranscriptionSearchIndexes();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useI18n();
   const { syncManager } = useSync();
+  const openUploadDialog = useUiStore((state) => state.openUploadDialog);
 
   const isLoadingTranscriptions = transcriptions === undefined;
 
@@ -182,6 +193,7 @@ export default function TranscriptionListPage() {
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedEndpoints, setSelectedEndpoints] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<LocalTranscription | null>(null);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const modelSelectId = useId();
   const endpointSelectId = useId();
 
@@ -272,6 +284,20 @@ export default function TranscriptionListPage() {
     selectedEndpoints.length > 0 ||
     selectedKinds.length !== ALL_KINDS.length;
 
+  const advancedFiltersActive =
+    Boolean(startDate) ||
+    Boolean(endDate) ||
+    selectedModels.length > 0 ||
+    selectedEndpoints.length > 0;
+
+  useEffect(() => {
+    if (advancedFiltersActive && !advancedFiltersOpen) {
+      setAdvancedFiltersOpen(true);
+    }
+  }, [advancedFiltersActive, advancedFiltersOpen]);
+
+  const advancedFiltersVisible = advancedFiltersOpen;
+
   const handleResetFilters = useCallback(() => {
     setTitleQuery("");
     setContentQuery("");
@@ -280,6 +306,7 @@ export default function TranscriptionListPage() {
     setSelectedKinds([...ALL_KINDS]);
     setSelectedModels([]);
     setSelectedEndpoints([]);
+    setAdvancedFiltersOpen(false);
   }, []);
 
   const handleToggleSync = async (transcription: LocalTranscription) => {
@@ -361,6 +388,41 @@ export default function TranscriptionListPage() {
         <CardHeader
           title={t("transcriptionList")}
           subheader={t("checkFileTranscriptionAndRealTimeTranscriptionResultsInChronologicalOrder")}
+          action={
+            showTopActions ? (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Tooltip title={t("fileTranscriptionRequest")}>
+                  <IconButton
+                    onClick={openUploadDialog}
+                    color="primary"
+                    size="small"
+                    aria-label={t("fileTranscriptionRequest")}
+                    sx={{
+                      bgcolor: "action.hover",
+                      "&:hover": { bgcolor: "action.selected" },
+                    }}
+                  >
+                    <CloudUploadIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t("startRealTimeTranscription")}>
+                  <IconButton
+                    component={RouterLink}
+                    to="/realtime"
+                    color="secondary"
+                    size="small"
+                    aria-label={t("startRealTimeTranscription")}
+                    sx={{
+                      bgcolor: "action.hover",
+                      "&:hover": { bgcolor: "action.selected" },
+                    }}
+                  >
+                    <GraphicEqIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            ) : undefined
+          }
         />
         <CardContent sx={{ px: 0 }}>
           <Box sx={{ px: 3, pb: 3 }}>
@@ -382,115 +444,160 @@ export default function TranscriptionListPage() {
                   helperText={t('youCanUseQuotationMarksExcludeOrOperator')}
                 />
               </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label={t("startDate")}
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
-                <TextField
-                  label={t("endDate")}
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
-              </Stack>
-              <FormGroup row>
-                {ALL_KINDS.map((kind) => (
-                  <FormControlLabel
-                    key={kind}
-                    control={
-                      <Checkbox
-                        checked={selectedKinds.includes(kind)}
-                        onChange={() => handleKindToggle(kind)}
-                      />
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                alignItems={{ xs: "stretch", sm: "center" }}
+                justifyContent="space-between"
+              >
+                <FormGroup
+                  row
+                  sx={{
+                    flexWrap: "wrap",
+                    gap: 0.5,
+                    "& .MuiFormControlLabel-root": { mr: 1.5, my: 0.5 },
+                  }}
+                >
+                  {ALL_KINDS.map((kind) => (
+                    <FormControlLabel
+                      key={kind}
+                      control={
+                        <Checkbox
+                          checked={selectedKinds.includes(kind)}
+                          onChange={() => handleKindToggle(kind)}
+                        />
+                      }
+                      label={t(KIND_LABEL[kind])}
+                    />
+                  ))}
+                </FormGroup>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  justifyContent={{ xs: "space-between", sm: "flex-end" }}
+                >
+                  {advancedFiltersActive && !advancedFiltersVisible ? (
+                    <Chip size="small" label={t("advancedFiltersApplied")} variant="outlined" />
+                  ) : null}
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => setAdvancedFiltersOpen((prev) => !prev)}
+                    startIcon={<TuneRoundedIcon fontSize="small" />}
+                    endIcon={
+                      advancedFiltersVisible ? (
+                        <ExpandLessRoundedIcon fontSize="small" />
+                      ) : (
+                        <ExpandMoreRoundedIcon fontSize="small" />
+                      )
                     }
-                    label={t(KIND_LABEL[kind])}
-                  />
-                ))}
-              </FormGroup>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id={`${modelSelectId}-label`}>{t("model")}</InputLabel>
-                  <Select
-                    labelId={`${modelSelectId}-label`}
-                    multiple
-                    value={selectedModels}
-                    label={t("model")}
-                    onChange={handleModelFilterChange}
-                    renderValue={(selected) =>
-                      Array.isArray(selected) && selected.length > 0
-                        ? selected
-                          .map(
-                            (value) =>
-                              modelOptions.find((option) => option.value === value)?.label ?? value
-                          )
-                          .join(", ")
-                        : t("entire")
-                    }
-                    disabled={modelOptions.length === 0}
                   >
-                    {modelOptions.length === 0 ? (
-                      <MenuItem value="" disabled>
-                        {t("noModelInformationRecorded")}
-                      </MenuItem>
-                    ) : (
-                      modelOptions.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          <Checkbox checked={selectedModels.includes(option.value)} />
-                          <ListItemText primary={option.label} />
-                        </MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth size="small">
-                  <InputLabel id={`${endpointSelectId}-label`}>
-                    {t("endpoint")}
-                  </InputLabel>
-                  <Select
-                    labelId={`${endpointSelectId}-label`}
-                    multiple
-                    value={selectedEndpoints}
-                    label={t("endpoint")}
-                    onChange={handleEndpointFilterChange}
-                    renderValue={(selected) =>
-                      Array.isArray(selected) && selected.length > 0
-                        ? selected
-                          .map(
-                            (value) =>
-                              endpointOptions.find((option) => option.value === value)?.label ?? value
-                          )
-                          .join(", ")
-                        : t("entire")
-                    }
-                    disabled={endpointOptions.length === 0}
+                    {advancedFiltersVisible ? t("hideAdvancedSettings") : t("viewAdvancedSettings")}
+                  </Button>
+                  <Button
+                    onClick={handleResetFilters}
+                    disabled={!anyFilterActive}
+                    size="small"
                   >
-                    {endpointOptions.length === 0 ? (
-                      <MenuItem value="" disabled>
-                        {t("noEndpointInformationRecorded")}
-                      </MenuItem>
-                    ) : (
-                      endpointOptions.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          <Checkbox checked={selectedEndpoints.includes(option.value)} />
-                          <ListItemText primary={option.label} />
-                        </MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
+                    {t("filterReset")}
+                  </Button>
+                </Stack>
               </Stack>
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <Button onClick={handleResetFilters} disabled={!anyFilterActive} size="small">
-                  {t("filterReset")}
-                </Button>
-              </Box>
+              <Collapse in={advancedFiltersVisible} timeout="auto" unmountOnExit>
+                <Stack spacing={2} sx={{ pt: 0.5 }}>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <TextField
+                      label={t("startDate")}
+                      type="date"
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                    <TextField
+                      label={t("endDate")}
+                      type="date"
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`${modelSelectId}-label`}>{t("model")}</InputLabel>
+                      <Select
+                        labelId={`${modelSelectId}-label`}
+                        multiple
+                        value={selectedModels}
+                        label={t("model")}
+                        onChange={handleModelFilterChange}
+                        renderValue={(selected) =>
+                          Array.isArray(selected) && selected.length > 0
+                            ? selected
+                              .map(
+                                (value) =>
+                                  modelOptions.find((option) => option.value === value)?.label ?? value
+                              )
+                              .join(", ")
+                            : t("entire")
+                        }
+                        disabled={modelOptions.length === 0}
+                      >
+                        {modelOptions.length === 0 ? (
+                          <MenuItem value="" disabled>
+                            {t("noModelInformationRecorded")}
+                          </MenuItem>
+                        ) : (
+                          modelOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              <Checkbox checked={selectedModels.includes(option.value)} />
+                              <ListItemText primary={option.label} />
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`${endpointSelectId}-label`}>
+                        {t("endpoint")}
+                      </InputLabel>
+                      <Select
+                        labelId={`${endpointSelectId}-label`}
+                        multiple
+                        value={selectedEndpoints}
+                        label={t("endpoint")}
+                        onChange={handleEndpointFilterChange}
+                        renderValue={(selected) =>
+                          Array.isArray(selected) && selected.length > 0
+                            ? selected
+                              .map(
+                                (value) =>
+                                  endpointOptions.find((option) => option.value === value)?.label ?? value
+                              )
+                              .join(", ")
+                            : t("entire")
+                        }
+                        disabled={endpointOptions.length === 0}
+                      >
+                        {endpointOptions.length === 0 ? (
+                          <MenuItem value="" disabled>
+                            {t("noEndpointInformationRecorded")}
+                          </MenuItem>
+                        ) : (
+                          endpointOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              <Checkbox checked={selectedEndpoints.includes(option.value)} />
+                              <ListItemText primary={option.label} />
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                </Stack>
+              </Collapse>
             </Stack>
           </Box>
           <Divider />
@@ -516,12 +623,53 @@ export default function TranscriptionListPage() {
                 color: "text.secondary",
               }}
             >
-              <Typography variant="body1" gutterBottom>
-                {t("thereAreNoTranscriptionRecordsYet")}
-              </Typography>
-              <Typography variant="body2">
-                {t("clickTheButtonInTheBottomRightToRequestFileTranscriptionOrStartRealTimeTranscription")}
-              </Typography>
+              <Stack spacing={2} alignItems="center">
+                <Box>
+                  <Typography variant="body1" gutterBottom>
+                    {t("thereAreNoTranscriptionRecordsYet")}
+                  </Typography>
+                  <Typography variant="body2">
+                    {t(
+                      "clickTheButtonInTheBottomRightToRequestFileTranscriptionOrStartRealTimeTranscription"
+                    )}
+                  </Typography>
+                </Box>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1.5}
+                  sx={{
+                    width: "100%",
+                    maxWidth: 560,
+                    justifyContent: "center",
+                    pt: 0.5,
+                  }}
+                >
+                  <Button
+                    variant="contained"
+                    startIcon={<CloudUploadIcon />}
+                    onClick={openUploadDialog}
+                    sx={{
+                      minWidth: { sm: 240 },
+                      width: { xs: "100%", sm: "auto" },
+                    }}
+                  >
+                    {t("fileTranscriptionRequest")}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    startIcon={<GraphicEqIcon />}
+                    component={RouterLink}
+                    to="/realtime"
+                    sx={{
+                      minWidth: { sm: 240 },
+                      width: { xs: "100%", sm: "auto" },
+                    }}
+                  >
+                    {t("startRealTimeTranscription")}
+                  </Button>
+                </Stack>
+              </Stack>
             </Box>
           ) : showNoMatches ? (
             <Box
@@ -544,7 +692,16 @@ export default function TranscriptionListPage() {
               {filteredTranscriptions.map((item, index) => {
                 const endpointLabel = getEndpointLabel(item, t);
                 return (
-                  <Box key={item.id}>
+                  <Box
+                    key={item.id}
+                    sx={{
+                      "@media (prefers-reduced-motion: no-preference)": {
+                        animation: "malsori-fade-up 280ms ease-out both",
+                        animationDelay: `${Math.min(index, 12) * 25}ms`,
+                        willChange: "transform, opacity",
+                      },
+                    }}
+                  >
                     <ListItem
                       secondaryAction={
                         <Stack direction="row" spacing={1}>

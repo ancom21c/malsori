@@ -26,6 +26,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, SyntheticEvent } from "react";
 import type { ChipProps } from "@mui/material/Chip";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
+import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import TranscriptionConfigQuickOptions from "../components/TranscriptionConfigQuickOptions";
 import { useSettingsStore } from "../store/settingsStore";
 import { useSnackbar } from "notistack";
@@ -222,6 +224,7 @@ export default function SettingsPage() {
   const [backendState, setBackendState] = useState<BackendEndpointState | null>(null);
   const [backendStateLoading, setBackendStateLoading] = useState(false);
   const [backendStateError, setBackendStateError] = useState<string | null>(null);
+  const [backendStateLastSuccessAt, setBackendStateLastSuccessAt] = useState<string | null>(null);
   const backendImportInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptionImportInputRef = useRef<HTMLInputElement | null>(null);
   const sectionRefs = {
@@ -290,6 +293,7 @@ export default function SettingsPage() {
     if (!apiBaseUrl.trim()) {
       setBackendState(null);
       setBackendStateError(null);
+      setBackendStateLastSuccessAt(null);
       return;
     }
     setBackendStateLoading(true);
@@ -297,6 +301,7 @@ export default function SettingsPage() {
     try {
       const state = await apiClient.getBackendEndpointState();
       setBackendState(state);
+      setBackendStateLastSuccessAt(new Date().toISOString());
     } catch (error) {
       setBackendStateError(
         error instanceof Error ? error.message : t("failedToLoadBackendState")
@@ -349,6 +354,7 @@ export default function SettingsPage() {
       : DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}";
   }, [presetType]);
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
+  const backendStatusUnavailable = Boolean(backendStateError) && !backendState;
 
   useEffect(() => {
     setSelectedPresetId(null);
@@ -426,6 +432,62 @@ export default function SettingsPage() {
       ...prev,
       isDefault: checked,
     }));
+  };
+
+  const presetJsonInvalid = useMemo(() => {
+    const trimmed = presetForm.configJson.trim();
+    if (!trimmed) {
+      return true;
+    }
+    try {
+      JSON.parse(trimmed);
+      return false;
+    } catch {
+      return true;
+    }
+  }, [presetForm.configJson]);
+
+  const handleFormatPresetJson = () => {
+    const trimmed = presetForm.configJson.trim();
+    if (!trimmed) {
+      handlePresetFieldChange("configJson", "{}");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      handlePresetFieldChange("configJson", JSON.stringify(parsed, null, 2));
+    } catch {
+      enqueueSnackbar(t("pleaseCheckTheSettingsJson"), { variant: "warning" });
+    }
+  };
+
+  const handleCopyPresetJson = async () => {
+    const text = presetForm.configJson;
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        enqueueSnackbar(t("copiedToClipboard"), { variant: "success" });
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+      enqueueSnackbar(t("copiedToClipboard"), { variant: "success" });
+    } catch {
+      enqueueSnackbar(t("automaticCopyFailedPleaseCopyManually"), { variant: "error" });
+    }
   };
 
   const handleNewBackendPreset = () => {
@@ -657,11 +719,16 @@ export default function SettingsPage() {
         verifySsl: selectedBackendPreset.verifySsl ?? true,
       });
       setBackendState(state);
+      setBackendStateLastSuccessAt(new Date().toISOString());
+      setBackendStateError(null);
       await updateSetting("activeBackendPresetId", selectedBackendPreset.id);
       enqueueSnackbar(t("backendEndpointApplied"), { variant: "success" });
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t("applyingBackendEndpointFailed");
+      setBackendStateError(message);
       enqueueSnackbar(
-        error instanceof Error ? error.message : t("applyingBackendEndpointFailed"),
+        message,
         { variant: "error" }
       );
     } finally {
@@ -679,11 +746,16 @@ export default function SettingsPage() {
     try {
       const state = await apiClient.resetBackendEndpoint();
       setBackendState(state);
+      setBackendStateLastSuccessAt(new Date().toISOString());
+      setBackendStateError(null);
       await updateSetting("activeBackendPresetId", null);
       enqueueSnackbar(t("revertedToServerDefaults"), { variant: "info" });
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t("restoringServerDefaultsFailed");
+      setBackendStateError(message);
       enqueueSnackbar(
-        error instanceof Error ? error.message : t("restoringServerDefaultsFailed"),
+        message,
         { variant: "error" }
       );
     } finally {
@@ -1122,9 +1194,33 @@ export default function SettingsPage() {
                   width: "100%",
                 }}
               >
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  {t("sourceSettingsJson")}
-                </Typography>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ xs: "flex-start", sm: "center" }}
+                  justifyContent="space-between"
+                  sx={{ mb: 1 }}
+                >
+                  <Typography variant="subtitle2">{t("sourceSettingsJson")}</Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AutoFixHighIcon fontSize="small" />}
+                      onClick={handleFormatPresetJson}
+                    >
+                      {t("formatJson")}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={<ContentCopyOutlinedIcon fontSize="small" />}
+                      onClick={() => void handleCopyPresetJson()}
+                    >
+                      {t("copyJson")}
+                    </Button>
+                  </Stack>
+                </Stack>
                 <TextField
                   label={t("settingsJson")}
                   fullWidth
@@ -1132,6 +1228,16 @@ export default function SettingsPage() {
                   minRows={16}
                   value={presetForm.configJson}
                   onChange={(event) => handlePresetFieldChange("configJson", event.target.value)}
+                  error={presetJsonInvalid}
+                  helperText={presetJsonInvalid ? t("pleaseCheckTheSettingsJson") : undefined}
+                  sx={{
+                    "& textarea": {
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                    },
+                  }}
                 />
               </Box>
             </Stack>
@@ -1248,12 +1354,47 @@ export default function SettingsPage() {
                     variant="text"
                     color="secondary"
                     onClick={() => void handleResetBackendEndpoint()}
-                    disabled={backendStateLoading || !apiBaseUrl.trim()}
+                    disabled={backendStateLoading || !apiBaseUrl.trim() || backendStatusUnavailable}
                   >
                     {t("returnToServerDefault")}
                   </Button>
                 </Stack>
-                {backendStateError && <Alert severity="error">{backendStateError}</Alert>}
+                {backendStateError && (
+                  <Alert
+                    severity="error"
+                    action={(
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => void handleRefreshBackendState()}
+                        disabled={backendStateLoading || !apiBaseUrl.trim()}
+                      >
+                        {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                      </Button>
+                    )}
+                  >
+                    <Stack spacing={0.5}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {t("failedToLoadBackendState")}
+                      </Typography>
+                      <Typography variant="body2">{backendStateError}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {backendState
+                          ? t("showingLastKnownServerSettings")
+                          : t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")}
+                      </Typography>
+                      {backendStateLastSuccessAt ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {t("lastSuccessfulCheckAt", {
+                            values: {
+                              time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                            },
+                          })}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </Alert>
+                )}
                 {backendState && (
                   <Alert severity="info" variant="outlined">
                     <Stack spacing={1}>
@@ -1290,6 +1431,15 @@ export default function SettingsPage() {
                       <Typography variant="body2">
                         {t("apiBaseUrl")}: {backendState.apiBaseUrl}
                       </Typography>
+                      {backendStateLastSuccessAt ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {t("lastSuccessfulCheckAt", {
+                            values: {
+                              time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                            },
+                          })}
+                        </Typography>
+                      ) : null}
                     </Stack>
                   </Alert>
                 )}
@@ -1376,6 +1526,7 @@ export default function SettingsPage() {
                                   )}
                                 </Stack>
                               }
+                              secondaryTypographyProps={{ component: "div" }}
                             />
                           </ListItemButton>
                         ))
@@ -1408,7 +1559,7 @@ export default function SettingsPage() {
                           color="success"
                           onClick={() => void handleApplyBackendPreset()}
                           fullWidth
-                          disabled={!selectedBackendPreset || backendStateLoading}
+                          disabled={!selectedBackendPreset || backendStateLoading || backendStatusUnavailable}
                         >
                           {t("applyToServer")}
                         </Button>

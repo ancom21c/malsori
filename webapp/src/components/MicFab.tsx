@@ -21,7 +21,7 @@ export function MicFab({ onClick }: MicFabProps) {
         color="secondary"
         onClick={handleClick}
         sx={{ position: "fixed", right: 32, bottom: 96 }}
-        aria-label={t("realTimeTranscription")}
+        aria-label={t("startRealTimeTranscription")}
       >
         <MicIcon />
       </Fab>

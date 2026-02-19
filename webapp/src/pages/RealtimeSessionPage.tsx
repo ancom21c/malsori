@@ -70,6 +70,7 @@ import {
   checkPersistentStoragePermission,
   requestMicrophonePermission,
   requestPersistentStoragePermission,
+  type BrowserPermissionState,
 } from "../services/permissions";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
@@ -414,6 +415,15 @@ export default function RealtimeSessionPage() {
   const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const setFloatingActionsVisible = useUiStore((state) => state.setFloatingActionsVisible);
   const streamingPresets = usePresets("streaming");
+  const storagePermissionSupported =
+    typeof navigator !== "undefined" && Boolean(navigator.storage?.persist);
+  const [microphonePermissionState, setMicrophonePermissionState] =
+    useState<BrowserPermissionState>("unknown");
+  const [storagePermissionState, setStoragePermissionState] = useState<BrowserPermissionState>(
+    storagePermissionSupported ? "unknown" : "granted"
+  );
+  const [requestingMicrophonePermission, setRequestingMicrophonePermission] = useState(false);
+  const [requestingStoragePermission, setRequestingStoragePermission] = useState(false);
   const defaultStreamingPreset = useMemo<PresetConfig | undefined>(
     () => {
       const presets = streamingPresets ?? [];
@@ -434,10 +444,13 @@ export default function RealtimeSessionPage() {
 
     const requestPermission = async () => {
       const state = await checkMicrophonePermission();
+      setMicrophonePermissionState(state);
       if (state === "granted") {
         return;
       }
       const granted = await requestMicrophonePermission();
+      const nextState = granted ? "granted" : await checkMicrophonePermission();
+      setMicrophonePermissionState(nextState);
       if (!granted) {
         enqueueSnackbar(
           t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
@@ -455,16 +468,20 @@ export default function RealtimeSessionPage() {
     }
     storagePromptedRef.current = true;
 
-    if (typeof navigator === "undefined" || !navigator.storage?.persist) {
+    if (!storagePermissionSupported) {
+      setStoragePermissionState("granted");
       return;
     }
 
     const requestPermission = async () => {
       const state = await checkPersistentStoragePermission();
+      setStoragePermissionState(state);
       if (state === "granted") {
         return;
       }
       const granted = await requestPersistentStoragePermission();
+      const nextState = granted ? "granted" : await checkPersistentStoragePermission();
+      setStoragePermissionState(nextState);
       if (!granted) {
         enqueueSnackbar(
           t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
@@ -474,7 +491,44 @@ export default function RealtimeSessionPage() {
     };
 
     void requestPermission();
+  }, [enqueueSnackbar, storagePermissionSupported, t]);
+
+  const handleRetryMicrophonePermission = useCallback(async () => {
+    setRequestingMicrophonePermission(true);
+    try {
+      const granted = await requestMicrophonePermission();
+      const nextState = granted ? "granted" : await checkMicrophonePermission();
+      setMicrophonePermissionState(nextState);
+      enqueueSnackbar(
+        granted
+          ? t("microphonePermissionHasBeenGranted")
+          : t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
+        { variant: granted ? "success" : "warning" }
+      );
+    } finally {
+      setRequestingMicrophonePermission(false);
+    }
   }, [enqueueSnackbar, t]);
+
+  const handleRetryStoragePermission = useCallback(async () => {
+    if (!storagePermissionSupported) {
+      return;
+    }
+    setRequestingStoragePermission(true);
+    try {
+      const granted = await requestPersistentStoragePermission();
+      const nextState = granted ? "granted" : await checkPersistentStoragePermission();
+      setStoragePermissionState(nextState);
+      enqueueSnackbar(
+        granted
+          ? t("storagePermissionsGranted")
+          : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
+        { variant: granted ? "success" : "warning" }
+      );
+    } finally {
+      setRequestingStoragePermission(false);
+    }
+  }, [enqueueSnackbar, storagePermissionSupported, t]);
 
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const sessionStateRef = useRef<SessionState>("idle");
@@ -1606,6 +1660,15 @@ export default function RealtimeSessionPage() {
   };
 
   const showVideoSection = cameraEnabled || cameraLoading;
+  const showMicrophonePermissionRecovery = !sessionActive && microphonePermissionState !== "granted";
+  const showStoragePermissionRecovery =
+    !sessionActive &&
+    storagePermissionSupported &&
+    storagePermissionState !== "granted";
+  const microphonePermissionSeverity =
+    microphonePermissionState === "denied" ? "error" : "warning";
+  const storagePermissionSeverity =
+    storagePermissionState === "denied" ? "error" : "warning";
 
   return (
     <>
@@ -1630,7 +1693,17 @@ export default function RealtimeSessionPage() {
             gap: 1,
           }}
         >
-          <Chip label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`} color="primary" />
+          <Chip
+            label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`}
+            color="primary"
+            variant="outlined"
+            sx={{
+              borderColor: "rgba(255,255,255,0.65)",
+              bgcolor: "rgba(255,255,255,0.55)",
+              backdropFilter: "blur(10px)",
+              "& .MuiChip-label": { fontWeight: 800 },
+            }}
+          />
           {sessionState === "countdown" && (
             <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
               {countdown}
@@ -1823,6 +1896,82 @@ export default function RealtimeSessionPage() {
                       {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
                     </Alert>
                   )}
+                  {showMicrophonePermissionRecovery ? (
+                    <Alert
+                      severity={microphonePermissionSeverity}
+                      action={(
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => void handleRetryMicrophonePermission()}
+                            disabled={requestingMicrophonePermission}
+                          >
+                            {requestingMicrophonePermission ? t("requesting") : t("reRequestPermission")}
+                          </Button>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => navigate("/settings")}
+                          >
+                            {t("browserPermissions")}
+                          </Button>
+                        </Stack>
+                      )}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {t("microphonePermission")}
+                        </Typography>
+                        <Typography variant="body2">
+                          {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {t("openBrowserSiteSettingsAndAllowPermissionThenRetry", {
+                            values: { permission: t("microphonePermission") },
+                          })}
+                        </Typography>
+                      </Stack>
+                    </Alert>
+                  ) : null}
+                  {showStoragePermissionRecovery ? (
+                    <Alert
+                      severity={storagePermissionSeverity}
+                      action={(
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => void handleRetryStoragePermission()}
+                            disabled={requestingStoragePermission}
+                          >
+                            {requestingStoragePermission ? t("requesting") : t("reRequestPermission")}
+                          </Button>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => navigate("/settings")}
+                          >
+                            {t("browserPermissions")}
+                          </Button>
+                        </Stack>
+                      )}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {t("storagePermissions")}
+                        </Typography>
+                        <Typography variant="body2">
+                          {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {t("openBrowserSiteSettingsAndAllowPermissionThenRetry", {
+                            values: { permission: t("storagePermissions") },
+                          })}
+                        </Typography>
+                      </Stack>
+                    </Alert>
+                  ) : null}
                   {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
                   <Divider />
                   <Stack spacing={0.5}>

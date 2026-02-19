@@ -20,6 +20,10 @@ const RealtimeSessionPage = lazy(
 );
 const HelpPage = lazy(() => import("../pages/HelpPage"));
 const LabPage = lazy(() => import("../pages/LabPage"));
+const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
+const UiConceptsPage = devOnlyUiConceptsEnabled
+  ? lazy(() => import("../pages/UiConceptsPage"))
+  : null;
 
 function Loader() {
   return (
@@ -51,6 +55,9 @@ export default function AppRouter() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/realtime" element={<RealtimeSessionPage />} />
             <Route path="/lab" element={<LabPage />} />
+            {devOnlyUiConceptsEnabled && UiConceptsPage ? (
+              <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />
+            ) : null}
             <Route path="/help" element={<HelpPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

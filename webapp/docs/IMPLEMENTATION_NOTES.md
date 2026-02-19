@@ -16,9 +16,11 @@
 - QA & Tooling: Vitest coverage for repositories & hooks, jsdom + `fake-indexeddb` test harness, ESLint flat config, and CI workflow running lint/build/tests on push/PR.
 
 ## Next Steps
+- UI design refresh plan: see `docs/plan-p1-ui-refresh.md` (repo root).
+- Bundle split review: see `docs/perf-webapp-bundle-2026-02-19.md` (repo root).
 - Waveform visualisation and timeline scrubbing (e.g., @ffmpeg/wasm or Wavesurfer integration) with loop markers per transcript segment.
 - Advanced realtime UX: live latency indicators, reconnect toast with retry/abort affordances, and surfaced server error metadata.
 - Offline-first enhancements: chunk compaction, storage quota monitoring, and ability to resume partially uploaded realtime sessions.
 - Preset management polish: import/export presets as JSON, multi-default guardrails across file/streaming types, and validation helpers.
 - Secure credential storage guidance (e.g., optional Web Crypto wrapping) and environment sanity checks before starting sessions.
-- Broader automation: add mutation tests around recorder utilities, smoke tests for AppRouter, and visual regression hooks once UI stabilises.
+- Broader automation: add mutation tests around recorder utilities and visual regression hooks once UI stabilises.
