@@ -72,6 +72,12 @@ import {
   requestPersistentStoragePermission,
   type BrowserPermissionState,
 } from "../services/permissions";
+import {
+  DEFAULT_REALTIME_CONNECTION_UX_STATE,
+  classifyRealtimeLatencyLevel,
+  reduceRealtimeConnectionUxState,
+  type RealtimeLatencyLevel,
+} from "./realtimeConnectionUx";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -96,6 +102,13 @@ const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
   paused: "pause",
   stopping: "stopping",
   saving: "saving",
+};
+
+const LATENCY_LEVEL_LABEL_KEY: Record<RealtimeLatencyLevel, string> = {
+  unknown: "latencyUnknown",
+  stable: "latencyStable",
+  delayed: "latencyDelayed",
+  critical: "latencyCritical",
 };
 
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
@@ -532,11 +545,18 @@ export default function RealtimeSessionPage() {
 
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const sessionStateRef = useRef<SessionState>("idle");
+  const [connectionUxState, setConnectionUxState] = useState(
+    DEFAULT_REALTIME_CONNECTION_UX_STATE
+  );
+  const [connectionEventMessage, setConnectionEventMessage] = useState<string | null>(null);
+  const [retryingConnection, setRetryingConnection] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [segments, setSegments] = useState<RealtimeSegment[]>([]);
   const [partialText, setPartialText] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
+  const [latencyStaleMs, setLatencyStaleMs] = useState<number | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
   const [streamingJsonEditorOpen, setStreamingJsonEditorOpen] = useState(false);
   const [runtimeStreamConfigOpen, setRuntimeStreamConfigOpen] = useState(false);
@@ -604,8 +624,13 @@ export default function RealtimeSessionPage() {
   const videoRecorderStopPromiseRef = useRef<Promise<void> | null>(null);
   const stopSafetyTimerRef = useRef<number | null>(null);
   const waitingForFinalRef = useRef(false);
+  const lastAudioSentAtRef = useRef<number | null>(null);
+  const lastResultAtRef = useRef<number | null>(null);
+  const connectionUxStateRef = useRef(connectionUxState);
+  const suppressRecorderOnStopRef = useRef(false);
 
   sessionStateRef.current = sessionState;
+  connectionUxStateRef.current = connectionUxState;
 
   const sessionActive =
     sessionState === "recording" ||
@@ -615,12 +640,48 @@ export default function RealtimeSessionPage() {
     sessionState === "stopping" ||
     sessionState === "saving";
 
+  const latencyLevel = classifyRealtimeLatencyLevel(lastLatencyMs, latencyStaleMs);
+  const latencyChipColor: "default" | "success" | "warning" | "error" =
+    latencyLevel === "stable"
+      ? "success"
+      : latencyLevel === "delayed"
+        ? "warning"
+        : latencyLevel === "critical"
+          ? "error"
+          : "default";
+  const latencyValueLabel =
+    lastLatencyMs !== null
+      ? `${Math.round(lastLatencyMs)}ms`
+      : latencyStaleMs !== null
+        ? `${Math.round(latencyStaleMs / 1000)}s`
+        : "--";
+  const showConnectionBanner = sessionActive && connectionUxState.phase !== "normal";
+  const connectionBannerSeverity: "warning" | "error" =
+    connectionUxState.phase === "failed" ? "error" : "warning";
+
   useEffect(() => {
     setFloatingActionsVisible(!sessionActive);
     return () => {
       setFloatingActionsVisible(true);
     };
   }, [sessionActive, setFloatingActionsVisible]);
+
+  useEffect(() => {
+    if (!sessionActive) {
+      setLatencyStaleMs(null);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      if (lastResultAtRef.current === null) {
+        setLatencyStaleMs(null);
+        return;
+      }
+      setLatencyStaleMs(Math.max(0, Date.now() - lastResultAtRef.current));
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [sessionActive]);
 
   const clearCountdown = () => {
     if (countdownTimerRef.current !== null) {
@@ -657,6 +718,14 @@ export default function RealtimeSessionPage() {
     }
     return true;
   }, []);
+
+  const stopRecorderForRecovery = useCallback(() => {
+    suppressRecorderOnStopRef.current = true;
+    const stopped = stopRecorder();
+    if (!stopped) {
+      suppressRecorderOnStopRef.current = false;
+    }
+  }, [stopRecorder]);
 
   const stopCameraStream = useCallback(() => {
     const stream = cameraStreamRef.current;
@@ -965,6 +1034,14 @@ export default function RealtimeSessionPage() {
     setCameraRecording(false);
     void stopVideoRecorder();
     waitingForFinalRef.current = false;
+    lastAudioSentAtRef.current = null;
+    lastResultAtRef.current = null;
+    suppressRecorderOnStopRef.current = false;
+    setLastLatencyMs(null);
+    setLatencyStaleMs(null);
+    setConnectionEventMessage(null);
+    setRetryingConnection(false);
+    setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
     setSessionState("idle");
   };
 
@@ -1001,6 +1078,7 @@ export default function RealtimeSessionPage() {
       mimeType: sampleRate ? `audio/pcm;rate=${sampleRate}` : "audio/pcm",
     }).catch((error) => console.error(t("failedToSaveAudioChunk"), error));
 
+    lastAudioSentAtRef.current = Date.now();
     streamingClientRef.current?.sendAudioChunk(buffer);
   };
 
@@ -1065,8 +1143,15 @@ export default function RealtimeSessionPage() {
           ? payload.message
           : t("anErrorOccurredDuringStreaming");
       setErrorMessage(message);
-      enqueueSnackbar(message, { variant: "error" });
-      stopSession(true);
+      setConnectionEventMessage(message);
+      setConnectionUxState((prev) =>
+        reduceRealtimeConnectionUxState(prev, { type: "permanent-failure" })
+      );
+      stopRecorder();
+      void stopVideoRecorder();
+      if (sessionStateRef.current !== "saving" && sessionStateRef.current !== "stopping") {
+        setSessionState("paused");
+      }
       return;
     }
 
@@ -1106,6 +1191,12 @@ export default function RealtimeSessionPage() {
       segmentsRef.current = [...segmentsRef.current, segment];
       setSegments([...segmentsRef.current]);
       setPartialText(null);
+      const receivedAt = Date.now();
+      lastResultAtRef.current = receivedAt;
+      setLatencyStaleMs(0);
+      if (lastAudioSentAtRef.current !== null) {
+        setLastLatencyMs(Math.max(0, receivedAt - lastAudioSentAtRef.current));
+      }
       await persistSegments();
 
       if (waitingForFinalRef.current) {
@@ -1120,6 +1211,12 @@ export default function RealtimeSessionPage() {
     if (treatAsPartial) {
       const normalized = getNormalizedPayload();
       setPartialText(normalized.text);
+      const receivedAt = Date.now();
+      lastResultAtRef.current = receivedAt;
+      setLatencyStaleMs(0);
+      if (lastAudioSentAtRef.current !== null) {
+        setLastLatencyMs(Math.max(0, receivedAt - lastAudioSentAtRef.current));
+      }
     }
   };
 
@@ -1131,9 +1228,10 @@ export default function RealtimeSessionPage() {
     console.error(t("streamingError"), event);
     if (finalizingRef.current) return;
     setErrorMessage(t("aStreamingErrorOccurredTheConnectionIsBeingRestored"));
-    enqueueSnackbar(t("aStreamingErrorOccurredTryReconnecting"), {
-      variant: "warning",
-    });
+    setConnectionEventMessage(t("aStreamingErrorOccurredTryReconnecting"));
+    setConnectionUxState((prev) =>
+      reduceRealtimeConnectionUxState(prev, { type: "streaming-error" })
+    );
   };
 
   const prepareSession = async (decoderConfig: Record<string, unknown>) => {
@@ -1157,20 +1255,32 @@ export default function RealtimeSessionPage() {
       onMessage: handleStreamingMessage,
       onError: handleStreamingError,
       onReconnectAttempt: (attempt) => {
-        enqueueSnackbar(t("attemptingToReconnectToStreaming", { values: { attempt } }), {
-          variant: "warning",
-        });
+        setConnectionUxState((prev) =>
+          reduceRealtimeConnectionUxState(prev, { type: "reconnect-attempt", attempt })
+        );
+        setConnectionEventMessage(
+          t("attemptingToReconnectToStreaming", { values: { attempt } })
+        );
         if (countdownFinishedRef.current) {
           setSessionState("connecting");
         }
       },
       onOpen: () => {
+        const recovered = connectionUxStateRef.current.phase !== "normal";
         sessionConnectedRef.current = true;
         connectionReadyRef.current = true;
+        setConnectionUxState((prev) =>
+          reduceRealtimeConnectionUxState(prev, { type: "socket-open" })
+        );
+        setConnectionEventMessage(null);
+        setRetryingConnection(false);
         if (countdownFinishedRef.current) {
           setSessionState("recording");
           startAutosaveTimer();
           setErrorMessage(null);
+        }
+        if (recovered) {
+          enqueueSnackbar(t("streamingConnectionRecovered"), { variant: "success" });
         }
       },
       onClose: (event) => {
@@ -1181,7 +1291,21 @@ export default function RealtimeSessionPage() {
         }
         const reason = event.reason || t("yourStreamingConnectionHasEnded");
         setErrorMessage(reason);
-        enqueueSnackbar(reason, { variant: "error" });
+        setConnectionEventMessage(reason);
+        setRetryingConnection(false);
+        setConnectionUxState((prev) =>
+          reduceRealtimeConnectionUxState(prev, { type: "recoverable-close" })
+        );
+        stopRecorderForRecovery();
+        void stopVideoRecorder();
+        if (
+          countdownFinishedRef.current &&
+          sessionStateRef.current !== "idle" &&
+          sessionStateRef.current !== "saving"
+        ) {
+          setSessionState("paused");
+          return;
+        }
         stopSession(true);
       },
       onPermanentFailure: (event) => {
@@ -1191,7 +1315,11 @@ export default function RealtimeSessionPage() {
             ? event.reason || t("yourStreamingSessionHasEnded")
             : t("aFatalErrorOccurredInYourStreamingSession");
         setErrorMessage(message);
-        enqueueSnackbar(message, { variant: "error" });
+        setConnectionEventMessage(message);
+        setRetryingConnection(false);
+        setConnectionUxState((prev) =>
+          reduceRealtimeConnectionUxState(prev, { type: "permanent-failure" })
+        );
       },
     });
 
@@ -1207,6 +1335,10 @@ export default function RealtimeSessionPage() {
           stopSession(true);
         },
         onStop: () => {
+          if (suppressRecorderOnStopRef.current) {
+            suppressRecorderOnStopRef.current = false;
+            return;
+          }
           if (sessionStateRef.current === "stopping") {
             // Wait for socket close or safety timer
             return;
@@ -1290,6 +1422,11 @@ export default function RealtimeSessionPage() {
 
   const stopSession = (aborted: boolean) => {
     if (sessionState === "idle" || sessionState === "saving" || sessionState === "stopping") return;
+    setConnectionUxState((prev) =>
+      reduceRealtimeConnectionUxState(prev, { type: "session-reset" })
+    );
+    setConnectionEventMessage(null);
+    setRetryingConnection(false);
     finalizeReasonRef.current = aborted ? "aborted" : "normal";
     cameraShouldRecordRef.current = false;
     void stopVideoRecorder();
@@ -1338,6 +1475,45 @@ export default function RealtimeSessionPage() {
   };
 
   stopSessionRef.current = stopSession;
+
+  const handleRetryConnection = async () => {
+    if (retryingConnection || finalizingRef.current) {
+      return;
+    }
+    const decoderConfig = streamingConfigRef.current;
+    if (!decoderConfig) {
+      const message = t("cannotRetryWithoutOriginalConfiguration");
+      setErrorMessage(message);
+      enqueueSnackbar(message, { variant: "error" });
+      return;
+    }
+
+    setRetryingConnection(true);
+    setErrorMessage(null);
+    setConnectionEventMessage(null);
+    setConnectionUxState((prev) =>
+      reduceRealtimeConnectionUxState(prev, { type: "manual-retry" })
+    );
+    setSessionState("connecting");
+    sessionConnectedRef.current = false;
+    connectionReadyRef.current = false;
+    waitingForFinalRef.current = false;
+    streamingClientRef.current?.disconnect();
+    streamingClientRef.current = null;
+
+    try {
+      await prepareSession(decoderConfig);
+    } catch (error) {
+      console.error("Failed to retry streaming session", error);
+      const message = t("retryConnectionFailed");
+      setErrorMessage(message);
+      setConnectionEventMessage(message);
+      setConnectionUxState((prev) =>
+        reduceRealtimeConnectionUxState(prev, { type: "permanent-failure" })
+      );
+      setRetryingConnection(false);
+    }
+  };
 
   const handlePauseRecording = () => {
     if (sessionState !== "recording") return;
@@ -1402,6 +1578,10 @@ export default function RealtimeSessionPage() {
       return;
     }
     if (sessionState === "paused") {
+      if (connectionUxState.phase === "failed") {
+        void handleRetryConnection();
+        return;
+      }
       handleResumeRecording();
     }
   };
@@ -1500,6 +1680,13 @@ export default function RealtimeSessionPage() {
     cameraShouldRecordRef.current = true;
     // Video recording will be triggered by useEffect when state becomes "recording"
     setErrorMessage(null);
+    setConnectionEventMessage(null);
+    setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
+    setRetryingConnection(false);
+    setLastLatencyMs(null);
+    setLatencyStaleMs(null);
+    lastAudioSentAtRef.current = null;
+    lastResultAtRef.current = null;
     finalizeReasonRef.current = "normal";
     countdownFinishedRef.current = false;
 
@@ -1570,7 +1757,11 @@ export default function RealtimeSessionPage() {
     return `${start}s ~ ${end}s`;
   };
 
-  const mainButtonDisabled = sessionState === "countdown" || sessionState === "saving" || sessionState === "stopping";
+  const mainButtonDisabled =
+    sessionState === "countdown" ||
+    sessionState === "saving" ||
+    sessionState === "stopping" ||
+    retryingConnection;
   const mainButtonLabel = (() => {
     switch (sessionState) {
       case "idle":
@@ -1578,7 +1769,7 @@ export default function RealtimeSessionPage() {
       case "recording":
         return t("pause");
       case "paused":
-        return t("resumption");
+        return connectionUxState.phase === "failed" ? t("retryConnection") : t("resumption");
       case "saving":
         return t("saving");
       case "stopping":
@@ -1600,7 +1791,11 @@ export default function RealtimeSessionPage() {
       case "recording":
         return <PauseRoundedIcon />;
       case "paused":
-        return <PlayArrowRoundedIcon />;
+        return retryingConnection ? (
+          <CircularProgress size={24} color="inherit" thickness={5} />
+        ) : (
+          <PlayArrowRoundedIcon />
+        );
       case "connecting":
       case "countdown":
         return <HourglassBottomIcon />;
@@ -1612,7 +1807,7 @@ export default function RealtimeSessionPage() {
     }
   })();
   const mainButtonColor: "primary" | "secondary" | "success" =
-    sessionState === "recording" || sessionState === "paused"
+    sessionState === "recording" || (sessionState === "paused" && connectionUxState.phase !== "failed")
       ? "secondary"
       : sessionState === "saving" || sessionState === "stopping"
         ? "success"
@@ -1622,6 +1817,9 @@ export default function RealtimeSessionPage() {
       return t("tapToPausePressAndHoldFor3SecondsToEndTheSession");
     }
     if (sessionState === "paused") {
+      if (connectionUxState.phase === "failed") {
+        return t("retryConnectionToResumeSession");
+      }
       return t("tapToResumeTranscription");
     }
     if (sessionState === "connecting") {
@@ -1642,7 +1840,10 @@ export default function RealtimeSessionPage() {
     sessionState === "countdown";
 
   const handleStopFabClick = () => {
-    const shouldAbort = sessionState === "connecting" || sessionState === "countdown";
+    const shouldAbort =
+      sessionState === "connecting" ||
+      sessionState === "countdown" ||
+      connectionUxState.phase === "failed";
     stopSession(shouldAbort ? true : false);
   };
 
@@ -1704,6 +1905,19 @@ export default function RealtimeSessionPage() {
               "& .MuiChip-label": { fontWeight: 800 },
             }}
           />
+          {sessionActive && (
+            <Chip
+              label={`${t("realtimeLatency")}: ${t(LATENCY_LEVEL_LABEL_KEY[latencyLevel])} · ${latencyValueLabel}`}
+              color={latencyChipColor}
+              variant="outlined"
+              sx={{
+                borderColor: "rgba(255,255,255,0.65)",
+                bgcolor: "rgba(255,255,255,0.55)",
+                backdropFilter: "blur(10px)",
+                "& .MuiChip-label": { fontWeight: 700 },
+              }}
+            />
+          )}
           {sessionState === "countdown" && (
             <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
               {countdown}
@@ -1969,6 +2183,53 @@ export default function RealtimeSessionPage() {
                             values: { permission: t("storagePermissions") },
                           })}
                         </Typography>
+                      </Stack>
+                    </Alert>
+                  ) : null}
+                  {showConnectionBanner ? (
+                    <Alert
+                      severity={connectionBannerSeverity}
+                      action={(
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => void handleRetryConnection()}
+                            disabled={retryingConnection}
+                          >
+                            {retryingConnection ? t("retryingConnection") : t("retryConnection")}
+                          </Button>
+                          <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => stopSession(true)}
+                            disabled={retryingConnection}
+                          >
+                            {t("abortSession")}
+                          </Button>
+                        </Stack>
+                      )}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {connectionUxState.phase === "failed"
+                            ? t("realtimeReconnectFailed")
+                            : t("realtimeReconnectInProgress")}
+                        </Typography>
+                        <Typography variant="body2">
+                          {connectionUxState.phase === "failed"
+                            ? t("realtimeReconnectFailedDetail")
+                            : connectionUxState.reconnectAttempt > 0
+                              ? t("attemptingToReconnectToStreaming", {
+                                values: { attempt: connectionUxState.reconnectAttempt },
+                              })
+                              : t("aStreamingErrorOccurredTheConnectionIsBeingRestored")}
+                        </Typography>
+                        {connectionEventMessage ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {connectionEventMessage}
+                          </Typography>
+                        ) : null}
                       </Stack>
                     </Alert>
                   ) : null}

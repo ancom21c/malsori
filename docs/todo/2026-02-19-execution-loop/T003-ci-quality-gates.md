@@ -21,9 +21,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] PR에서 lint/test/build + bundle budget이 자동 검증된다.
-- [ ] 임계치 초과 시 CI가 실패한다.
-- [ ] 품질 게이트 문서가 팀 합의 기준으로 고정된다.
+- [x] PR에서 lint/test/build + bundle budget이 자동 검증된다.
+- [x] 임계치 초과 시 CI가 실패한다.
+- [x] 품질 게이트 문서가 팀 합의 기준으로 고정된다.
 
 ## Plan (Review 대상)
 
@@ -34,24 +34,29 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 임계치가 현실적인가? (과도한 false positive 방지)
-- [ ] 테스트 시간 증가폭이 허용 가능한가?
-- [ ] 로컬에서도 동일 체크를 재현할 수 있는가?
+- [x] 임계치가 현실적인가? (과도한 false positive 방지)
+- [x] 테스트 시간 증가폭이 허용 가능한가?
+- [x] 로컬에서도 동일 체크를 재현할 수 있는가?
 
 ## Implementation Log
 
-- [ ] 스크립트 추가
-- [ ] CI 연동
-- [ ] 임계치 문서화
+- [x] 스크립트 추가
+  - `webapp/scripts/check-bundle-budget.mjs`
+  - 체크 항목: total JS, per-chunk JS/CSS, main entry chunk, share-embed bundle
+- [x] CI 연동
+  - `.github/workflows/ci.yml`: `Bundle budget check` 단계 추가
+  - `webapp/package.json`: `bundle:check` 스크립트 추가
+- [x] 임계치 문서화
+  - `README.md`, `webapp/README.md`에 실행 커맨드/게이트 설명 반영
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 현재 빌드가 통과하는 임계치인가?
-- [ ] 실패 시 원인 파악이 쉬운가?
-- [ ] 유지보수 비용이 과도하지 않은가?
+- [x] 현재 빌드가 통과하는 임계치인가?
+- [x] 실패 시 원인 파악이 쉬운가?
+- [x] 유지보수 비용이 과도하지 않은가?
 
 ## Verify
 
-- `cd webapp && npm run build`
-- `node <bundle-budget-check>.mjs`
-- GitHub Actions dry-run 또는 PR 검증
+- `npm --prefix webapp run build`
+- `npm --prefix webapp run bundle:check`
+- 출력: `[Bundle Budget] PASS`

@@ -19,6 +19,7 @@ Open http://localhost:5173/ to view the app.
 
 - `npm run dev` – start Vite dev server.
 - `npm run build` – type-check and build production bundle.
+- `npm run bundle:check` – enforce bundle-size budgets for CI/local verification.
 - `npm run preview` – preview the production build.
 - `npm run lint` – run ESLint with the flat config.
 - `npm test` – run Vitest unit tests (jsdom + fake-indexeddb).
@@ -36,7 +37,7 @@ Open http://localhost:5173/ to view the app.
 ## QA & Tooling
 
 - Unit tests cover Dexie repositories (`transcriptionRepository`, `presetRepository`) and hooks (`usePresets`, `useTranscriptions`). Tests run in jsdom with `fake-indexeddb` seeded in `src/test/setup.ts`.
-- GitHub Actions workflow (`../.github/workflows/ci.yml`) runs `npm ci`, lint, build, and tests on every push & PR.
+- GitHub Actions workflow (`../.github/workflows/ci.yml`) runs `npm ci`, lint, build, bundle budget checks, and tests on every push & PR.
 - `vitest` coverage can be generated with `npm test -- --coverage`.
 
 ## Documentation

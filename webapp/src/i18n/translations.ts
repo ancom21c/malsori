@@ -1394,6 +1394,31 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Real-time recognition",
     ja: "リアルタイム認識",
   },
+  realtimeLatency: {
+    ko: "지연",
+    en: "Latency",
+    ja: "遅延",
+  },
+  latencyUnknown: {
+    ko: "측정 대기",
+    en: "Waiting",
+    ja: "計測待機",
+  },
+  latencyStable: {
+    ko: "안정",
+    en: "Stable",
+    ja: "安定",
+  },
+  latencyDelayed: {
+    ko: "지연",
+    en: "Delayed",
+    ja: "遅延",
+  },
+  latencyCritical: {
+    ko: "불안정",
+    en: "Unstable",
+    ja: "不安定",
+  },
   realTimeTranscription: {
     ko: "실시간 전사",
     en: "Real-time Transcription",
@@ -1608,6 +1633,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "세션 종료",
     en: "Terminate Session",
     ja: "セッション終了",
+  },
+  abortSession: {
+    ko: "세션 중단",
+    en: "Abort session",
+    ja: "セッション中断",
   },
   sessionStateCountdown: {
     ko: "카운트다운",
@@ -2199,6 +2229,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Your streaming connection has ended.",
     ja: "ストリーミング接続が終了しました。",
   },
+  streamingConnectionRecovered: {
+    ko: "스트리밍 연결이 복구되었습니다.",
+    en: "Streaming connection has recovered.",
+    ja: "ストリーミング接続が復旧しました。",
+  },
   yourStreamingSessionHasEnded: {
     ko: "스트리밍 세션이 종료되었습니다.",
     en: "Your streaming session has ended.",
@@ -2583,6 +2618,41 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "재실행",
     en: "Retry transcription",
     ja: "文字起こしを再実行",
+  },
+  retryConnection: {
+    ko: "연결 재시도",
+    en: "Retry connection",
+    ja: "接続を再試行",
+  },
+  retryingConnection: {
+    ko: "재연결 중...",
+    en: "Retrying...",
+    ja: "再接続中...",
+  },
+  retryConnectionFailed: {
+    ko: "연결 재시도에 실패했습니다.",
+    en: "Connection retry failed.",
+    ja: "接続の再試行に失敗しました。",
+  },
+  retryConnectionToResumeSession: {
+    ko: "재시도로 세션을 복구합니다.",
+    en: "Retry to recover the session.",
+    ja: "再試行してセッションを復旧します。",
+  },
+  realtimeReconnectInProgress: {
+    ko: "연결 복구 중",
+    en: "Recovering connection",
+    ja: "接続を復旧中",
+  },
+  realtimeReconnectFailed: {
+    ko: "연결 복구 실패",
+    en: "Connection recovery failed",
+    ja: "接続の復旧に失敗",
+  },
+  realtimeReconnectFailedDetail: {
+    ko: "네트워크 상태를 확인한 뒤 연결 재시도 또는 세션 중단을 선택해 주세요.",
+    en: "Check network status, then choose retry connection or abort session.",
+    ja: "ネットワーク状態を確認し、接続再試行またはセッション中断を選択してください。",
   },
   editingHintDoubleClickToCorrectAndNavigate: {
     ko: "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.",

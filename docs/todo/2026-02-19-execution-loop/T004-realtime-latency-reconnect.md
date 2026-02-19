@@ -23,9 +23,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 연결 지연 상태를 색상/문구로 즉시 인지할 수 있다.
-- [ ] 재연결 중/실패 시 다음 행동이 명확하다.
-- [ ] 세션 중단/재시도 이후 상태가 일관되게 정리된다.
+- [x] 연결 지연 상태를 색상/문구로 즉시 인지할 수 있다.
+- [x] 재연결 중/실패 시 다음 행동이 명확하다.
+- [x] 세션 중단/재시도 이후 상태가 일관되게 정리된다.
 
 ## Plan (Review 대상)
 
@@ -37,24 +37,31 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 과도한 알림(노이즈) 없이 핵심 신호만 보여주는가?
-- [ ] 모바일 화면에서도 액션이 가려지지 않는가?
-- [ ] 재연결 루프 무한 반복 방지 조건이 있는가?
+- [x] 과도한 알림(노이즈) 없이 핵심 신호만 보여주는가?
+- [x] 모바일 화면에서도 액션이 가려지지 않는가?
+- [x] 재연결 루프 무한 반복 방지 조건이 있는가?
 
 ## Implementation Log
 
-- [ ] 상태 모델 추가
-- [ ] UI/카피 반영
-- [ ] 테스트 반영
+- [x] 상태 모델 추가
+  - `webapp/src/pages/realtimeConnectionUx.ts`
+  - 연결 phase(`normal/reconnecting/failed`) reducer 및 latency level classifier 추가
+- [x] UI/카피 반영
+  - `webapp/src/pages/RealtimeSessionPage.tsx`
+  - 상단 latency chip 추가, reconnecting/failed 배너 및 `Retry connection`/`Abort session` 액션 추가
+  - 재연결 실패 시 즉시 종료 대신 사용자 액션 기반 복구 플로우로 조정
+  - `webapp/src/i18n/translations.ts` UX 카피 추가
+- [x] 테스트 반영
+  - `webapp/src/pages/realtimeConnectionUx.test.ts` 상태 전이/지연 등급 테스트 추가
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 연결 회복 후 UI가 정상 상태로 복귀하는가?
-- [ ] 실패 상태에서 사용자 액션이 확실히 동작하는가?
-- [ ] 기존 권한/세션 UX와 충돌하지 않는가?
+- [x] 연결 회복 후 UI가 정상 상태로 복귀하는가?
+- [x] 실패 상태에서 사용자 액션이 확실히 동작하는가?
+- [x] 기존 권한/세션 UX와 충돌하지 않는가?
 
 ## Verify
 
-- 연결 차단/복구 시뮬레이션으로 상태 전이 확인
-- `cd webapp && npm test`
-- 수동 스모크: `/realtime`에서 start -> disconnect -> retry/abort
+- 연결 상태 모델 테스트: `npm --prefix webapp run test`
+- UI 회귀 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`
+- 수동 스모크: `/realtime`에서 start -> disconnect -> retry/abort 및 latency chip 확인

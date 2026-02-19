@@ -78,13 +78,14 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm run lint` – ESLint over the entire project.
 - `npm run build` – Type-check and bundle the production output.
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
+- `npm --prefix webapp run bundle:check` – web bundle budget gate (chunk/entry/total size thresholds).
 - `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + API contract checks).
 
 ## QA & CI
 
 - Vitest runs with a jsdom environment and `fake-indexeddb` so Dexie code can be exercised.
 - New unit tests cover preset repository default handling and `useTranscriptions` ordering in addition to existing repository specs.
-- GitHub Actions workflow (`.github/workflows/ci.yml`) now has distinct jobs for the React frontend (npm install/lint/build/test) and the FastAPI proxy (uv sync + `python -m compileall`) so both deliverables are exercised on every push/PR.
+- GitHub Actions workflow (`.github/workflows/ci.yml`) now has distinct jobs for the React frontend (npm install/lint/build/test + bundle budget check) and the FastAPI proxy (uv sync + `python -m compileall`) so both deliverables are exercised on every push/PR.
 
 ## Repository Layout
 
