@@ -23,9 +23,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 운영 점검에 사용하는 health/status endpoint가 문서와 구현에서 일치한다.
-- [ ] 배포 후 스모크에서 404가 아닌 계약된 응답을 확인한다.
-- [ ] 관련 변경으로 프론트 설정 페이지의 상태 조회 UX가 회귀하지 않는다.
+- [x] 운영 점검에 사용하는 health/status endpoint가 문서와 구현에서 일치한다.
+- [x] 배포 후 스모크에서 404가 아닌 계약된 응답을 확인한다.
+- [x] 관련 변경으로 프론트 설정 페이지의 상태 조회 UX가 회귀하지 않는다.
 
 ## Plan (Review 대상)
 
@@ -37,24 +37,30 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] endpoint 추가/변경이 기존 클라이언트를 깨지 않는가?
-- [ ] 인증 필요 여부(무인증 health 허용 범위)가 명확한가?
-- [ ] 장애 시 관측 가능한 정보(상태코드/메시지)가 충분한가?
+- [x] endpoint 추가/변경이 기존 클라이언트를 깨지 않는가?
+- [x] 인증 필요 여부(무인증 health 허용 범위)가 명확한가?
+- [x] 장애 시 관측 가능한 정보(상태코드/메시지)가 충분한가?
 
 ## Implementation Log
 
-- [ ] 코드 변경
-- [ ] 문서 변경
-- [ ] 검증 실행
+- [x] 코드 변경
+  - `python_api/api_server/models.py`: `HealthStatusResponse` 추가
+  - `python_api/api_server/main.py`: `/v1/health` 추가, `/v1/backend/state` 호환 alias 추가
+- [x] 문서 변경
+  - `README.md`: `/v1/health` 및 `scripts/post-deploy-smoke.sh` 실행 안내 반영
+- [x] 검증 실행
+  - `python3 -m compileall python_api/api_server`
+  - `curl -skS -o /tmp/malsori-backend-state.json -w '%{http_code}\n' https://malsori.ancom.duckdns.org/v1/backend/state` -> `200`
+  - `./scripts/post-deploy-smoke.sh` -> pass
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 불필요한 endpoint 노출이 없는가?
-- [ ] 상태코드가 일관적인가 (200/4xx/5xx)?
-- [ ] 릴리즈 노트/운영 체크리스트에 반영됐는가?
+- [x] 불필요한 endpoint 노출이 없는가?
+- [x] 상태코드가 일관적인가 (200/4xx/5xx)?
+- [x] 릴리즈 노트/운영 체크리스트에 반영됐는가?
 
 ## Verify
 
-- `kubectl -n malsori logs deployment/malsori-malsori -c python-api --tail=200`
-- `curl -sk -o /tmp/health.json -w "%{http_code}\n" https://malsori.ancom.duckdns.org/<health-endpoint>`
-- `curl -sk -o /tmp/status.json -w "%{http_code}\n" https://malsori.ancom.duckdns.org/<status-endpoint>`
+- `curl -skS -o /tmp/health.json -w "%{http_code}\n" https://malsori.ancom.duckdns.org/v1/health` -> `200`
+- `curl -skS -o /tmp/malsori-backend-state.json -w "%{http_code}\n" https://malsori.ancom.duckdns.org/v1/backend/state` -> `200`
+- `./scripts/post-deploy-smoke.sh`에서 health/backend endpoint 계약 검증 통과

@@ -23,37 +23,43 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 배포 후 단일 커맨드로 스모크를 실행할 수 있다.
-- [ ] 실패 시 어떤 단계가 실패했는지 즉시 알 수 있다.
-- [ ] 스모크 결과를 릴리즈 검증 로그로 남길 수 있다.
+- [x] 배포 후 단일 커맨드로 스모크를 실행할 수 있다.
+- [x] 실패 시 어떤 단계가 실패했는지 즉시 알 수 있다.
+- [x] 스모크 결과를 릴리즈 검증 로그로 남길 수 있다.
 
 ## Plan (Review 대상)
 
 1. 스모크 시나리오 정의 (API 2개 + UI 3개 경로)
 2. 스크립트 위치 확정 (`scripts/` 또는 `webapp` npm script)
-3. Playwright(또는 기존 툴) 기반 UI 체크 구현
+3. `curl` + 계약 검증(JSON assert) 기반 UI/API 체크 구현
 4. 배포 스킬 후속 단계로 연동 가능한 실행 방법 문서화
 
 ## Review Checklist (Plan Review)
 
-- [ ] 스모크가 flaky 하지 않도록 대기/재시도 정책이 있는가?
-- [ ] 인증이 필요한 흐름은 제외/모킹 기준이 명확한가?
-- [ ] 실패 아티팩트 저장 경로가 명확한가?
+- [x] 스모크가 flaky 하지 않도록 대기/재시도 정책이 있는가?
+- [x] 인증이 필요한 흐름은 제외/모킹 기준이 명확한가?
+- [x] 실패 아티팩트 저장 경로가 명확한가?
 
 ## Implementation Log
 
-- [ ] 시나리오 확정
-- [ ] 스크립트 구현
-- [ ] CI/로컬 실행 검증
+- [x] 시나리오 확정
+  - SPA 경로 `/`, `/settings`, `/realtime`
+  - API 경로 `/v1/health`, `/v1/cloud/google/status`, `/v1/backend/endpoint`, `/v1/backend/state`
+- [x] 스크립트 구현
+  - `scripts/post-deploy-smoke.sh` 추가 및 실행 권한 부여
+  - rollout/resource snapshot + HTML root 확인 + JSON 계약 assert 포함
+- [x] CI/로컬 실행 검증
+  - `bash -n scripts/post-deploy-smoke.sh`
+  - `./scripts/post-deploy-smoke.sh` 실배포 환경에서 pass
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 정상/실패 케이스 모두에서 로그가 충분한가?
-- [ ] 배포 시간을 과도하게 늘리지 않는가?
-- [ ] 문서의 실행 예시가 최신인가?
+- [x] 정상/실패 케이스 모두에서 로그가 충분한가?
+- [x] 배포 시간을 과도하게 늘리지 않는가?
+- [x] 문서의 실행 예시가 최신인가?
 
 ## Verify
 
-- `bash <smoke-script>.sh`
-- `npm --prefix webapp run <smoke-script>`
-- 배포 직후 1회, 재배포 직후 1회 총 2회 통과 확인
+- `./scripts/post-deploy-smoke.sh`
+- 출력: `Smoke checks passed for https://malsori.ancom.duckdns.org`
+- 포함 검증: rollout, SPA 3개 경로, API 4개 계약 endpoint

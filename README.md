@@ -51,7 +51,7 @@ export PRONAIA_CLIENT_SECRET=your-client-secret
 uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
-The FastAPI app exposes `/docs` for interactive testing, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.
+The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.
 
 #### Google Drive OAuth (Auth Broker)
 
@@ -78,6 +78,7 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm run lint` – ESLint over the entire project.
 - `npm run build` – Type-check and bundle the production output.
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + API contract checks).
 
 ## QA & CI
 

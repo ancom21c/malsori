@@ -45,6 +45,7 @@ from .config import (
 from .models import (
     BackendEndpointState,
     BackendEndpointUpdateRequest,
+    HealthStatusResponse,
     STTRequest,
     STTResponse,
     STTReturnObject,
@@ -160,7 +161,13 @@ def _log_streaming_message(direction: str, message: Any) -> None:
 class _SuppressDocsAccessFilter(logging.Filter):
     """Filter out access logs for documentation endpoints used by health probes."""
 
-    _SUPPRESSED_FRAGMENTS = ("/docs", "/openapi.json", "/redoc")
+    _SUPPRESSED_FRAGMENTS = (
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/v1/health",
+        "/v1/backend/state",
+    )
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
@@ -185,18 +192,47 @@ FAILURE_CODE = -1
 _FILE_TRANSCRIBE_DIRNAME = "file_transcriptions"
 
 
+def _resolve_backend_source() -> Literal["default", "override"]:
+    """Resolve whether backend endpoint settings come from defaults or override file."""
+    try:
+        override_payload = get_backend_override()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return "override" if override_payload else "default"
+
+
+@app.get("/v1/health", response_model=HealthStatusResponse)
+async def health_status() -> HealthStatusResponse:
+    """Operational health endpoint used by post-deploy smoke checks."""
+    try:
+        settings = get_settings()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return HealthStatusResponse(
+        status="ok",
+        service="malsori-python-api",
+        version=app.version,
+        deployment=settings.deployment,
+        auth_enabled=settings.auth_enabled,
+        source=_resolve_backend_source(),
+    )
+
+
 @app.get("/v1/backend/endpoint", response_model=BackendEndpointState)
 async def get_backend_endpoint() -> BackendEndpointState:
     """Return the current upstream endpoint configuration."""
     try:
         settings = get_settings()
-        override_payload = get_backend_override()
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    source: Literal["default", "override"] = (
-        "override" if override_payload else "default"
-    )
+    source = _resolve_backend_source()
     return _build_backend_state(settings, source)
+
+
+@app.get("/v1/backend/state", response_model=BackendEndpointState)
+async def get_backend_state_legacy() -> BackendEndpointState:
+    """Backward-compatible alias for backend endpoint state."""
+    return await get_backend_endpoint()
 
 
 @app.post("/v1/backend/endpoint", response_model=BackendEndpointState)
@@ -224,13 +260,10 @@ async def set_backend_endpoint(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     _reset_client()
     try:
-        override_payload = get_backend_override()
-    except RuntimeError as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to read override payload after update: %s", exc)
-        override_payload = updates
-    source: Literal["default", "override"] = (
-        "override" if override_payload else "default"
-    )
+        source = _resolve_backend_source()
+    except HTTPException:  # pragma: no cover - defensive
+        logger.warning("Failed to read override payload after update, fallback to override source.")
+        source = "override"
     return _build_backend_state(settings, source)
 
 

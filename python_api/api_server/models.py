@@ -65,3 +65,14 @@ class BackendEndpointUpdateRequest(BaseModel):
     verify_ssl: bool = Field(
         default=True, description="Whether SSL certificates should be verified."
     )
+
+
+class HealthStatusResponse(BaseModel):
+    """Operational health status for deployment smoke checks."""
+
+    status: Literal["ok"]
+    service: str
+    version: str
+    deployment: Literal["cloud", "onprem"]
+    auth_enabled: bool
+    source: Literal["default", "override"]
