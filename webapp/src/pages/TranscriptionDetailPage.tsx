@@ -25,10 +25,12 @@ import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
 import { useShareLink } from "../hooks/useShareLink";
 import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
 import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
+import { SegmentWaveformTimeline } from "../components/SegmentWaveformTimeline";
 import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
+const LOOP_MIN_DURATION_SECONDS = 0.2;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 
 interface RtzrWordInfo {
@@ -380,6 +382,11 @@ export default function TranscriptionDetailPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [mediaCurrentTimeSeconds, setMediaCurrentTimeSeconds] = useState(0);
+  const [mediaDurationSeconds, setMediaDurationSeconds] = useState(0);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [loopStartSeconds, setLoopStartSeconds] = useState<number | null>(null);
+  const [loopEndSeconds, setLoopEndSeconds] = useState<number | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -521,6 +528,39 @@ export default function TranscriptionDetailPage() {
     const fallback = transcription?.transcriptText?.trim();
     return fallback && fallback.length > 0 ? fallback : "";
   }, [segments, transcription]);
+
+  const timelineDurationSeconds = useMemo(() => {
+    if (Number.isFinite(mediaDurationSeconds) && mediaDurationSeconds > 0) {
+      return mediaDurationSeconds;
+    }
+    const maxSegmentEndMs =
+      segments?.reduce((max, segment) => {
+        const endMs = getSegmentEndMs(segment);
+        if (endMs === null) {
+          return max;
+        }
+        return Math.max(max, endMs);
+      }, 0) ?? 0;
+    return maxSegmentEndMs > 0 ? maxSegmentEndMs / 1000 : 0;
+  }, [mediaDurationSeconds, segments]);
+
+  const loopRange = useMemo(() => {
+    if (loopStartSeconds === null || loopEndSeconds === null) {
+      return null;
+    }
+    const start = Math.min(loopStartSeconds, loopEndSeconds);
+    const end = Math.max(loopStartSeconds, loopEndSeconds);
+    if (end - start < LOOP_MIN_DURATION_SECONDS) {
+      return null;
+    }
+    if (timelineDurationSeconds > 0) {
+      return {
+        startSeconds: Math.max(0, Math.min(start, timelineDurationSeconds)),
+        endSeconds: Math.max(0, Math.min(end, timelineDurationSeconds)),
+      };
+    }
+    return { startSeconds: Math.max(0, start), endSeconds: Math.max(0, end) };
+  }, [loopEndSeconds, loopStartSeconds, timelineDurationSeconds]);
 
   useEffect(() => {
     segmentsRef.current = segments ?? [];
@@ -866,6 +906,11 @@ export default function TranscriptionDetailPage() {
     let objectUrl: string | null = null;
     audioBlobRef.current = null;
     setAudioError(null);
+    setMediaCurrentTimeSeconds(0);
+    setMediaDurationSeconds(0);
+    setLoopEnabled(false);
+    setLoopStartSeconds(null);
+    setLoopEndSeconds(null);
     segmentEndRef.current = null;
     setActiveSegmentId(null);
     setActiveWordHighlight(null);
@@ -1271,6 +1316,86 @@ export default function TranscriptionDetailPage() {
     [findSegmentForPlaybackTime, updateActiveWordHighlight]
   );
 
+  const handleSeekToPlaybackTime = useCallback(
+    (seconds: number) => {
+      const media = mediaElementRef.current;
+      if (!media) {
+        enqueueSnackbar(t("theAudioIsNotReadyYet"), { variant: "info" });
+        return;
+      }
+      const mediaDuration =
+        typeof media.duration === "number" && Number.isFinite(media.duration) && media.duration > 0
+          ? media.duration
+          : timelineDurationSeconds;
+      const clampedSeconds = mediaDuration > 0 ? Math.max(0, Math.min(seconds, mediaDuration)) : Math.max(0, seconds);
+      programmaticSeekRef.current = true;
+      media.currentTime = clampedSeconds;
+      setMediaCurrentTimeSeconds(clampedSeconds);
+      syncActiveSegmentWithPlayback(clampedSeconds);
+    },
+    [enqueueSnackbar, t, syncActiveSegmentWithPlayback, timelineDurationSeconds]
+  );
+
+  const handleSelectSegmentForTimeline = useCallback(
+    (segment: LocalSegment) => {
+      setActiveSegmentId(segment.id);
+      const startMs = getSegmentStartMs(segment);
+      if (startMs !== null) {
+        const startSeconds = Math.max(0, startMs / 1000);
+        handleSeekToPlaybackTime(startSeconds);
+        updateActiveWordHighlight(segment.id, startSeconds);
+      }
+    },
+    [handleSeekToPlaybackTime, updateActiveWordHighlight]
+  );
+
+  const handleSetLoopStartAtCurrent = useCallback(() => {
+    setLoopStartSeconds(mediaCurrentTimeSeconds);
+    if (loopEndSeconds !== null && loopEndSeconds <= mediaCurrentTimeSeconds + LOOP_MIN_DURATION_SECONDS) {
+      const fallbackEnd =
+        timelineDurationSeconds > 0
+          ? Math.min(timelineDurationSeconds, mediaCurrentTimeSeconds + 1)
+          : mediaCurrentTimeSeconds + 1;
+      setLoopEndSeconds(fallbackEnd);
+    }
+  }, [loopEndSeconds, mediaCurrentTimeSeconds, timelineDurationSeconds]);
+
+  const handleSetLoopEndAtCurrent = useCallback(() => {
+    setLoopEndSeconds(mediaCurrentTimeSeconds);
+    if (loopStartSeconds !== null && mediaCurrentTimeSeconds <= loopStartSeconds + LOOP_MIN_DURATION_SECONDS) {
+      const fallbackStart = Math.max(0, mediaCurrentTimeSeconds - 1);
+      setLoopStartSeconds(fallbackStart);
+    }
+  }, [loopStartSeconds, mediaCurrentTimeSeconds]);
+
+  const handleSetLoopFromActiveSegment = useCallback(() => {
+    const activeId = activeSegmentIdRef.current;
+    if (!activeId) {
+      enqueueSnackbar(t("selectSegmentToSetLoop"), { variant: "info" });
+      return;
+    }
+    const segment = segmentsRef.current.find((entry) => entry.id === activeId);
+    if (!segment) {
+      enqueueSnackbar(t("selectSegmentToSetLoop"), { variant: "info" });
+      return;
+    }
+    const startMs = getSegmentStartMs(segment);
+    const endMs = getSegmentEndMs(segment);
+    if (startMs === null || endMs === null || endMs <= startMs) {
+      enqueueSnackbar(t("itCannotBePlayedBecauseThereIsNoSectionInformation"), { variant: "info" });
+      return;
+    }
+    setLoopStartSeconds(Math.max(0, startMs / 1000));
+    setLoopEndSeconds(Math.max(0, endMs / 1000));
+    setLoopEnabled(true);
+  }, [enqueueSnackbar, t]);
+
+  const handleClearLoopRange = useCallback(() => {
+    setLoopEnabled(false);
+    setLoopStartSeconds(null);
+    setLoopEndSeconds(null);
+  }, []);
+
   const handlePlaySegment = useCallback(
     (segment: LocalSegment) => {
       if (!audioReady) {
@@ -1312,6 +1437,7 @@ export default function TranscriptionDetailPage() {
         media.currentTime = startSeconds;
       }
 
+      setMediaCurrentTimeSeconds(startSeconds);
       segmentEndRef.current = endSeconds;
       setActiveSegmentId(segment.id);
       updateActiveWordHighlight(segment.id, startSeconds);
@@ -1346,12 +1472,31 @@ export default function TranscriptionDetailPage() {
     const media = mediaElementRef.current;
     if (!media) return;
 
+    const updateDurationState = () => {
+      const nextDuration =
+        typeof media.duration === "number" && Number.isFinite(media.duration) && media.duration > 0
+          ? media.duration
+          : 0;
+      setMediaDurationSeconds(nextDuration);
+    };
+
     const handleTimeUpdate = () => {
+      setMediaCurrentTimeSeconds(media.currentTime);
+      if (loopEnabled && loopRange) {
+        if (media.currentTime >= loopRange.endSeconds - 0.03) {
+          programmaticSeekRef.current = true;
+          media.currentTime = loopRange.startSeconds;
+          setMediaCurrentTimeSeconds(loopRange.startSeconds);
+          syncActiveSegmentWithPlayback(loopRange.startSeconds);
+          return;
+        }
+      }
       const endBoundary = segmentEndRef.current;
-      if (endBoundary !== null && Number.isFinite(endBoundary)) {
+      if (!loopEnabled && endBoundary !== null && Number.isFinite(endBoundary)) {
         if (media.currentTime >= endBoundary - 0.05) {
           media.pause();
           media.currentTime = endBoundary;
+          setMediaCurrentTimeSeconds(endBoundary);
           segmentEndRef.current = null;
           setActiveSegmentId(null);
           setActiveWordHighlight(null);
@@ -1377,15 +1522,23 @@ export default function TranscriptionDetailPage() {
       if (programmaticSeekRef.current) {
         return;
       }
+      setMediaCurrentTimeSeconds(media.currentTime);
       clearSegmentPlayback();
     };
 
     const handleSeeked = () => {
       if (programmaticSeekRef.current) {
         programmaticSeekRef.current = false;
+        setMediaCurrentTimeSeconds(media.currentTime);
         return;
       }
+      setMediaCurrentTimeSeconds(media.currentTime);
       syncActiveSegmentWithPlayback(media.currentTime);
+    };
+
+    const handleLoadedMetadata = () => {
+      updateDurationState();
+      setMediaCurrentTimeSeconds(media.currentTime);
     };
 
     media.addEventListener("timeupdate", handleTimeUpdate);
@@ -1393,6 +1546,10 @@ export default function TranscriptionDetailPage() {
     media.addEventListener("pause", handleStop);
     media.addEventListener("seeking", handleSeeking);
     media.addEventListener("seeked", handleSeeked);
+    media.addEventListener("loadedmetadata", handleLoadedMetadata);
+    media.addEventListener("durationchange", updateDurationState);
+    updateDurationState();
+    setMediaCurrentTimeSeconds(media.currentTime);
 
     return () => {
       media.removeEventListener("timeupdate", handleTimeUpdate);
@@ -1400,8 +1557,10 @@ export default function TranscriptionDetailPage() {
       media.removeEventListener("pause", handleStop);
       media.removeEventListener("seeking", handleSeeking);
       media.removeEventListener("seeked", handleSeeked);
+      media.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      media.removeEventListener("durationchange", updateDurationState);
     };
-  }, [audioUrl, videoUrl, syncActiveSegmentWithPlayback]);
+  }, [audioUrl, loopEnabled, loopRange, syncActiveSegmentWithPlayback, videoUrl]);
 
   if (transcription === undefined) {
     return (
@@ -1585,6 +1744,25 @@ export default function TranscriptionDetailPage() {
       />
 
       <Stack spacing={2}>
+        <SegmentWaveformTimeline
+          audioSourceUrl={audioUrl}
+          segments={segments ?? []}
+          activeSegmentId={activeSegmentId}
+          currentTimeSeconds={mediaCurrentTimeSeconds}
+          durationSeconds={timelineDurationSeconds}
+          loopEnabled={loopEnabled}
+          loopStartSeconds={loopStartSeconds}
+          loopEndSeconds={loopEndSeconds}
+          onSeek={handleSeekToPlaybackTime}
+          onSelectSegment={handleSelectSegmentForTimeline}
+          onSetLoopStart={handleSetLoopStartAtCurrent}
+          onSetLoopEnd={handleSetLoopEndAtCurrent}
+          onSetLoopFromActiveSegment={handleSetLoopFromActiveSegment}
+          onClearLoop={handleClearLoopRange}
+          onToggleLoop={setLoopEnabled}
+          t={t}
+        />
+
         <Stack spacing={0.5}>
           <FormControlLabel
             control={
@@ -1637,14 +1815,15 @@ export default function TranscriptionDetailPage() {
             savingEdit={savingEdit}
             audioReady={audioReady}
             onSpeakerClick={handleSpeakerClick}
-          onPlaySegment={handlePlaySegment}
-          onStartEdit={handleStartEdit}
-          onWordInputChange={handleWordInputChange}
-          onEditValueChange={setEditingValue}
-          onCancelEdit={handleCancelEdit}
-          onSaveEdit={() => void handleSaveEdit()}
-          onWordDetailsToggle={(segmentId) => {
-            setWordDetailsVisibility((prev) => {
+            onSelectSegment={handleSelectSegmentForTimeline}
+            onPlaySegment={handlePlaySegment}
+            onStartEdit={handleStartEdit}
+            onWordInputChange={handleWordInputChange}
+            onEditValueChange={setEditingValue}
+            onCancelEdit={handleCancelEdit}
+            onSaveEdit={() => void handleSaveEdit()}
+            onWordDetailsToggle={(segmentId) => {
+              setWordDetailsVisibility((prev) => {
                 const nextVisible = !(prev[segmentId] ?? false);
                 if (!nextVisible && activeWordHighlightRef.current?.segmentId === segmentId) {
                   setActiveWordHighlight(null);

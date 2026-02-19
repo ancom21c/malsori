@@ -29,6 +29,7 @@ type TranscriptionViewProps = {
   audioReady: boolean;
   readOnly?: boolean;
   onSpeakerClick: (segment: LocalSegment) => void;
+  onSelectSegment: (segment: LocalSegment) => void;
   onPlaySegment: (segment: LocalSegment) => void;
   onStartEdit: (segment: LocalSegment) => void;
   onWordInputChange: (index: number, nextValue: string) => void;
@@ -54,6 +55,7 @@ export function TranscriptionView({
   audioReady,
   readOnly,
   onSpeakerClick,
+  onSelectSegment,
   onPlaySegment,
   onStartEdit,
   onWordInputChange,
@@ -131,6 +133,19 @@ export function TranscriptionView({
               }
             }}
             tabIndex={-1}
+            onClick={() => {
+              if (isEditing) {
+                return;
+              }
+              onSelectSegment(segment);
+            }}
+            sx={{
+              border: `1px solid ${
+                isActiveSegment ? alpha(theme.palette.primary.main, 0.7) : alpha(theme.palette.divider, 0.8)
+              }`,
+              boxShadow: isActiveSegment ? theme.shadows[2] : theme.shadows[1],
+              transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+            }}
           >
             <CardContent>
               <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>

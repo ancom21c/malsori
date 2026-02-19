@@ -1099,6 +1099,71 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Note view",
     ja: "ノート表示",
   },
+  waveformTimeline: {
+    ko: "웨이브폼 타임라인",
+    en: "Waveform timeline",
+    ja: "波形タイムライン",
+  },
+  waveformTimelineHelper: {
+    ko: "타임라인을 눌러 원하는 시점으로 이동하고, 구간을 선택해 반복 재생 범위를 설정하세요.",
+    en: "Tap or click the timeline to seek, then set a loop range from the selected segment.",
+    ja: "タイムラインをクリックしてシークし、選択したセグメントからループ範囲を設定できます。",
+  },
+  playbackPosition: {
+    ko: "재생 위치",
+    en: "Playback position",
+    ja: "再生位置",
+  },
+  timelineScrub: {
+    ko: "타임라인 스크럽",
+    en: "Timeline scrub",
+    ja: "タイムラインスクラブ",
+  },
+  loopPlayback: {
+    ko: "루프 재생",
+    en: "Loop playback",
+    ja: "ループ再生",
+  },
+  setLoopStart: {
+    ko: "루프 시작 지정",
+    en: "Set loop start",
+    ja: "ループ開始を設定",
+  },
+  setLoopEnd: {
+    ko: "루프 종료 지정",
+    en: "Set loop end",
+    ja: "ループ終了を設定",
+  },
+  loopActiveSegment: {
+    ko: "활성 구간으로 루프",
+    en: "Loop active segment",
+    ja: "アクティブ区間をループ",
+  },
+  clearLoop: {
+    ko: "루프 해제",
+    en: "Clear loop",
+    ja: "ループ解除",
+  },
+  loopRangeLabel: {
+    ko: "루프 범위: {{start}} ~ {{end}}",
+    en: "Loop range: {{start}} - {{end}}",
+    ja: "ループ範囲: {{start}} - {{end}}",
+  },
+  loopRangeNotSet: {
+    ko: "루프 범위가 아직 설정되지 않았습니다.",
+    en: "Loop range is not set yet.",
+    ja: "ループ範囲はまだ設定されていません。",
+  },
+  waveformLoading: {
+    ko: "웨이브폼을 불러오는 중입니다...",
+    en: "Loading waveform...",
+    ja: "波形を読み込み中...",
+  },
+  selectSegmentToSetLoop: {
+    ko: "루프를 지정할 구간을 먼저 선택해 주세요.",
+    en: "Select a segment first to set loop range.",
+    ja: "ループ範囲を設定するには、先にセグメントを選択してください。",
+  },
   numberOfSpeakersMaximum: {
     ko: "화자 수 (최대값)",
     en: "Number of speakers (maximum)",

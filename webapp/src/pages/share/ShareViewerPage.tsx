@@ -379,6 +379,26 @@ export default function ShareViewerPage() {
     [audioReady, focusSegmentCard, updateActiveWordHighlight]
   );
 
+  const handleSelectSegment = useCallback(
+    (segment: ShareSegment) => {
+      setActiveSegmentId(segment.id);
+      focusSegmentCard(segment.id);
+      const startMs = getSegmentStartMs(segment);
+      if (startMs === null) {
+        return;
+      }
+      const media = mediaElementRef.current;
+      if (!media) {
+        return;
+      }
+      const startSeconds = Math.max(0, startMs / 1000);
+      programmaticSeekRef.current = true;
+      media.currentTime = startSeconds;
+      syncActiveSegmentWithPlayback(startSeconds);
+    },
+    [focusSegmentCard, syncActiveSegmentWithPlayback]
+  );
+
   useEffect(() => {
     if (!activeSegmentId) {
       return;
@@ -569,6 +589,7 @@ export default function ShareViewerPage() {
                     audioReady={audioReady}
                     readOnly
                     onSpeakerClick={noop}
+                    onSelectSegment={handleSelectSegment}
                     onPlaySegment={handlePlaySegment}
                     onStartEdit={noop}
                     onWordInputChange={noop}
