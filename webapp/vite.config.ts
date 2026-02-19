@@ -95,38 +95,6 @@ export default defineConfig({
         "service-worker": resolve(__dirname, "src/service-worker.js"),
       },
       output: {
-        manualChunks: (id) => {
-          if (!id.includes("node_modules")) {
-            return undefined;
-          }
-          if (id.includes("@mui/icons-material")) {
-            return "vendor-mui-icons";
-          }
-          if (
-            id.includes("@mui/material") ||
-            id.includes("@mui/lab") ||
-            id.includes("@emotion")
-          ) {
-            return "vendor-mui-core";
-          }
-          if (
-            id.includes("react-router-dom") ||
-            id.includes("react-dom") ||
-            id.includes("/react/")
-          ) {
-            return "vendor-react";
-          }
-          if (
-            id.includes("@tanstack/react-query") ||
-            id.includes("dexie") ||
-            id.includes("dayjs") ||
-            id.includes("notistack") ||
-            id.includes("zustand")
-          ) {
-            return "vendor-app";
-          }
-          return "vendor-misc";
-        },
         entryFileNames: (chunkInfo) =>
           chunkInfo.name === "service-worker" ? "service-worker.js" : "assets/[name]-[hash].js",
       },
