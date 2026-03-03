@@ -56,6 +56,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useUiStore } from "../store/uiStore";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { formatLocalizedDateTime } from "../utils/time";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -174,7 +175,7 @@ export default function TranscriptionListPage() {
   const transcriptions = useTranscriptions();
   const searchIndexMap = useTranscriptionSearchIndexes();
   const { enqueueSnackbar } = useSnackbar();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { syncManager } = useSync();
   const openUploadDialog = useUiStore((state) => state.openUploadDialog);
 
@@ -225,6 +226,11 @@ export default function TranscriptionListPage() {
     });
     return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
   }, [sortedTranscriptions, t]);
+
+  const formatDateTimeLabel = useCallback(
+    (value: string | Date | null | undefined) => formatLocalizedDateTime(value, locale),
+    [locale]
+  );
 
   const filteredTranscriptions = useMemo(() => {
     const start = startDate ? dayjs(startDate).startOf("day") : null;
@@ -642,6 +648,7 @@ export default function TranscriptionListPage() {
                     maxWidth: 560,
                     justifyContent: "center",
                     pt: 0.5,
+                    display: { xs: "none", sm: "flex" },
                   }}
                 >
                   <Button
@@ -669,6 +676,52 @@ export default function TranscriptionListPage() {
                     {t("startRealTimeTranscription")}
                   </Button>
                 </Stack>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="inherit"
+                  startIcon={<TuneRoundedIcon />}
+                  component={RouterLink}
+                  to="/settings"
+                >
+                  {t("manageTranscriptionSettings")}
+                </Button>
+                <Box
+                  sx={{
+                    display: { xs: "block", sm: "none" },
+                    position: "sticky",
+                    bottom: "calc(12px + env(safe-area-inset-bottom))",
+                    width: "100%",
+                    maxWidth: 560,
+                    borderRadius: 999,
+                    p: 0.75,
+                    backgroundColor: (theme) => theme.palette.background.paper,
+                    boxShadow: (theme) => theme.shadows[3],
+                  }}
+                >
+                  <Stack direction="row" spacing={0.75}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<CloudUploadIcon />}
+                      onClick={openUploadDialog}
+                      sx={{ flex: 1, minWidth: 0 }}
+                    >
+                      {t("fileTranscriptionRequest")}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="secondary"
+                      startIcon={<GraphicEqIcon />}
+                      component={RouterLink}
+                      to="/realtime"
+                      sx={{ flex: 1, minWidth: 0 }}
+                    >
+                      {t("realTimeTranscription")}
+                    </Button>
+                  </Stack>
+                </Box>
               </Stack>
             </Box>
           ) : showNoMatches ? (
@@ -763,7 +816,7 @@ export default function TranscriptionListPage() {
                                 {t("type")}: {t(KIND_LABEL[item.kind])}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {t("creationTime")}: {dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")}
+                                {t("creationTime")}: {formatDateTimeLabel(item.createdAt)}
                               </Typography>
                               {item.modelName ? (
                                 <Typography variant="body2" color="text.secondary">
@@ -789,13 +842,13 @@ export default function TranscriptionListPage() {
                               {item.lastSyncedAt ? (
                                 <Typography variant="body2" color="text.secondary">
                                   {t("lastSyncedAt")}:{" "}
-                                  {dayjs(item.lastSyncedAt).format("YYYY-MM-DD HH:mm:ss")}
+                                  {formatDateTimeLabel(item.lastSyncedAt)}
                                 </Typography>
                               ) : null}
                               {item.nextSyncAttemptAt ? (
                                 <Typography variant="body2" color="text.secondary">
                                   {t("syncRetryAt")}:{" "}
-                                  {dayjs(item.nextSyncAttemptAt).format("YYYY-MM-DD HH:mm:ss")}
+                                  {formatDateTimeLabel(item.nextSyncAttemptAt)}
                                 </Typography>
                               ) : null}
                               {item.syncErrorMessage ? (

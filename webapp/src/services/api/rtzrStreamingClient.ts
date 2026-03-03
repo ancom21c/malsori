@@ -215,7 +215,7 @@ export class RtzrStreamingClient {
       normalized = event.data;
     }
 
-    if (this.isHandshakeAck(normalized)) {
+    if (this.isHandshakeAck(normalized) || this.isRecognitionPayload(normalized)) {
       this.markHandshakeComplete();
     }
 
@@ -287,6 +287,30 @@ export class RtzrStreamingClient {
       return true;
     }
     if ((payload as { status?: unknown }).status === "ready") {
+      return true;
+    }
+    return false;
+  }
+
+  private isRecognitionPayload(payload: unknown): boolean {
+    if (!payload || typeof payload !== "object") {
+      return false;
+    }
+    const data = payload as Record<string, unknown>;
+    const type = this.extractMessageType(data);
+    if (
+      type &&
+      ["partial", "final", "result", "recognition", "transcript", "transcription", "segment"].includes(type)
+    ) {
+      return true;
+    }
+    if (Array.isArray(data.results) && data.results.length > 0) {
+      return true;
+    }
+    if (Array.isArray(data.alternatives) && data.alternatives.length > 0) {
+      return true;
+    }
+    if (typeof data.text === "string" && data.text.trim().length > 0) {
       return true;
     }
     return false;

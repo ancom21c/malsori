@@ -68,6 +68,7 @@ import type { BackendEndpointState } from "../services/api/types";
 import { useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { formatLocalizedDateTime } from "../utils/time";
 
 type SettingsTab = "file" | "streaming";
 
@@ -179,7 +180,7 @@ export default function SettingsPage() {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navOffset = (isSmallScreen ? 56 : 64) + 8;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storagePermissionSupported =
     typeof navigator !== "undefined" && Boolean(navigator.storage?.persist);
   const [activeTab, setActiveTab] = useState<SettingsTab>("file");
@@ -1404,6 +1405,11 @@ export default function SettingsPage() {
             />
             <CardContent>
               <Stack spacing={3}>
+                <Alert severity="info" variant="outlined">
+                  <Typography variant="body2">
+                    {t("requiredWhenCheckingOrApplyingServerSettings")}
+                  </Typography>
+                </Alert>
                 <Stack spacing={2}>
                   <TextField
                     label={t("backendAdminToken")}
@@ -1475,7 +1481,10 @@ export default function SettingsPage() {
                           <Typography variant="caption" color="text.secondary">
                             {t("lastSuccessfulCheckAt", {
                               values: {
-                                time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                                time: formatLocalizedDateTime(
+                                  backendStateLastSuccessAt,
+                                  locale
+                                ),
                               },
                             })}
                           </Typography>
@@ -1523,7 +1532,10 @@ export default function SettingsPage() {
                           <Typography variant="caption" color="text.secondary">
                             {t("lastSuccessfulCheckAt", {
                               values: {
-                                time: new Date(backendStateLastSuccessAt).toLocaleString(),
+                                time: formatLocalizedDateTime(
+                                  backendStateLastSuccessAt,
+                                  locale
+                                ),
                               },
                             })}
                           </Typography>

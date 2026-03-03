@@ -47,7 +47,7 @@ import {
 import type { LocalWordTiming, PresetConfig } from "../data/app-db";
 import { DEFAULT_STREAMING_PRESETS } from "../data/defaultPresets";
 import TranscriptionConfigQuickOptions from "../components/TranscriptionConfigQuickOptions";
-import BackendEndpointPresetSelector from "../components/BackendEndpointPresetSelector";
+import BackendEndpointReadonlyCard from "../components/BackendEndpointReadonlyCard";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import PauseRoundedIcon from "@mui/icons-material/PauseRounded";
@@ -65,6 +65,7 @@ import {
   resolveBackendEndpointSnapshot,
 } from "../utils/transcriptionMetadata";
 import { useI18n } from "../i18n";
+import { formatLocalizedDateTime } from "../utils/time";
 import {
   checkMicrophonePermission,
   checkPersistentStoragePermission,
@@ -418,7 +419,7 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
 
 export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const microphonePromptedRef = useRef(false);
   const storagePromptedRef = useRef(false);
@@ -656,8 +657,6 @@ export default function RealtimeSessionPage() {
         ? `${Math.round(latencyStaleMs / 1000)}s`
         : "--";
   const showConnectionBanner = sessionActive && connectionUxState.phase !== "normal";
-  const connectionBannerSeverity: "warning" | "error" =
-    connectionUxState.phase === "failed" ? "error" : "warning";
 
   useEffect(() => {
     setFloatingActionsVisible(!sessionActive);
@@ -1667,7 +1666,7 @@ export default function RealtimeSessionPage() {
 
     try {
       const record = await createLocalTranscription({
-        title: `${t("realTimeTranscription")} ${new Date().toLocaleString()}`,
+        title: `${t("realTimeTranscription")} ${formatLocalizedDateTime(new Date(), locale)}`,
         kind: "realtime",
         status: "processing",
         metadata: {
@@ -1909,48 +1908,6 @@ export default function RealtimeSessionPage() {
       >
         <Box
           sx={{
-            position: "fixed",
-            top: "calc(12px + env(safe-area-inset-top))",
-            right: { xs: 12, sm: 16 },
-            zIndex: (theme) => theme.zIndex.modal + 3,
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-          }}
-        >
-          <Chip
-            label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`}
-            color="primary"
-            variant="outlined"
-            sx={{
-              borderColor: "rgba(255,255,255,0.65)",
-              bgcolor: "rgba(255,255,255,0.55)",
-              backdropFilter: "blur(10px)",
-              "& .MuiChip-label": { fontWeight: 800 },
-            }}
-          />
-          {sessionActive && (
-            <Chip
-              label={`${t("realtimeLatency")}: ${t(LATENCY_LEVEL_LABEL_KEY[latencyLevel])} · ${latencyValueLabel}`}
-              color={latencyChipColor}
-              variant="outlined"
-              sx={{
-                borderColor: "rgba(255,255,255,0.65)",
-                bgcolor: "rgba(255,255,255,0.55)",
-                backdropFilter: "blur(10px)",
-                "& .MuiChip-label": { fontWeight: 700 },
-              }}
-            />
-          )}
-          {sessionState === "countdown" && (
-            <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
-              {countdown}
-            </Typography>
-          )}
-        </Box>
-
-        <Box
-          sx={{
             flex: 1,
             display: "flex",
             flexDirection: "column",
@@ -2134,6 +2091,98 @@ export default function RealtimeSessionPage() {
                       {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
                     </Alert>
                   )}
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      borderColor:
+                        connectionUxState.phase === "failed"
+                          ? "error.main"
+                          : connectionUxState.phase === "reconnecting"
+                          ? "warning.main"
+                          : "divider",
+                      backgroundColor:
+                        connectionUxState.phase === "failed"
+                          ? "rgba(211, 47, 47, 0.06)"
+                          : connectionUxState.phase === "reconnecting"
+                          ? "rgba(237, 108, 2, 0.08)"
+                          : "background.paper",
+                      transition: "border-color 200ms ease, background-color 200ms ease",
+                      "@media (prefers-reduced-motion: reduce)": {
+                        transition: "none",
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ "&:last-child": { pb: 2 } }}>
+                      <Stack spacing={1.25}>
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          justifyContent="space-between"
+                          alignItems={{ xs: "flex-start", sm: "center" }}
+                        >
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`}
+                              color="primary"
+                              variant="outlined"
+                            />
+                            {sessionActive ? (
+                              <Chip
+                                label={`${t("realtimeLatency")}: ${t(LATENCY_LEVEL_LABEL_KEY[latencyLevel])} · ${latencyValueLabel}`}
+                                color={latencyChipColor}
+                                variant="outlined"
+                              />
+                            ) : null}
+                            {sessionState === "countdown" ? (
+                              <Chip
+                                label={t("readyToStartS", {
+                                  values: { seconds: Math.max(countdown, 0) },
+                                })}
+                                color="secondary"
+                                variant="outlined"
+                              />
+                            ) : null}
+                          </Stack>
+                          {showConnectionBanner ? (
+                            <Stack direction="row" spacing={1}>
+                              <Button
+                                size="small"
+                                color="inherit"
+                                onClick={() => void handleRetryConnection()}
+                                disabled={retryingConnection}
+                              >
+                                {retryingConnection ? t("retryingConnection") : t("retryConnection")}
+                              </Button>
+                              <Button
+                                size="small"
+                                color="inherit"
+                                onClick={() => stopSession(true)}
+                                disabled={retryingConnection}
+                              >
+                                {t("abortSession")}
+                              </Button>
+                            </Stack>
+                          ) : null}
+                        </Stack>
+                        {showConnectionBanner ? (
+                          <Typography variant="body2">
+                            {connectionUxState.phase === "failed"
+                              ? t("realtimeReconnectFailedDetail")
+                              : connectionUxState.reconnectAttempt > 0
+                              ? t("attemptingToReconnectToStreaming", {
+                                  values: { attempt: connectionUxState.reconnectAttempt },
+                                })
+                              : t("aStreamingErrorOccurredTheConnectionIsBeingRestored")}
+                          </Typography>
+                        ) : null}
+                        {connectionEventMessage ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {connectionEventMessage}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </CardContent>
+                  </Card>
                   {showMicrophonePermissionRecovery ? (
                     <Alert
                       severity={microphonePermissionSeverity}
@@ -2207,53 +2256,6 @@ export default function RealtimeSessionPage() {
                             values: { permission: t("storagePermissions") },
                           })}
                         </Typography>
-                      </Stack>
-                    </Alert>
-                  ) : null}
-                  {showConnectionBanner ? (
-                    <Alert
-                      severity={connectionBannerSeverity}
-                      action={(
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => void handleRetryConnection()}
-                            disabled={retryingConnection}
-                          >
-                            {retryingConnection ? t("retryingConnection") : t("retryConnection")}
-                          </Button>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => stopSession(true)}
-                            disabled={retryingConnection}
-                          >
-                            {t("abortSession")}
-                          </Button>
-                        </Stack>
-                      )}
-                    >
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {connectionUxState.phase === "failed"
-                            ? t("realtimeReconnectFailed")
-                            : t("realtimeReconnectInProgress")}
-                        </Typography>
-                        <Typography variant="body2">
-                          {connectionUxState.phase === "failed"
-                            ? t("realtimeReconnectFailedDetail")
-                            : connectionUxState.reconnectAttempt > 0
-                              ? t("attemptingToReconnectToStreaming", {
-                                values: { attempt: connectionUxState.reconnectAttempt },
-                              })
-                              : t("aStreamingErrorOccurredTheConnectionIsBeingRestored")}
-                        </Typography>
-                        {connectionEventMessage ? (
-                          <Typography variant="caption" color="text.secondary">
-                            {connectionEventMessage}
-                          </Typography>
-                        ) : null}
                       </Stack>
                     </Alert>
                   ) : null}
@@ -2574,15 +2576,7 @@ export default function RealtimeSessionPage() {
                 />
               </Collapse>
             </Box>
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                {t("apiEndpointPresets")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {t("immediatelySwitchesTheSttServerEndpointThatThePythonApiWillConnectTo")}
-              </Typography>
-              <BackendEndpointPresetSelector />
-            </Box>
+            <BackendEndpointReadonlyCard />
             <Box>
               <Stack
                 direction={{ xs: "column", sm: "row" }}

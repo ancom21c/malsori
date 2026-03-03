@@ -268,10 +268,39 @@ export function SegmentWaveformTimeline({
       </Typography>
       <Box
         onPointerDown={(event) => {
+          if (event.target !== event.currentTarget) {
+            return;
+          }
           const rect = event.currentTarget.getBoundingClientRect();
           const ratio = (event.clientX - rect.left) / rect.width;
           seekByRatio(ratio);
         }}
+        tabIndex={resolvedDurationSeconds > 0 ? 0 : -1}
+        onKeyDown={(event) => {
+          if (resolvedDurationSeconds <= 0) {
+            return;
+          }
+          if (event.key === "Home") {
+            event.preventDefault();
+            onSeek(0);
+            return;
+          }
+          if (event.key === "End") {
+            event.preventDefault();
+            onSeek(resolvedDurationSeconds);
+            return;
+          }
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            onSeek(Math.max(0, currentPosition - 1));
+            return;
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            onSeek(Math.min(resolvedDurationSeconds, currentPosition + 1));
+          }
+        }}
+        aria-label={t("waveformTimeline")}
         sx={{
           position: "relative",
           height: { xs: 94, sm: 108 },
@@ -356,6 +385,8 @@ export function SegmentWaveformTimeline({
           return (
             <Box
               key={range.segment.id}
+              component="button"
+              type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 onSelectSegment(range.segment);
@@ -363,7 +394,13 @@ export function SegmentWaveformTimeline({
               title={`${range.index + 1}. ${formatTimelineTime(range.startSeconds)} - ${formatTimelineTime(
                 range.endSeconds
               )}`}
+              aria-label={`${range.index + 1}. ${formatTimelineTime(range.startSeconds)} - ${formatTimelineTime(
+                range.endSeconds
+              )}`}
+              aria-pressed={isActive}
               sx={{
+                appearance: "none",
+                p: 0,
                 position: "absolute",
                 left: `${startRatio * 100}%`,
                 width: `${widthRatio * 100}%`,
@@ -379,6 +416,10 @@ export function SegmentWaveformTimeline({
                   ? `1px solid ${alpha(theme.palette.secondary.dark, 0.85)}`
                   : `1px solid ${alpha(theme.palette.secondary.main, 0.55)}`,
                 cursor: "pointer",
+                "&:focus-visible": {
+                  outline: `2px solid ${alpha(theme.palette.primary.main, 0.9)}`,
+                  outlineOffset: 1,
+                },
               }}
             />
           );

@@ -23,11 +23,13 @@ const SERVER_DEFAULT_OPTION = "server-default";
 type BackendEndpointPresetSelectorProps = {
   size?: "small" | "medium";
   sx?: SxProps<Theme>;
+  adminToken?: string;
 };
 
 export function BackendEndpointPresetSelector({
   size = "medium",
   sx,
+  adminToken,
 }: BackendEndpointPresetSelectorProps) {
   const { t } = useI18n();
   const backendPresets = useBackendEndpointPresets();
@@ -41,6 +43,7 @@ export function BackendEndpointPresetSelector({
   const [errorText, setErrorText] = useState<string | null>(null);
   const labelId = useId();
   const apiReady = apiBaseUrl.trim().length > 0;
+  const hasAdminToken = (adminToken ?? "").trim().length > 0;
 
   const getDeploymentLabel = (deployment: BackendEndpointPreset["deployment"]) => {
     if (deployment === "cloud") return t("rtzrApi");
@@ -74,11 +77,17 @@ export function BackendEndpointPresetSelector({
       setErrorText(warning);
       return false;
     }
+    if (!hasAdminToken) {
+      const warning = t("enterAdminTokenBeforeApplyingServerSettings");
+      enqueueSnackbar(warning, { variant: "warning" });
+      setErrorText(warning);
+      return false;
+    }
     setErrorText(null);
     setApplying(true);
     try {
       if (value === SERVER_DEFAULT_OPTION) {
-        await apiClient.resetBackendEndpoint();
+        await apiClient.resetBackendEndpoint({ adminToken });
         await updateSetting("activeBackendPresetId", null);
         enqueueSnackbar(t("serverDefaultSettingsHaveBeenApplied"), { variant: "info" });
       } else {
@@ -92,7 +101,7 @@ export function BackendEndpointPresetSelector({
           clientId: preset.clientId ?? null,
           clientSecret: preset.clientSecret ?? null,
           verifySsl: preset.verifySsl ?? true,
-        });
+        }, { adminToken });
         await updateSetting("activeBackendPresetId", preset.id);
         enqueueSnackbar(
           t("backendpresetselectorApplysuccess", { values: { name: preset.name } }),
@@ -125,7 +134,7 @@ export function BackendEndpointPresetSelector({
 
   return (
     <Box sx={sx}>
-      <FormControl fullWidth size={size} disabled={applying || !apiReady}>
+      <FormControl fullWidth size={size} disabled={applying || !apiReady || !hasAdminToken}>
         <InputLabel id={`${labelId}-label`}>{t("apiEndpointPresets")}</InputLabel>
         <Select
           labelId={`${labelId}-label`}
@@ -163,6 +172,8 @@ export function BackendEndpointPresetSelector({
             ? errorText
             : !apiReady
             ? t("enterThePythonApiBaseUrlToApplyItToYourServer")
+            : !hasAdminToken
+            ? t("enterAdminTokenBeforeApplyingServerSettings")
             : applying
             ? t("applyingToServer")
             : t("yourSelectionWillBeAppliedToTheServerImmediately")}

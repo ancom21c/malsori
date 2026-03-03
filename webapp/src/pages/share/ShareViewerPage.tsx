@@ -41,7 +41,7 @@ declare global {
 const SEGMENT_MATCH_TOLERANCE_MS = 200;
 
 export default function ShareViewerPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [payloadParam, setPayloadParam] = useState<string | null>(
     typeof window !== "undefined" && window.__SHARE_EMBED__ ? window.__SHARE_EMBED__ : null
   );
@@ -540,6 +540,7 @@ export default function ShareViewerPage() {
                 sticky
                 compactOnScroll
                 showEditingHint={false}
+                locale={locale}
                 t={t}
               />
 

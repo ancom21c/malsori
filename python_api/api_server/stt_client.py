@@ -451,6 +451,8 @@ class RTZRClient:
         """Convert arbitrary values into the string representation RTZR expects."""
         if value is None:
             return None
+        if isinstance(value, (dict, list, tuple, set)):
+            return None
         if isinstance(value, bool):
             return "true" if value else "false"
         return str(value)
@@ -469,7 +471,14 @@ class RTZRClient:
 
         merged_config: Dict[str, str] = DEFAULT_STREAMING_CONFIG.copy()
         if config:
-            for key, value in config.items():
+            normalized_config = dict(config)
+            stream_config = normalized_config.get("stream_config")
+            if isinstance(stream_config, dict):
+                for nested_key in ("epd_time", "max_utter_duration"):
+                    if nested_key not in normalized_config and nested_key in stream_config:
+                        normalized_config[nested_key] = stream_config[nested_key]
+
+            for key, value in normalized_config.items():
                 normalized = self._normalize_streaming_value(value)
                 if normalized is None:
                     continue

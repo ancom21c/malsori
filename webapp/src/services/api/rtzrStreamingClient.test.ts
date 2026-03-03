@@ -86,6 +86,34 @@ describe("RtzrStreamingClient handshake", () => {
     expect(ws.sent[1] instanceof ArrayBuffer).toBe(true);
   });
 
+  it("opens when first recognition payload arrives even without explicit ready ack", async () => {
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onOpen = vi.fn();
+    const onMessage = vi.fn();
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "ws://localhost:8000",
+      decoderConfig: {},
+      onMessage,
+      onOpen,
+      handshakeTimeoutMs: 200,
+    });
+
+    const ws = MockWebSocket.instances[0];
+    ws.emitOpen();
+    client.sendAudioChunk(new Uint8Array([7, 8, 9]));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(ws.sent.length).toBe(1);
+
+    ws.emitMessage(JSON.stringify({ type: "partial", text: "hello" }));
+    await Promise.resolve();
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(ws.sent.length).toBe(2);
+    expect(ws.sent[1] instanceof ArrayBuffer).toBe(true);
+  });
+
   it("fails with STREAM_ACK_TIMEOUT when ack is not received", () => {
     vi.useFakeTimers();
     globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;

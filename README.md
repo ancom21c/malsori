@@ -4,7 +4,7 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 
 ## Current Capabilities
 
-- Realtime recorder pipeline with countdown, PCM resampling, resilient WebSocket handshake (token subprotocol, metadata, keep-alive, backoff) and offline recovery.
+- Realtime recorder pipeline with countdown, PCM resampling, resilient WebSocket handshake (`start` -> proxy `ready` ack -> binary audio -> `final`), keep-alive, backoff, and offline recovery.
 - Automatic chunk buffering while reconnecting plus finalization request when stopping a session.
 - IndexedDB (Dexie) persistence for transcriptions, segments, PCM audio chunks, presets, and environment settings.
 - Audio playback & export: assemble realtime PCM chunks into a WAV blob, stream remote audio, and play/seek per-segment within the detail view.
@@ -54,7 +54,20 @@ export PRONAIA_CLIENT_SECRET=your-client-secret
 uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
-The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay. Backend override endpoints under `/v1/backend/*` are disabled by default and require admin token auth when enabled.
+The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.  
+For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth when enabled.
+
+#### Proxy Contract Mapping
+
+| Browser call (to Python API) | Malsori proxy behavior | Upstream RTZR target |
+|---|---|---|
+| `POST /v1/transcribe` (file + `config`) | Forwards multipart request, normalizes `id/transcribe_id`, persists uploaded audio artifact | Cloud/onprem transcribe endpoint (`transcribe_path`) |
+| `GET /v1/transcribe/{id}` | Forwards status lookup, normalizes segment payloads | Cloud/onprem status endpoint (`transcribe_status_path`) |
+| `GET /v1/transcribe/{id}/audio` | Returns **Malsori-local stored artifact** from `STT_STORAGE_BASE_DIR`; does not proxy RTZR download on demand | N/A (local file serving route) |
+| `WS /v1/streaming` (cloud) | Consumes first browser `start`, converts `decoder_config` to query params, sends local `ready`, relays binary audio, maps browser `final/stop/eos` to upstream `EOS` | RTZR websocket streaming path (`streaming_path`) |
+| `WS /v1/streaming` (onprem) | Consumes first browser `start`, opens gRPC decoder stream, sends local `ready`, relays binary audio, half-closes on `final/stop/eos` | On-prem gRPC `OnlineDecoder.Decode` |
+
+`/v1/transcribe/{id}/audio` and RTZR upstream `/download` are intentionally different contracts: the former is Malsori's local artifact endpoint for playback/export stability.
 
 #### Google Drive OAuth (Auth Broker)
 

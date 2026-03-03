@@ -43,6 +43,8 @@ kubectl -n malsori create secret generic malsori-python-api-secret \
   | kubectl -n malsori apply -f -
 ```
 
+`/v1/backend/*` endpoints are for internal-network operations only. Keep `BACKEND_ADMIN_ENABLED=false` unless you explicitly need runtime override APIs, and never expose admin tokens on public clients.
+
 ## Persistent Storage (Recommended for broker mode)
 
 If you enable the Drive auth broker, the server stores refresh tokens under `STT_STORAGE_BASE_DIR` (`/data` in the chart).

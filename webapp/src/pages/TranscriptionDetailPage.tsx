@@ -378,7 +378,7 @@ export default function TranscriptionDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -1603,6 +1603,7 @@ export default function TranscriptionDetailPage() {
         onTitleUpdate={handleTitleUpdate}
         sticky
         compactOnScroll
+        locale={locale}
         t={t}
       />
       <input

@@ -817,6 +817,58 @@ def _extract_decoder_config_from_start(
     return config, metadata
 
 
+async def _receive_stream_start_payload(
+    websocket: WebSocket,
+) -> Optional[Dict[str, Any]]:
+    try:
+        first = await websocket.receive()
+    except WebSocketDisconnect:
+        return None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("스트리밍 start 수신 실패", exc_info=exc)
+        await websocket.close(code=1011, reason="Invalid start message")
+        return None
+
+    if first.get("type") == "websocket.disconnect":
+        return None
+
+    start_text = first.get("text")
+    if not start_text:
+        await websocket.send_text(
+            json.dumps({"type": "error", "message": "Missing start message."})
+        )
+        await websocket.close(code=1007, reason="Missing start message")
+        return None
+
+    try:
+        start_payload = json.loads(start_text)
+    except json.JSONDecodeError:
+        await websocket.send_text(
+            json.dumps({"type": "error", "message": "Invalid start payload."})
+        )
+        await websocket.close(code=1007, reason="Invalid start payload")
+        return None
+
+    if not isinstance(start_payload, dict):
+        await websocket.send_text(
+            json.dumps({"type": "error", "message": "Invalid start payload."})
+        )
+        await websocket.close(code=1007, reason="Invalid start payload")
+        return None
+
+    msg_type = _normalize_message_type(start_payload)
+    if msg_type and msg_type not in {"start", "session", "start_request"}:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "error", "message": "Start message is required first."}
+            )
+        )
+        await websocket.close(code=1007, reason="Start message required")
+        return None
+
+    return start_payload
+
+
 def _speech_event_name(event_value: int) -> str:
     try:
         return stt_pb2.DecoderResponse.SpeechEventType.Name(event_value)
@@ -914,37 +966,8 @@ async def _handle_onprem_streaming(
     websocket: WebSocket, client: RTZRClient, settings: Settings
 ) -> None:
     """Bridge client websocket messages to the on-prem gRPC streaming API."""
-    try:
-        first = await websocket.receive()
-    except WebSocketDisconnect:
-        return
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("온프렘 스트리밍 start 수신 실패", exc_info=exc)
-        await websocket.close(code=1011, reason="Invalid start message")
-        return
-
-    start_text = first.get("text")
-    if not start_text:
-        await websocket.send_text(json.dumps({"type": "error", "message": "Missing start message."}))
-        await websocket.close(code=1007, reason="Missing start message")
-        return
-
-    try:
-        start_payload = json.loads(start_text)
-    except json.JSONDecodeError:
-        await websocket.send_text(json.dumps({"type": "error", "message": "Invalid start payload."}))
-        await websocket.close(code=1007, reason="Invalid start payload")
-        return
-
-    if not isinstance(start_payload, dict):
-        await websocket.send_text(json.dumps({"type": "error", "message": "Invalid start payload."}))
-        await websocket.close(code=1007, reason="Invalid start payload")
-        return
-
-    msg_type = _normalize_message_type(start_payload)
-    if msg_type and msg_type not in {"start", "session", "start_request"}:
-        await websocket.send_text(json.dumps({"type": "error", "message": "Start message is required first."}))
-        await websocket.close(code=1007, reason="Start message required")
+    start_payload = await _receive_stream_start_payload(websocket)
+    if start_payload is None:
         return
 
     decoder_config, metadata = _extract_decoder_config_from_start(start_payload)
@@ -970,6 +993,7 @@ async def _handle_onprem_streaming(
     await websocket.send_text(json.dumps({"type": "ready"}))
 
     async def relay_client_to_grpc():
+        finalize_requested = False
         try:
             while True:
                 message = await websocket.receive()
@@ -977,7 +1001,8 @@ async def _handle_onprem_streaming(
                     break
                 binary = message.get("bytes")
                 if binary is not None:
-                    await grpc_session.send_audio(bytes(binary))
+                    if not finalize_requested:
+                        await grpc_session.send_audio(bytes(binary))
                     continue
                 text = message.get("text")
                 if text is None:
@@ -990,8 +1015,12 @@ async def _handle_onprem_streaming(
                     continue
                 parsed_type = _normalize_message_type(parsed)
                 if parsed_type in {"final", "stop", "eos"}:
-                    await grpc_session.finish()
-                    break
+                    if not finalize_requested:
+                        await grpc_session.finish()
+                        finalize_requested = True
+                    continue
+                if parsed_type in {"ping", "pong"}:
+                    continue
         except WebSocketDisconnect:
             logger.info("온프렘 스트리밍: 브라우저 연결 종료 (client->grpc)")
         except Exception as exc:  # pragma: no cover - defensive
@@ -1050,10 +1079,15 @@ async def streaming_proxy(websocket: WebSocket):
         await _handle_onprem_streaming(websocket, client, settings)
         return
 
+    start_payload = await _receive_stream_start_payload(websocket)
+    if start_payload is None:
+        return
+    decoder_config, _ = _extract_decoder_config_from_start(start_payload)
+
     streaming_url = None
     try:
-        streaming_url = client.get_streaming_url()
-        upstream = await client.connect_streaming()
+        streaming_url = client.get_streaming_url(config=decoder_config)
+        upstream = await client.connect_streaming(config=decoder_config)
     except Exception as exc:  # pragma: no cover - upstream connection failure
         logger.exception(
             "실시간 스트리밍 upstream 연결 실패 (deployment=%s, api_base=%s, streaming_url=%s)",
@@ -1068,7 +1102,10 @@ async def streaming_proxy(websocket: WebSocket):
         await websocket.close(code=1011, reason="Upstream connection failed")
         return
 
+    await websocket.send_text(json.dumps({"type": "ready"}))
+
     async def relay_client_to_upstream():
+        finalize_requested = False
         try:
             while True:
                 message = await websocket.receive()
@@ -1076,11 +1113,31 @@ async def streaming_proxy(websocket: WebSocket):
                     break
                 binary = message.get("bytes")
                 if binary is not None:
-                    await upstream.send(bytes(binary))
+                    if not finalize_requested:
+                        await upstream.send(bytes(binary))
                     continue
                 text = message.get("text")
                 if text is not None:
-                    await upstream.send(text)
+                    try:
+                        parsed: Any = json.loads(text)
+                    except json.JSONDecodeError:
+                        parsed = text
+
+                    if isinstance(parsed, dict):
+                        parsed_type = _normalize_message_type(parsed)
+                        if parsed_type in {"start", "session", "start_request", "ping", "pong"}:
+                            continue
+                        if parsed_type in {"final", "stop", "eos"}:
+                            if not finalize_requested:
+                                await upstream.send("EOS")
+                                finalize_requested = True
+                            continue
+                        continue
+
+                    if isinstance(parsed, str) and parsed.strip().upper() == "EOS":
+                        if not finalize_requested:
+                            await upstream.send("EOS")
+                            finalize_requested = True
         except WebSocketDisconnect:
             pass
         except (ConnectionClosedError, ConnectionClosedOK):

@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import {
@@ -28,6 +27,7 @@ import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import ReplayIcon from "@mui/icons-material/Replay";
 import type { LocalTranscription } from "../data/app-db";
 import type { MutableRefObject } from "react";
+import { formatLocalizedDateTime } from "../utils/time";
 
 type PlaybackTranscription = Pick<
   LocalTranscription,
@@ -58,6 +58,7 @@ type MediaPlaybackSectionProps = {
   sticky?: boolean;
   compactOnScroll?: boolean;
   showEditingHint?: boolean;
+  locale: string;
   t: (key: string, options?: Record<string, unknown>) => string;
 };
 
@@ -85,6 +86,7 @@ export function MediaPlaybackSection({
   sticky,
   compactOnScroll,
   showEditingHint,
+  locale,
   t,
 }: MediaPlaybackSectionProps) {
   const rawTitle = transcription.title?.trim() ?? "";
@@ -247,7 +249,7 @@ export function MediaPlaybackSection({
             )}
             {!isCompact ? (
               <Typography variant="body2" color="text.secondary">
-                {t("creationTime")}: {dayjs(transcription.createdAt).format("YYYY-MM-DD HH:mm:ss")}
+                {t("creationTime")}: {formatLocalizedDateTime(transcription.createdAt, locale)}
               </Typography>
             ) : null}
           </Stack>

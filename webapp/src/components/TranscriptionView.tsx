@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { alpha, useTheme } from "@mui/material/styles";
-import { Box, Button, Card, CardContent, Chip, Divider, IconButton, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import { Box, Button, ButtonBase, Card, CardContent, Chip, Divider, IconButton, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import ListAltOutlinedIcon from "@mui/icons-material/ListAltOutlined";
@@ -133,12 +133,6 @@ export function TranscriptionView({
               }
             }}
             tabIndex={-1}
-            onClick={() => {
-              if (isEditing) {
-                return;
-              }
-              onSelectSegment(segment);
-            }}
             sx={{
               border: `1px solid ${
                 isActiveSegment ? alpha(theme.palette.primary.main, 0.7) : alpha(theme.palette.divider, 0.8)
@@ -264,23 +258,37 @@ export function TranscriptionView({
                   </Stack>
                 )
               ) : (
-                <Stack
-                  spacing={1}
+                <ButtonBase
+                  onClick={() => onSelectSegment(segment)}
                   onDoubleClick={allowEditing ? () => onStartEdit(segment) : undefined}
-                  sx={{ cursor: allowEditing ? "text" : "default" }}
+                  sx={{
+                    width: "100%",
+                    display: "block",
+                    textAlign: "left",
+                    borderRadius: 1,
+                    p: 0.5,
+                    cursor: allowEditing ? "text" : "pointer",
+                    "&:focus-visible": {
+                      outline: `2px solid ${alpha(theme.palette.primary.main, 0.85)}`,
+                      outlineOffset: 2,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                    },
+                  }}
                 >
-                  <Typography variant="body1">{resolveSegmentText(segment, true)}</Typography>
-                  {segment.correctedText ? (
-                    <Typography variant="caption" color="text.secondary">
-                      {t("text")}
-                    </Typography>
-                  ) : null}
-                  {segment.rawText && segment.rawText !== segment.text ? (
-                    <Typography variant="caption" color="text.secondary">
-                      {t("raw")}: {segment.rawText}
-                    </Typography>
-                  ) : null}
-                </Stack>
+                  <Stack spacing={1}>
+                    <Typography variant="body1">{resolveSegmentText(segment, true)}</Typography>
+                    {segment.correctedText ? (
+                      <Typography variant="caption" color="text.secondary">
+                        {t("text")}
+                      </Typography>
+                    ) : null}
+                    {segment.rawText && segment.rawText !== segment.text ? (
+                      <Typography variant="caption" color="text.secondary">
+                        {t("raw")}: {segment.rawText}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                </ButtonBase>
               )}
 
               {isWordDetailsVisible && segment.words && segment.words.length > 0 ? (

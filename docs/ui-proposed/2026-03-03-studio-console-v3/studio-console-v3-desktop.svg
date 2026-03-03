@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f2f5f4"/>
+  <rect x="0" y="0" width="1440" height="72" fill="#0f6f66"/>
+  <text x="36" y="45" font-family="Arial, sans-serif" font-size="28" fill="#ffffff" font-weight="700">MalSori Studio Console v3</text>
+
+  <rect x="56" y="102" width="1328" height="88" rx="14" fill="#ffffff" stroke="#cfd8d6"/>
+  <text x="84" y="140" font-family="Arial, sans-serif" font-size="24" fill="#203331" font-weight="700">Tier 1: Global Status + Next Action</text>
+  <text x="84" y="168" font-family="Arial, sans-serif" font-size="16" fill="#526867">Connection HUD, active workspace, and quick actions</text>
+
+  <rect x="56" y="218" width="860" height="626" rx="16" fill="#ffffff" stroke="#cfd8d6"/>
+  <text x="84" y="258" font-family="Arial, sans-serif" font-size="22" fill="#203331" font-weight="700">Tier 2 Primary Panel</text>
+  <text x="84" y="284" font-family="Arial, sans-serif" font-size="15" fill="#526867">List stream / Realtime transcript / Settings form editor</text>
+
+  <rect x="944" y="218" width="440" height="302" rx="16" fill="#ffffff" stroke="#cfd8d6"/>
+  <text x="970" y="258" font-family="Arial, sans-serif" font-size="22" fill="#203331" font-weight="700">Secondary Panel A</text>
+  <text x="970" y="284" font-family="Arial, sans-serif" font-size="15" fill="#526867">Context cards, endpoint summary, permission hints</text>
+
+  <rect x="944" y="542" width="440" height="302" rx="16" fill="#ffffff" stroke="#cfd8d6"/>
+  <text x="970" y="582" font-family="Arial, sans-serif" font-size="22" fill="#203331" font-weight="700">Secondary Panel B</text>
+  <text x="970" y="608" font-family="Arial, sans-serif" font-size="15" fill="#526867">CTA stack, recovery actions, docs/help links</text>
+
+  <rect x="1120" y="776" width="248" height="54" rx="27" fill="#0f6f66"/>
+  <text x="1160" y="810" font-family="Arial, sans-serif" font-size="20" fill="#ffffff" font-weight="700">Sticky Action</text>
+</svg>

@@ -28,7 +28,7 @@ Open http://localhost:5173/ to view the app.
 
 - **Transcription History** – Dexie-backed list of file and realtime sessions, sorted by newest first with delete support.
 - **Realtime Session** – Countdown, microphone capture with PCM resampling, metadata handshake, keep-alive ping/pong, reconnect backoff, buffering while offline, and graceful finalization.
-- **Streaming Decoder** – Converts recorder chunks into 16-bit PCM, sends them over WebSocket after handshake acknowledgement, and normalises incoming partial/final message shapes.
+- **Streaming Decoder** – Converts recorder chunks into 16-bit PCM, sends them over WebSocket after handshake confirmation (`ready` ACK or first recognition payload), and normalises incoming partial/final message shapes.
 - **Audio Playback & Export** – Rebuild recorded PCM chunks into a WAV blob, expose download, stream remote audio, and provide per-segment seek/play controls in the detail view.
 - **File Transcription Flow** – Upload dialog with preset selection, API submission, optimistic Dexie persistence, and status polling to import remote segments/audio URLs.
 - **Settings & Presets** – Client-side storage for API base URL, token, client credentials, realtime autosave interval, and Dexie-backed preset CRUD with default enforcement.

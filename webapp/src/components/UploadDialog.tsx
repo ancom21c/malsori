@@ -23,7 +23,7 @@ import { usePresets } from "../hooks/usePresets";
 import { DEFAULT_FILE_PRESETS } from "../data/defaultPresets";
 import { useSettingsStore } from "../store/settingsStore";
 import TranscriptionConfigQuickOptions from "./TranscriptionConfigQuickOptions";
-import BackendEndpointPresetSelector from "./BackendEndpointPresetSelector";
+import BackendEndpointReadonlyCard from "./BackendEndpointReadonlyCard";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import { useI18n } from "../i18n";
 
@@ -253,15 +253,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                 />
               </Collapse>
             </Box>
-            <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                {t("apiEndpointPresets")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {t("immediatelySwitchesTheSttServerEndpointThatThePythonApiWillConnectTo")}
-              </Typography>
-              <BackendEndpointPresetSelector />
-            </Box>
+            <BackendEndpointReadonlyCard />
             <Divider sx={{ my: 1 }} />
             <Box>
               <Button
