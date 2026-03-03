@@ -38,7 +38,7 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `STT_STORAGE_BASE_DIR` – directory where raw audio and transcripts are archived.
 - `PRONAIA_CLIENT_ID` / `PRONAIA_CLIENT_SECRET` – RTZR app credentials used to mint access tokens. Required unless you provide a token manually.
 - `PRONAIA_ACCESS_TOKEN` – optional bearer token to reuse instead of minting via client ID/secret.
-- `PRONAIA_API_BASE` – upstream RTZR API base URL (defaults to `https://dev-openapi.vito.ai`).
+- `PRONAIA_API_BASE` – upstream RTZR API base URL (defaults to `https://openapi.vito.ai`).
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
 - `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.

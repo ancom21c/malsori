@@ -55,7 +55,7 @@ class Settings(BaseModel):
     )
     storage_base_dir: Path = Field(..., alias="STT_STORAGE_BASE_DIR")
     pronaia_api_base: str = Field(
-        "https://dev-openapi.vito.ai", alias="PRONAIA_API_BASE"
+        "https://openapi.vito.ai", alias="PRONAIA_API_BASE"
     )
     pronaia_access_token: Optional[str] = Field(
         default=None, alias="PRONAIA_ACCESS_TOKEN"
