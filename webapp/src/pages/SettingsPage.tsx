@@ -65,7 +65,7 @@ import {
 } from "../services/data/backendEndpointRepository";
 import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
 import type { BackendEndpointState } from "../services/api/types";
-import { useTheme } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { formatLocalizedDateTime } from "../utils/time";
@@ -388,6 +388,31 @@ export default function SettingsPage() {
   }, [presetType]);
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
   const backendStatusUnavailable = Boolean(backendStateError) && !backendState;
+  const selectedPresetName = useMemo(() => {
+    if (!selectedPresetId) {
+      return presets.find((preset) => preset.isDefault)?.name;
+    }
+    return presets.find((preset) => preset.id === selectedPresetId)?.name;
+  }, [presets, selectedPresetId]);
+  const apiConfigured = Boolean(apiBaseUrl.trim());
+  const permissionReadyCount = useMemo(() => {
+    const microphoneReady = permissionStatus.microphone === "granted" ? 1 : 0;
+    const storageReady =
+      storagePermissionSupported && permissionStatus.storage === "granted" ? 1 : 0;
+    return microphoneReady + storageReady;
+  }, [permissionStatus.microphone, permissionStatus.storage, storagePermissionSupported]);
+  const permissionTotalCount = storagePermissionSupported ? 2 : 1;
+  const backendSummary = useMemo(() => {
+    if (!backendAdminEnabled) {
+      return "Internal only";
+    }
+    if (!backendState) {
+      return "Pending status";
+    }
+    return `${backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")} · ${
+      backendState.source === "override" ? t("custom") : t("serverDefault")
+    }`;
+  }, [backendAdminEnabled, backendState, t]);
 
   useEffect(() => {
     setSelectedPresetId(null);
@@ -1091,6 +1116,80 @@ export default function SettingsPage() {
           </Tabs>
         </Box>
 
+        <Card variant="outlined">
+          <CardContent sx={{ py: 2 }}>
+            <Stack spacing={1.5}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", md: "center" }}
+              >
+                <Typography variant="subtitle1">Settings Console Overview</Typography>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  color={permissionReadyCount === permissionTotalCount ? "success" : "warning"}
+                  label={`Permissions ${permissionReadyCount}/${permissionTotalCount}`}
+                />
+              </Stack>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1.25}>
+                <Box
+                  sx={{
+                    flex: 1,
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {t("pythonApiBaseUrl")}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
+                    {apiConfigured ? apiBaseUrl : "Not configured"}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    flex: 1,
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (theme) => alpha(theme.palette.secondary.main, 0.08),
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {t("manageTranscriptionSettings")}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
+                    {selectedPresetName ?? t("defaultSettings")} · {activeTab === "file" ? t("generalStt") : t("streamingStt")}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    flex: 1,
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    {t("backendSettings")}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
+                    {backendSummary}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+
         <Card ref={transcriptionSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
           <CardHeader
             title={t("manageTranscriptionSettings")}
@@ -1108,6 +1207,24 @@ export default function SettingsPage() {
           </Tabs>
           <CardContent>
             <Box sx={{ mb: 3 }}>
+              <Box
+                sx={{
+                  mb: 2,
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                }}
+              >
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <Chip size="small" variant="outlined" label={activeTab === "file" ? t("generalStt") : t("streamingStt")} />
+                  <Chip size="small" variant="outlined" label={`Presets ${presets.length}`} />
+                  <Typography variant="caption" color="text.secondary">
+                    {presetHint}
+                  </Typography>
+                </Stack>
+              </Box>
               <Typography variant="subtitle1" gutterBottom>
                 {t("defaultSettings")}
               </Typography>
@@ -1325,6 +1442,27 @@ export default function SettingsPage() {
           />
           <CardContent>
             <Stack spacing={2}>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  bgcolor: (theme) => alpha(theme.palette.warning.main, 0.08),
+                }}
+              >
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <Chip size="small" label={`${t("microphonePermission")}: ${t(PERMISSION_LABEL_KEY_MAP[permissionStatus.microphone])}`} />
+                  {storagePermissionSupported ? (
+                    <Chip size="small" label={`${t("storagePermissions")}: ${t(PERMISSION_LABEL_KEY_MAP[permissionStatus.storage])}`} />
+                  ) : (
+                    <Chip size="small" label={t("storagePermissionBrowserManaged")} />
+                  )}
+                  <Typography variant="caption" color="text.secondary">
+                    {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
+                  </Typography>
+                </Stack>
+              </Box>
               <Stack
                 direction={{ xs: "column", md: "row" }}
                 spacing={1.5}
@@ -1405,6 +1543,31 @@ export default function SettingsPage() {
             />
             <CardContent>
               <Stack spacing={3}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
+                  }}
+                >
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
+                    <Chip
+                      size="small"
+                      color={backendState?.source === "override" ? "primary" : "default"}
+                      label={backendState?.source === "override" ? t("custom") : t("serverDefault")}
+                    />
+                    <Chip
+                      size="small"
+                      color={backendState?.verifySsl === false ? "warning" : "success"}
+                      label={backendState?.verifySsl === false ? t("ignoreSsl") : t("sslVerification")}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {t("requiredWhenCheckingOrApplyingServerSettings")}
+                    </Typography>
+                  </Stack>
+                </Box>
                 <Alert severity="info" variant="outlined">
                   <Typography variant="body2">
                     {t("requiredWhenCheckingOrApplyingServerSettings")}

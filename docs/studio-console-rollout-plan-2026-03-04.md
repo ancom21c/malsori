@@ -10,6 +10,10 @@
   - 파일: `webapp/src/pages/RealtimeSessionPage.tsx`
   - 변경: 상태/지연/복구 액션을 상단 HUD로 재정렬, 하단 컨트롤을 primary(main+stop)/secondary(camera) 도크로 분리
   - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`
+- 2026-03-04: `S2 (Settings)` 1차 반영 완료
+  - 파일: `webapp/src/pages/SettingsPage.tsx`
+  - 변경: Overview HUD + 섹션별 상태 스트립(Transcription/Permissions/Backend) 추가로 정보구조 계층화
+  - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`, `npm --prefix webapp run test -- AppRouter`
 
 ## Rollout Stages
 
