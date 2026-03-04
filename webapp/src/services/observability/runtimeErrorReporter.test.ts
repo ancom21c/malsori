@@ -8,8 +8,13 @@ import { useSettingsStore } from "../../store/settingsStore";
 describe("runtimeErrorReporter", () => {
   const originalSendBeacon = navigator.sendBeacon;
   const originalFetch = globalThis.fetch;
+  const originalRuntimeConfig = window.__MALSORI_CONFIG__;
 
   beforeEach(() => {
+    window.__MALSORI_CONFIG__ = {
+      ...(originalRuntimeConfig ?? {}),
+      runtimeErrorReportingEnabled: true,
+    };
     useSettingsStore.setState({ apiBaseUrl: "/api" });
     __resetRuntimeErrorReporterForTest();
   });
@@ -27,6 +32,7 @@ describe("runtimeErrorReporter", () => {
       });
     }
     globalThis.fetch = originalFetch;
+    window.__MALSORI_CONFIG__ = originalRuntimeConfig;
     __resetRuntimeErrorReporterForTest();
   });
 
@@ -95,5 +101,30 @@ describe("runtimeErrorReporter", () => {
     const init = firstCall?.[1];
     expect(url).toBe("/api/v1/observability/runtime-error");
     expect(init?.method).toBe("POST");
+  });
+
+  it("does not initialize when runtime reporting is disabled", async () => {
+    window.__MALSORI_CONFIG__ = {
+      ...(window.__MALSORI_CONFIG__ ?? {}),
+      runtimeErrorReportingEnabled: false,
+    };
+    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      value: sendBeacon,
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+
+    initRuntimeErrorReporter();
+    const rejection = new Event("unhandledrejection");
+    Object.defineProperty(rejection, "reason", {
+      configurable: true,
+      value: "disabled-case",
+    });
+    window.dispatchEvent(rejection);
+    await Promise.resolve();
+
+    expect(sendBeacon).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

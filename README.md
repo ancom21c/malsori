@@ -56,7 +56,7 @@ uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 
 The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, `/v1/streaming` for realtime WebSocket relay, and `/v1/observability/runtime-error` for browser runtime error telemetry.  
 For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth when enabled.
-`/v1/observability/runtime-error` is a write-only operational signal intended for same-origin/internal use; keep it behind internal ingress policy or equivalent edge controls in production.
+Production ingress should split public/internal surfaces: keep user routes (`/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`) public, and expose `/v1/backend/*` + `/v1/observability/runtime-error` on internal ingress only.
 
 #### Proxy Contract Mapping
 
@@ -100,7 +100,7 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
-- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke).
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes and `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion.
 
 ## QA & CI
 

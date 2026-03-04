@@ -1628,48 +1628,26 @@ export default function TranscriptionDetailPage() {
   }
 
   const videoReady = Boolean(videoUrl || videoBlobRef.current);
-  const detailCopy =
-    locale === "ko"
-      ? {
-        overviewTitle: "상세 콘솔 개요",
-        analysisTitle: "분석 워크스페이스",
-        analysisSubheader: "파형 타임라인, 루프 구간, 세그먼트 탐색을 한 곳에서 관리합니다.",
-        transcriptTitle: "전사 워크스페이스",
-        transcriptSubheader: "세그먼트 교정/탐색/노트 모드를 한 레이어에서 처리합니다.",
-        status: "상태",
-        segments: "세그먼트",
-        timed: "타이밍",
-        speakers: "화자",
-        corrections: "교정",
-        duration: "길이",
-        loop: "루프",
-        cursor: "커서",
-        off: "꺼짐",
-        mediaReadyAudioVideo: "오디오+비디오 준비",
-        mediaReadyAudio: "오디오 준비",
-        mediaLoading: "미디어 로딩중",
-        mediaPending: "미디어 대기",
-      }
-      : {
-        overviewTitle: "Detail Console Overview",
-        analysisTitle: "Analysis Workspace",
-        analysisSubheader: "Waveform timeline, loop range, and segment navigation are grouped here.",
-        transcriptTitle: "Transcript Workspace",
-        transcriptSubheader: "Review, correct, and navigate transcript segments with keyboard and waveform sync.",
-        status: "Status",
-        segments: "Segments",
-        timed: "Timed",
-        speakers: "Speakers",
-        corrections: "Corrections",
-        duration: "Duration",
-        loop: "Loop",
-        cursor: "Cursor",
-        off: "Off",
-        mediaReadyAudioVideo: "Audio + Video Ready",
-        mediaReadyAudio: "Audio Ready",
-        mediaLoading: "Media Loading",
-        mediaPending: "Media Pending",
-      };
+  const detailCopy = {
+    overviewTitle: t("detailConsoleOverview"),
+    analysisTitle: t("analysisWorkspace"),
+    analysisSubheader: t("analysisWorkspaceSubheader"),
+    transcriptTitle: t("transcriptWorkspace"),
+    transcriptSubheader: t("transcriptWorkspaceSubheader"),
+    status: t("status"),
+    segments: t("segments"),
+    timed: t("timed"),
+    speakers: t("speakers"),
+    corrections: t("corrections"),
+    duration: t("duration"),
+    loop: t("loop"),
+    cursor: t("cursor"),
+    off: t("off"),
+    mediaReadyAudioVideo: t("mediaReadyAudioVideo"),
+    mediaReadyAudio: t("mediaReadyAudio"),
+    mediaLoading: t("mediaLoading"),
+    mediaPending: t("mediaPending"),
+  };
   const mediaStatusLabel = audioReady
     ? videoReady
       ? detailCopy.mediaReadyAudioVideo

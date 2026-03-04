@@ -6,6 +6,7 @@ declare global {
       apiBaseUrl?: string;
       googleClientId?: string;
       driveAuthMode?: "disabled" | "auto" | "gis" | "broker";
+      runtimeErrorReportingEnabled?: boolean;
     };
   }
 }

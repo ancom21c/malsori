@@ -36,6 +36,7 @@ webapp:
   apiBaseUrl: ""
   driveAuthMode: ""
   googleClientId: ""
+  runtimeErrorReportingEnabled: true
   env: {}
   resources: {}
 
@@ -49,3 +50,20 @@ ingress:
       pathType: Prefix
       servicePort: web
   tls: []
+  # Preferred mode: split public/internal ingress surfaces.
+  # If either ingress.public.enabled or ingress.internal.enabled is true,
+  # the legacy ingress.* fields above are ignored.
+  public:
+    enabled: false
+    ingressClassName: ""
+    annotations: {}
+    hosts: []
+    paths: []
+    tls: []
+  internal:
+    enabled: false
+    ingressClassName: ""
+    annotations: {}
+    hosts: []
+    paths: []
+    tls: []

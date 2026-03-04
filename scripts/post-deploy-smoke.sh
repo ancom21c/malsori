@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-https://malsori.ancom.duckdns.org}"
+INTERNAL_BASE_URL="${INTERNAL_BASE_URL:-}"
 NAMESPACE="${NAMESPACE:-malsori}"
 RELEASE_NAME="${RELEASE_NAME:-malsori}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-180s}"
@@ -9,6 +10,7 @@ BACKEND_ADMIN_TOKEN="${BACKEND_ADMIN_TOKEN:-}"
 ALLOW_INSECURE_TLS="${ALLOW_INSECURE_TLS:-0}"
 RUN_UI_SMOKE="${RUN_UI_SMOKE:-auto}"
 UI_SMOKE_SCREENSHOT_DIR="${UI_SMOKE_SCREENSHOT_DIR:-/tmp/malsori-ui-smoke}"
+EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED="${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED:-1}"
 
 for cmd in curl kubectl helm python3 rg; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -28,11 +30,12 @@ if [[ "${#DEPLOYMENTS[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-http_get_expect_status() {
-  local path="$1"
-  local label="$2"
-  local expected_status="$3"
-  shift 3
+http_get_expect_status_base() {
+  local base_url="$1"
+  local path="$2"
+  local label="$3"
+  local expected_status="$4"
+  shift 4
   local out_file
   out_file="$(mktemp)"
   local status
@@ -45,14 +48,60 @@ http_get_expect_status() {
     extra_headers+=("-H" "$1")
     shift
   done
-  status="$(curl "${curl_flags[@]}" "${extra_headers[@]}" -o "${out_file}" -w '%{http_code}' "${BASE_URL}${path}")"
+  status="$(curl "${curl_flags[@]}" "${extra_headers[@]}" -o "${out_file}" -w '%{http_code}' "${base_url}${path}")"
   if [[ "${status}" != "${expected_status}" ]]; then
-    echo "[FAIL] ${label}: expected HTTP ${expected_status}, got ${status} (${BASE_URL}${path})" >&2
+    echo "[FAIL] ${label}: expected HTTP ${expected_status}, got ${status} (${base_url}${path})" >&2
     sed -n '1,20p' "${out_file}" >&2 || true
     rm -f "${out_file}"
     exit 1
   fi
   printf '%s\n' "${out_file}"
+}
+
+http_get_expect_status() {
+  local path="$1"
+  local label="$2"
+  local expected_status="$3"
+  shift 3
+  http_get_expect_status_base "${BASE_URL}" "${path}" "${label}" "${expected_status}" "$@"
+}
+
+http_post_json_expect_status_base() {
+  local base_url="$1"
+  local path="$2"
+  local label="$3"
+  local expected_status="$4"
+  local payload="$5"
+  shift 5
+  local out_file
+  out_file="$(mktemp)"
+  local status
+  local -a extra_headers=("-H" "Content-Type: application/json")
+  local -a curl_flags=(-sS -X POST --data "${payload}")
+  if [[ "${ALLOW_INSECURE_TLS}" == "1" ]]; then
+    curl_flags+=(-k)
+  fi
+  while (($#)); do
+    extra_headers+=("-H" "$1")
+    shift
+  done
+  status="$(curl "${curl_flags[@]}" "${extra_headers[@]}" -o "${out_file}" -w '%{http_code}' "${base_url}${path}")"
+  if [[ "${status}" != "${expected_status}" ]]; then
+    echo "[FAIL] ${label}: expected HTTP ${expected_status}, got ${status} (${base_url}${path})" >&2
+    sed -n '1,20p' "${out_file}" >&2 || true
+    rm -f "${out_file}"
+    exit 1
+  fi
+  printf '%s\n' "${out_file}"
+}
+
+http_post_json_expect_status() {
+  local path="$1"
+  local label="$2"
+  local expected_status="$3"
+  local payload="$4"
+  shift 4
+  http_post_json_expect_status_base "${BASE_URL}" "${path}" "${label}" "${expected_status}" "${payload}" "$@"
 }
 
 http_get_expect_200() {
@@ -62,16 +111,16 @@ http_get_expect_200() {
   http_get_expect_status "${path}" "${label}" "200" "$@"
 }
 
-echo "[1/7] Verify rollout"
+echo "[1/8] Verify rollout"
 for deployment in "${DEPLOYMENTS[@]}"; do
   kubectl -n "${NAMESPACE}" rollout status "deployment/${deployment}" --timeout="${ROLLOUT_TIMEOUT}"
 done
 
-echo "[2/7] Snapshot release resources"
+echo "[2/8] Snapshot release resources"
 helm -n "${NAMESPACE}" status "${RELEASE_NAME}" >/dev/null
 kubectl -n "${NAMESPACE}" get pods,svc,ingress
 
-echo "[3/7] Verify SPA routes"
+echo "[3/8] Verify SPA routes"
 for route in / /settings /realtime; do
   body_file="$(http_get_expect_200 "${route}" "SPA route ${route}")"
   if ! rg -q 'id="root"' "${body_file}"; then
@@ -117,7 +166,7 @@ if ! rg -q "__MALSORI_CONFIG__" "${runtime_config_file}"; then
 fi
 rm -f "${runtime_config_file}"
 
-echo "[4/7] Verify API health contract"
+echo "[4/8] Verify API health contract"
 health_file="$(http_get_expect_200 "/v1/health" "API /v1/health")"
 backend_admin_enabled="$(python3 - "${health_file}" <<'PY'
 import json
@@ -136,7 +185,7 @@ PY
 )"
 rm -f "${health_file}"
 
-echo "[5/7] Verify broker status contract"
+echo "[5/8] Verify broker status contract"
 broker_file="$(http_get_expect_200 "/v1/cloud/google/status" "API /v1/cloud/google/status")"
 python3 - "${broker_file}" <<'PY'
 import json
@@ -149,10 +198,38 @@ print(f"google-status: enabled={payload.get('enabled')} connected={payload.get('
 PY
 rm -f "${broker_file}"
 
-echo "[6/7] Verify backend endpoint contract"
+echo "[6/8] Verify observability public exposure policy"
+if [[ "${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED}" == "1" ]]; then
+  observability_public_file="$(http_post_json_expect_status \
+    "/v1/observability/runtime-error" \
+    "API /v1/observability/runtime-error (public blocked)" \
+    "404" \
+    '{"kind":"error","message":"smoke-policy-check","route":"/smoke-policy"}')"
+  rm -f "${observability_public_file}"
+  echo "runtime-error: blocked on public ingress (404)"
+else
+  observability_public_file="$(http_post_json_expect_status \
+    "/v1/observability/runtime-error" \
+    "API /v1/observability/runtime-error (public allowed)" \
+    "202" \
+    '{"kind":"error","message":"smoke-policy-check","route":"/smoke-policy"}')"
+  rm -f "${observability_public_file}"
+  echo "runtime-error: publicly reachable (202)"
+fi
+
+echo "[7/8] Verify backend endpoint contract"
+ADMIN_BASE_URL="${INTERNAL_BASE_URL:-${BASE_URL}}"
 if [[ "${backend_admin_enabled}" == "1" ]]; then
+  if [[ -n "${INTERNAL_BASE_URL}" ]]; then
+    backend_public_file="$(http_get_expect_status "/v1/backend/endpoint" "API /v1/backend/endpoint (public blocked)" "404")"
+    rm -f "${backend_public_file}"
+    backend_state_public_file="$(http_get_expect_status "/v1/backend/state" "API /v1/backend/state (public blocked)" "404")"
+    rm -f "${backend_state_public_file}"
+    echo "backend-endpoint: blocked on public ingress (404)"
+  fi
+
   if [[ -n "${BACKEND_ADMIN_TOKEN}" ]]; then
-    backend_file="$(http_get_expect_200 "/v1/backend/endpoint" "API /v1/backend/endpoint (admin)" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
+    backend_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
     python3 - "${backend_file}" <<'PY'
 import json
 import sys
@@ -165,14 +242,14 @@ print(f"backend-endpoint: deployment={payload.get('deployment')} source={payload
 PY
     rm -f "${backend_file}"
   else
-    unauthorized_file="$(http_get_expect_status "/v1/backend/endpoint" "API /v1/backend/endpoint (unauthorized)" "401")"
+    unauthorized_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (unauthorized)" "401")"
     rm -f "${unauthorized_file}"
     echo "backend-endpoint: protected (401 without BACKEND_ADMIN_TOKEN)"
   fi
 
-  echo "[7/7] Verify backend state alias contract"
+  echo "[8/8] Verify backend state alias contract"
   if [[ -n "${BACKEND_ADMIN_TOKEN}" ]]; then
-    backend_state_file="$(http_get_expect_200 "/v1/backend/state" "API /v1/backend/state (admin)" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
+    backend_state_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
     python3 - "${backend_state_file}" <<'PY'
 import json
 import sys
@@ -185,16 +262,16 @@ print(f"backend-state: deployment={payload.get('deployment')} source={payload.ge
 PY
     rm -f "${backend_state_file}"
   else
-    unauthorized_state_file="$(http_get_expect_status "/v1/backend/state" "API /v1/backend/state (unauthorized)" "401")"
+    unauthorized_state_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (unauthorized)" "401")"
     rm -f "${unauthorized_state_file}"
     echo "backend-state: protected (401 without BACKEND_ADMIN_TOKEN)"
   fi
 else
-  backend_file_disabled="$(http_get_expect_status "/v1/backend/endpoint" "API /v1/backend/endpoint (disabled)" "404")"
+  backend_file_disabled="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (disabled)" "404")"
   rm -f "${backend_file_disabled}"
   echo "backend-endpoint: disabled (404)"
-  echo "[7/7] Verify backend state alias contract"
-  backend_state_file_disabled="$(http_get_expect_status "/v1/backend/state" "API /v1/backend/state (disabled)" "404")"
+  echo "[8/8] Verify backend state alias contract"
+  backend_state_file_disabled="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (disabled)" "404")"
   rm -f "${backend_state_file_disabled}"
   echo "backend-state: disabled (404)"
 fi
@@ -211,7 +288,7 @@ if [[ "${RUN_UI_SMOKE}" != "0" ]]; then
     exit 1
   fi
 
-  echo "[8/8] Verify UI runtime contract"
+  echo "[9/9] Verify UI runtime contract"
   python3 scripts/post-deploy-ui-smoke.py \
     --base-url "${BASE_URL}" \
     --screenshot-dir "${UI_SMOKE_SCREENSHOT_DIR}"

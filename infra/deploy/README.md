@@ -45,6 +45,54 @@ kubectl -n malsori create secret generic malsori-python-api-secret \
 
 `/v1/backend/*` endpoints are for internal-network operations only. Keep `BACKEND_ADMIN_ENABLED=false` unless you explicitly need runtime override APIs, and never expose admin tokens on public clients.
 
+## Ingress Surface Policy (Public/Internal Split)
+
+Use split ingress surfaces in production:
+
+- Public ingress: `/`, `/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`
+- Internal ingress only: `/v1/backend/*`, `/v1/observability/runtime-error`
+
+Example:
+
+```yaml
+ingress:
+  public:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - host: malsori.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+            servicePort: web
+          - path: /v1/health
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/transcribe
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/streaming
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/cloud/google
+            pathType: Prefix
+            servicePort: python
+  internal:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - host: malsori-internal.example.local
+        paths:
+          - path: /v1/backend
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/observability/runtime-error
+            pathType: Prefix
+            servicePort: python
+```
+
+If internal ingress is disabled, these internal-only paths stay non-routable (fail-closed).
+
 ## Persistent Storage (Recommended for broker mode)
 
 If you enable the Drive auth broker, the server stores refresh tokens under `STT_STORAGE_BASE_DIR` (`/data` in the chart).

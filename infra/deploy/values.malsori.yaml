@@ -46,28 +46,50 @@ pythonApi:
 
 webapp:
   apiBaseUrl: https://malsori.ancom.duckdns.org
+  # Runtime error telemetry endpoint is internal-only in production.
+  runtimeErrorReportingEnabled: false
   env: {}
   resources: {}
 
 ingress:
-  enabled: true
-  ingressClassName: traefik
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: malsori.ancom.duckdns.org
-      paths:
-        - path: /
-          pathType: Prefix
-          servicePort: web
-        - path: /v1
-          pathType: Prefix
-          servicePort: python
-  paths:
-    - path: /
-      pathType: Prefix
-      servicePort: web
-  tls:
-    - hosts:
-        - malsori.ancom.duckdns.org
-      secretName: malsori-ancom-duckdns-org-tls
+  public:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: malsori.ancom.duckdns.org
+        paths:
+          - path: /
+            pathType: Prefix
+            servicePort: web
+          - path: /v1/health
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/transcribe
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/streaming
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/cloud/google
+            pathType: Prefix
+            servicePort: python
+    tls:
+      - hosts:
+          - malsori.ancom.duckdns.org
+        secretName: malsori-ancom-duckdns-org-tls
+  internal:
+    # Enable and configure this surface for internal networks only.
+    enabled: false
+    ingressClassName: traefik
+    annotations: {}
+    hosts: []
+    paths:
+      - path: /v1/backend
+        pathType: Prefix
+        servicePort: python
+      - path: /v1/observability/runtime-error
+        pathType: Prefix
+        servicePort: python
+    tls: []

@@ -1,23 +1,25 @@
-{{- if .Values.ingress.enabled }}
-{{- $root := . -}}
-{{- $sharedPaths := .Values.ingress.paths }}
+{{- define "malsori.renderIngress" -}}
+{{- $root := .root -}}
+{{- $name := .name -}}
+{{- $config := .config -}}
+{{- $sharedPaths := get $config "paths" | default list -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "malsori.fullname" . }}
+  name: {{ $name }}
   labels:
-    {{- include "malsori.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+    {{- include "malsori.labels" $root | nindent 4 }}
+  {{- with (get $config "annotations") }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- $className := or .Values.ingress.ingressClassName .Values.ingress.className }}
+  {{- $className := or (get $config "ingressClassName") (get $config "className") }}
   {{- if $className }}
   ingressClassName: {{ $className }}
   {{- end }}
   rules:
-    {{- range .Values.ingress.hosts }}
+    {{- range (get $config "hosts" | default list) }}
     {{- $hostEntry := . }}
     {{- $hostName := "" }}
     {{- $hostPaths := list }}
@@ -66,8 +68,29 @@ spec:
                   {{- end }}
           {{- end }}
     {{- end }}
-  {{- with .Values.ingress.tls }}
+  {{- with (get $config "tls") }}
   tls:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
+
+{{- $ingress := .Values.ingress | default dict -}}
+{{- $public := get $ingress "public" | default dict -}}
+{{- $internal := get $ingress "internal" | default dict -}}
+{{- $publicEnabled := get $public "enabled" | default false -}}
+{{- $internalEnabled := get $internal "enabled" | default false -}}
+{{- $legacyEnabled := and (get $ingress "enabled" | default false) (not $publicEnabled) (not $internalEnabled) -}}
+
+{{- if and $legacyEnabled (gt (len (get $ingress "hosts" | default list)) 0) }}
+{{ include "malsori.renderIngress" (dict "root" . "name" (include "malsori.fullname" .) "config" $ingress) }}
+{{- end }}
+
+{{- if and $publicEnabled (gt (len (get $public "hosts" | default list)) 0) }}
+---
+{{ include "malsori.renderIngress" (dict "root" . "name" (include "malsori.fullname" .) "config" $public) }}
+{{- end }}
+
+{{- if and $internalEnabled (gt (len (get $internal "hosts" | default list)) 0) }}
+---
+{{ include "malsori.renderIngress" (dict "root" . "name" (printf "%s-internal" (include "malsori.fullname" .) | trunc 63 | trimSuffix "-") "config" $internal) }}
 {{- end }}

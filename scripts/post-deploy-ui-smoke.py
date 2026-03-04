@@ -75,10 +75,10 @@ def _open_page(
     return page, result
 
 
-def _assert_page_health(result: PageLoadResult) -> None:
+def _assert_page_health(result: PageLoadResult, *, min_root_text_length: int = 40) -> None:
     if result.status != 200:
         raise RuntimeError(f"{result.path}: expected HTTP 200, got {result.status}")
-    if result.root_text_length < 40:
+    if result.root_text_length < min_root_text_length:
         raise RuntimeError(
             f"{result.path}: root text too short ({result.root_text_length}), possible blank screen"
         )
@@ -159,10 +159,11 @@ def run(base_url: str, screenshot_dir: Path) -> Dict[str, Any]:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
-            for path in ("/", "/settings", "/realtime"):
+            for path in ("/", "/settings", "/realtime", "/transcriptions/smoke-detail"):
                 page, result = _open_page(browser, base_url, path, mobile=False)
                 try:
-                    _assert_page_health(result)
+                    min_root_text_length = 10 if path.startswith("/transcriptions/") else 40
+                    _assert_page_health(result, min_root_text_length=min_root_text_length)
                     summary["desktop_routes"][path] = {
                         "status": result.status,
                         "root_text_length": result.root_text_length,

@@ -2834,6 +2834,116 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Acoustic model scaling. Used for fine-tuning Whisper-family models.",
     ja: "音響モデルのスケーリング。Whisper 系モデルの微調整に使用します。",
   },
+  settingsConsoleOverview: {
+    ko: "설정 콘솔 개요",
+    en: "Settings Console Overview",
+    ja: "設定コンソール概要",
+  },
+  permissionsReadyCount: {
+    ko: "권한 {{ready}}/{{total}}",
+    en: "Permissions {{ready}}/{{total}}",
+    ja: "権限 {{ready}}/{{total}}",
+  },
+  notConfigured: {
+    ko: "미설정",
+    en: "Not configured",
+    ja: "未設定",
+  },
+  internalOnly: {
+    ko: "내부 전용",
+    en: "Internal only",
+    ja: "内部専用",
+  },
+  pendingStatus: {
+    ko: "상태 확인 대기",
+    en: "Pending status",
+    ja: "状態確認待ち",
+  },
+  presetsCount: {
+    ko: "프리셋 {{count}}",
+    en: "Presets {{count}}",
+    ja: "プリセット {{count}}",
+  },
+  detailConsoleOverview: {
+    ko: "상세 콘솔 개요",
+    en: "Detail Console Overview",
+    ja: "詳細コンソール概要",
+  },
+  analysisWorkspace: {
+    ko: "분석 워크스페이스",
+    en: "Analysis Workspace",
+    ja: "分析ワークスペース",
+  },
+  analysisWorkspaceSubheader: {
+    ko: "파형 타임라인, 루프 구간, 세그먼트 탐색을 한 곳에서 관리합니다.",
+    en: "Waveform timeline, loop range, and segment navigation are grouped here.",
+    ja: "波形タイムライン、ループ範囲、セグメント移動をここでまとめて管理します。",
+  },
+  transcriptWorkspace: {
+    ko: "전사 워크스페이스",
+    en: "Transcript Workspace",
+    ja: "文字起こしワークスペース",
+  },
+  transcriptWorkspaceSubheader: {
+    ko: "세그먼트 교정/탐색/노트 모드를 한 레이어에서 처리합니다.",
+    en: "Review, correct, and navigate transcript segments with keyboard and waveform sync.",
+    ja: "キーボード操作と波形同期でセグメントを確認・修正・移動します。",
+  },
+  segments: {
+    ko: "세그먼트",
+    en: "Segments",
+    ja: "セグメント",
+  },
+  timed: {
+    ko: "타이밍",
+    en: "Timed",
+    ja: "タイミング",
+  },
+  speakers: {
+    ko: "화자",
+    en: "Speakers",
+    ja: "話者",
+  },
+  corrections: {
+    ko: "교정",
+    en: "Corrections",
+    ja: "修正",
+  },
+  loop: {
+    ko: "루프",
+    en: "Loop",
+    ja: "ループ",
+  },
+  cursor: {
+    ko: "커서",
+    en: "Cursor",
+    ja: "カーソル",
+  },
+  off: {
+    ko: "꺼짐",
+    en: "Off",
+    ja: "オフ",
+  },
+  mediaReadyAudioVideo: {
+    ko: "오디오+비디오 준비",
+    en: "Audio + Video Ready",
+    ja: "音声+映像準備完了",
+  },
+  mediaReadyAudio: {
+    ko: "오디오 준비",
+    en: "Audio Ready",
+    ja: "音声準備完了",
+  },
+  mediaLoading: {
+    ko: "미디어 로딩중",
+    en: "Media Loading",
+    ja: "メディア読み込み中",
+  },
+  mediaPending: {
+    ko: "미디어 대기",
+    en: "Media Pending",
+    ja: "メディア待機",
+  },
   automaticCopyFailedPleaseCopyManually: {
     ko: "자동 복사에 실패했습니다. 수동으로 복사해 주세요.",
     en: "Automatic copy failed. Please copy manually.",

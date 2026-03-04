@@ -404,10 +404,10 @@ export default function SettingsPage() {
   const permissionTotalCount = storagePermissionSupported ? 2 : 1;
   const backendSummary = useMemo(() => {
     if (!backendAdminEnabled) {
-      return "Internal only";
+      return t("internalOnly");
     }
     if (!backendState) {
-      return "Pending status";
+      return t("pendingStatus");
     }
     return `${backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")} · ${
       backendState.source === "override" ? t("custom") : t("serverDefault")
@@ -1125,12 +1125,14 @@ export default function SettingsPage() {
                 justifyContent="space-between"
                 alignItems={{ xs: "flex-start", md: "center" }}
               >
-                <Typography variant="subtitle1">Settings Console Overview</Typography>
+                <Typography variant="subtitle1">{t("settingsConsoleOverview")}</Typography>
                 <Chip
                   size="small"
                   variant="outlined"
                   color={permissionReadyCount === permissionTotalCount ? "success" : "warning"}
-                  label={`Permissions ${permissionReadyCount}/${permissionTotalCount}`}
+                  label={t("permissionsReadyCount", {
+                    values: { ready: permissionReadyCount, total: permissionTotalCount },
+                  })}
                 />
               </Stack>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.25}>
@@ -1148,7 +1150,7 @@ export default function SettingsPage() {
                     {t("pythonApiBaseUrl")}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 650 }}>
-                    {apiConfigured ? apiBaseUrl : "Not configured"}
+                    {apiConfigured ? apiBaseUrl : t("notConfigured")}
                   </Typography>
                 </Box>
                 <Box
@@ -1219,7 +1221,11 @@ export default function SettingsPage() {
               >
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
                   <Chip size="small" variant="outlined" label={activeTab === "file" ? t("generalStt") : t("streamingStt")} />
-                  <Chip size="small" variant="outlined" label={`Presets ${presets.length}`} />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={t("presetsCount", { values: { count: presets.length } })}
+                  />
                   <Typography variant="caption" color="text.secondary">
                     {presetHint}
                   </Typography>

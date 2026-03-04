@@ -21,6 +21,13 @@ type RuntimeErrorPayload = {
 let initialized = false;
 const recentSignatures = new Set<string>();
 
+function isRuntimeErrorReportingEnabled(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return window.__MALSORI_CONFIG__?.runtimeErrorReportingEnabled !== false;
+}
+
 function toSafeText(value: unknown, maxLength: number): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -154,7 +161,7 @@ function onUnhandledRejection(event: PromiseRejectionEvent): void {
 }
 
 export function initRuntimeErrorReporter(): void {
-  if (initialized || typeof window === "undefined") {
+  if (initialized || typeof window === "undefined" || !isRuntimeErrorReportingEnabled()) {
     return;
   }
   initialized = true;
