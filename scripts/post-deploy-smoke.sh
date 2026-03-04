@@ -7,6 +7,8 @@ RELEASE_NAME="${RELEASE_NAME:-malsori}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-180s}"
 BACKEND_ADMIN_TOKEN="${BACKEND_ADMIN_TOKEN:-}"
 ALLOW_INSECURE_TLS="${ALLOW_INSECURE_TLS:-0}"
+RUN_UI_SMOKE="${RUN_UI_SMOKE:-auto}"
+UI_SMOKE_SCREENSHOT_DIR="${UI_SMOKE_SCREENSHOT_DIR:-/tmp/malsori-ui-smoke}"
 
 for cmd in curl kubectl helm python3 rg; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -164,3 +166,19 @@ else
 fi
 
 echo "Smoke checks passed for ${BASE_URL}"
+
+if [[ "${RUN_UI_SMOKE}" != "0" ]]; then
+  if ! python3 -c 'import playwright' >/dev/null 2>&1; then
+    if [[ "${RUN_UI_SMOKE}" == "auto" ]]; then
+      echo "[skip] UI smoke: playwright module is not installed (RUN_UI_SMOKE=auto)"
+      exit 0
+    fi
+    echo "[FAIL] RUN_UI_SMOKE=${RUN_UI_SMOKE} but playwright module is not installed" >&2
+    exit 1
+  fi
+
+  echo "[8/8] Verify UI runtime contract"
+  python3 scripts/post-deploy-ui-smoke.py \
+    --base-url "${BASE_URL}" \
+    --screenshot-dir "${UI_SMOKE_SCREENSHOT_DIR}"
+fi
