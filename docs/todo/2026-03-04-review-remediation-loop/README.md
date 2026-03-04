@@ -19,7 +19,7 @@
 | T401 | P0 | 권장안 확정: public/internal ingress 분리 (`/v1/backend/*`, `/v1/observability/runtime-error` internal) | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T401-internal-ingress-segmentation.md` |
 | T402 | P1 | Settings/Detail 신규 카피 i18n 정합성 복구 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T402-settings-detail-i18n-hardening.md` |
 | T403 | P1 | Settings 저장값 이상치 방어 (`realtimeAutoSaveSeconds`) | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T403-settings-hydration-guardrails.md` |
-| T404 | P1 | UI 스모크 S3(detail route) 커버리지 확장 | Done | Done | Done | Done | Pending | `docs/todo/2026-03-04-review-remediation-loop/T404-ui-smoke-detail-route-coverage.md` |
+| T404 | P1 | UI 스모크 S3(detail route) 커버리지 확장 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T404-ui-smoke-detail-route-coverage.md` |
 | T405 | P2 | Studio Console 스펙/증적 문서 범위 모호성 해소 | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T405-studio-console-spec-doc-alignment.md` |
 | T406 | P2 | Backend endpoint URL 입력/저장 검증 강화 | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T406-backend-endpoint-url-validation.md` |
 | T407 | P2 | 모바일 배경 렌더링 비용 최적화 | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T407-mobile-background-performance.md` |

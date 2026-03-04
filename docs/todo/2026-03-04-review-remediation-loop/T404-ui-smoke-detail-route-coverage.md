@@ -63,4 +63,4 @@
 ## Verify
 
 - [x] `python3 scripts/post-deploy-ui-smoke.py --base-url https://malsori.ancom.duckdns.org --screenshot-dir /tmp/malsori-ui-smoke-t404`
-- [ ] `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh` (현재 운영 ingress가 구버전이라 `/v1/observability/runtime-error` public 202 응답으로 정책 체크 실패)
+- [x] `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh`

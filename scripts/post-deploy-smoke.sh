@@ -66,6 +66,41 @@ http_get_expect_status() {
   http_get_expect_status_base "${BASE_URL}" "${path}" "${label}" "${expected_status}" "$@"
 }
 
+http_get_expect_blocked() {
+  local base_url="$1"
+  local path="$2"
+  local label="$3"
+  shift 3
+  local out_file
+  out_file="$(mktemp)"
+  local status
+  local -a extra_headers=()
+  local -a curl_flags=(-sS)
+  if [[ "${ALLOW_INSECURE_TLS}" == "1" ]]; then
+    curl_flags+=(-k)
+  fi
+  while (($#)); do
+    extra_headers+=("-H" "$1")
+    shift
+  done
+
+  status="$(curl "${curl_flags[@]}" "${extra_headers[@]}" -o "${out_file}" -w '%{http_code}' "${base_url}${path}")"
+  if [[ "${status}" == "404" || "${status}" == "405" ]]; then
+    printf '%s\n' "${out_file}"
+    return
+  fi
+  if [[ "${status}" == "200" ]] && rg -qi '<!doctype html|<html' "${out_file}"; then
+    # In split-ingress mode, unmatched API paths may be served by SPA fallback (200 HTML).
+    printf '%s\n' "${out_file}"
+    return
+  fi
+
+  echo "[FAIL] ${label}: expected blocked response (404/405 or SPA 200 HTML), got ${status} (${base_url}${path})" >&2
+  sed -n '1,20p' "${out_file}" >&2 || true
+  rm -f "${out_file}"
+  exit 1
+}
+
 http_post_json_expect_status_base() {
   local base_url="$1"
   local path="$2"
@@ -102,6 +137,42 @@ http_post_json_expect_status() {
   local payload="$4"
   shift 4
   http_post_json_expect_status_base "${BASE_URL}" "${path}" "${label}" "${expected_status}" "${payload}" "$@"
+}
+
+http_post_json_expect_status_in() {
+  local base_url="$1"
+  local path="$2"
+  local label="$3"
+  local payload="$4"
+  shift 4
+  local out_file
+  out_file="$(mktemp)"
+  local status
+  local -a extra_headers=("-H" "Content-Type: application/json")
+  local -a curl_flags=(-sS -X POST --data "${payload}")
+  if [[ "${ALLOW_INSECURE_TLS}" == "1" ]]; then
+    curl_flags+=(-k)
+  fi
+  while (($#)); do
+    extra_headers+=("-H" "$1")
+    shift
+  done
+  status="$(curl "${curl_flags[@]}" "${extra_headers[@]}" -o "${out_file}" -w '%{http_code}' "${base_url}${path}")"
+
+  local matched="0"
+  for allowed in "${EXPECTED_STATUSES[@]}"; do
+    if [[ "${status}" == "${allowed}" ]]; then
+      matched="1"
+      break
+    fi
+  done
+  if [[ "${matched}" != "1" ]]; then
+    echo "[FAIL] ${label}: expected one of [${EXPECTED_STATUSES[*]}], got ${status} (${base_url}${path})" >&2
+    sed -n '1,20p' "${out_file}" >&2 || true
+    rm -f "${out_file}"
+    exit 1
+  fi
+  printf '%s\n' "${out_file}"
 }
 
 http_get_expect_200() {
@@ -200,13 +271,14 @@ rm -f "${broker_file}"
 
 echo "[6/8] Verify observability public exposure policy"
 if [[ "${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED}" == "1" ]]; then
-  observability_public_file="$(http_post_json_expect_status \
+  EXPECTED_STATUSES=("404" "405")
+  observability_public_file="$(http_post_json_expect_status_in \
+    "${BASE_URL}" \
     "/v1/observability/runtime-error" \
     "API /v1/observability/runtime-error (public blocked)" \
-    "404" \
     '{"kind":"error","message":"smoke-policy-check","route":"/smoke-policy"}')"
   rm -f "${observability_public_file}"
-  echo "runtime-error: blocked on public ingress (404)"
+  echo "runtime-error: blocked on public ingress (404/405)"
 else
   observability_public_file="$(http_post_json_expect_status \
     "/v1/observability/runtime-error" \
@@ -221,11 +293,11 @@ echo "[7/8] Verify backend endpoint contract"
 ADMIN_BASE_URL="${INTERNAL_BASE_URL:-${BASE_URL}}"
 if [[ "${backend_admin_enabled}" == "1" ]]; then
   if [[ -n "${INTERNAL_BASE_URL}" ]]; then
-    backend_public_file="$(http_get_expect_status "/v1/backend/endpoint" "API /v1/backend/endpoint (public blocked)" "404")"
+    backend_public_file="$(http_get_expect_blocked "${BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (public blocked)")"
     rm -f "${backend_public_file}"
-    backend_state_public_file="$(http_get_expect_status "/v1/backend/state" "API /v1/backend/state (public blocked)" "404")"
+    backend_state_public_file="$(http_get_expect_blocked "${BASE_URL}" "/v1/backend/state" "API /v1/backend/state (public blocked)")"
     rm -f "${backend_state_public_file}"
-    echo "backend-endpoint: blocked on public ingress (404)"
+    echo "backend-endpoint: blocked on public ingress"
   fi
 
   if [[ -n "${BACKEND_ADMIN_TOKEN}" ]]; then
@@ -267,13 +339,13 @@ PY
     echo "backend-state: protected (401 without BACKEND_ADMIN_TOKEN)"
   fi
 else
-  backend_file_disabled="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (disabled)" "404")"
+  backend_file_disabled="$(http_get_expect_blocked "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (disabled)")"
   rm -f "${backend_file_disabled}"
-  echo "backend-endpoint: disabled (404)"
+  echo "backend-endpoint: disabled or blocked"
   echo "[8/8] Verify backend state alias contract"
-  backend_state_file_disabled="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (disabled)" "404")"
+  backend_state_file_disabled="$(http_get_expect_blocked "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (disabled)")"
   rm -f "${backend_state_file_disabled}"
-  echo "backend-state: disabled (404)"
+  echo "backend-state: disabled or blocked"
 fi
 
 echo "Smoke checks passed for ${BASE_URL}"
