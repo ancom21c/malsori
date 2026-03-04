@@ -18,8 +18,8 @@
 |---|---|---|---|---|---|---|---|---|
 | T301 | P1 | 프론트 런타임 오류 관측성 강화 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-next-ops-loop/T301-frontend-runtime-observability.md` |
 | T302 | P1 | 배포 UI 스모크 자동화 (Playwright) | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-next-ops-loop/T302-post-deploy-ui-smoke-automation.md` |
-| T303 | P2 | 서비스워커/캐시 정책 문서화 및 검증 | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-04-next-ops-loop/T303-service-worker-cache-policy.md` |
-| T304 | P2 | Studio Console 디자인 확장 적용 계획 | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-04-next-ops-loop/T304-studio-console-rollout.md` |
+| T303 | P2 | 서비스워커/캐시 정책 문서화 및 검증 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-next-ops-loop/T303-service-worker-cache-policy.md` |
+| T304 | P2 | Studio Console 디자인 확장 적용 계획 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-next-ops-loop/T304-studio-console-rollout.md` |
 
 ## 이번 사이클 우선순위
 

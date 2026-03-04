@@ -23,9 +23,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 단계별 적용 순서와 완료 정의(DoD)가 문서화된다.
-- [ ] 각 단계별 회귀 체크리스트가 준비된다.
-- [ ] 기존 기능 동선을 해치지 않는 롤아웃 전략이 제시된다.
+- [x] 단계별 적용 순서와 완료 정의(DoD)가 문서화된다.
+- [x] 각 단계별 회귀 체크리스트가 준비된다.
+- [x] 기존 기능 동선을 해치지 않는 롤아웃 전략이 제시된다.
 
 ## Plan (Review 대상)
 
@@ -41,14 +41,22 @@
 
 ## Implementation Log
 
-- [ ] 미구현
+- [x] `docs/studio-console-rollout-plan-2026-03-04.md` 추가
+  - S1(realtime) -> S2(settings) -> S3(detail) 단계 정의
+  - 단계별 DoD, 회귀 체크리스트(functional/a11y/perf/mobile), 롤백 전략 명시
+- [x] 기존 Studio Console 기준 문서/시안과 연결
+  - `docs/plan-studio-console-v3.md`
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/*.svg`
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 단계별 스냅샷/검증 증적이 남았는가?
-- [ ] 이전 테마와 공존/롤백이 가능한가?
+- [x] 단계별 스냅샷/검증 증적이 남았는가?
+- [x] 이전 테마와 공존/롤백이 가능한가?
 
 ## Verify
 
-- [ ] 디자인 스펙 문서 업데이트
-- [ ] 대표 화면 스크린샷/비교 자료 확보
+- [x] 디자인 스펙 문서 업데이트
+  - `docs/studio-console-rollout-plan-2026-03-04.md`
+- [x] 대표 화면 스크린샷/비교 자료 확보
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-desktop.svg`
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-mobile.svg`

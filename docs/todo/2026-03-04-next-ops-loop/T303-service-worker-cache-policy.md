@@ -24,9 +24,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 운영 문서에서 캐시 이슈 대응 절차를 1페이지 내로 확인 가능하다.
-- [ ] 릴리즈 시 캐시 검증 항목이 체크리스트에 포함된다.
-- [ ] 사용자 안내 문구가 일관된다.
+- [x] 운영 문서에서 캐시 이슈 대응 절차를 1페이지 내로 확인 가능하다.
+- [x] 릴리즈 시 캐시 검증 항목이 체크리스트에 포함된다.
+- [x] 사용자 안내 문구가 일관된다.
 
 ## Plan (Review 대상)
 
@@ -42,14 +42,25 @@
 
 ## Implementation Log
 
-- [ ] 미구현
+- [x] 운영 문서 추가: `docs/ops-service-worker-cache-playbook.md`
+  - 현재 SW 캐시 정책(등록/활성화/캐시전략) 요약
+  - 릴리즈 체크리스트 + 장애 대응 절차 + 사용자 안내 문구 템플릿 정리
+- [x] `scripts/post-deploy-smoke.sh`에 cache/service-worker 계약 검증 블록 추가
+  - `/service-worker.js` 빌드 placeholder 미잔존 확인
+  - `/manifest.webmanifest` 해시 쿼리(`?v=`) 적용 확인
+  - `/config/malsori-config.js` 런타임 계약(`__MALSORI_CONFIG__`) 확인
+- [x] `README.md` 문서/스크립트 설명 최신화
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 문서만 보고도 재현/대응이 가능한가?
-- [ ] 캐시 관련 false alarm을 줄일 수 있는가?
+- [x] 문서만 보고도 재현/대응이 가능한가?
+- [x] 캐시 관련 false alarm을 줄일 수 있는가?
 
 ## Verify
 
-- [ ] 관련 문서 링크 점검
-- [ ] 배포 후 캐시 업데이트 수동 점검
+- [x] 관련 문서 링크 점검
+  - `README.md` -> `docs/ops-service-worker-cache-playbook.md`
+- [x] 배포 후 캐시 업데이트 수동 점검
+  - `curl -fsSL https://malsori.ancom.duckdns.org/service-worker.js | rg -n "malsori-app-cache-|SKIP_WAITING"`
+  - `curl -fsSL https://malsori.ancom.duckdns.org/manifest.webmanifest | rg -n "\\?v="`
+  - `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh`

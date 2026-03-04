@@ -83,6 +83,40 @@ for route in / /settings /realtime; do
   rm -f "${body_file}"
 done
 
+echo "[cache] Verify service worker/cache asset contract"
+service_worker_file="$(http_get_expect_200 "/service-worker.js" "SW /service-worker.js")"
+if rg -q "__BUILD_HASH__" "${service_worker_file}"; then
+  echo "[FAIL] service-worker.js still contains build placeholder (__BUILD_HASH__)" >&2
+  sed -n '1,40p' "${service_worker_file}" >&2 || true
+  rm -f "${service_worker_file}"
+  exit 1
+fi
+if ! rg -q "malsori-app-cache-" "${service_worker_file}"; then
+  echo "[FAIL] service-worker.js cache version marker not found" >&2
+  sed -n '1,40p' "${service_worker_file}" >&2 || true
+  rm -f "${service_worker_file}"
+  exit 1
+fi
+rm -f "${service_worker_file}"
+
+manifest_file="$(http_get_expect_200 "/manifest.webmanifest" "PWA /manifest.webmanifest")"
+if ! rg -q '\?v=' "${manifest_file}"; then
+  echo "[FAIL] manifest.webmanifest icons are not versioned with ?v= hash" >&2
+  sed -n '1,40p' "${manifest_file}" >&2 || true
+  rm -f "${manifest_file}"
+  exit 1
+fi
+rm -f "${manifest_file}"
+
+runtime_config_file="$(http_get_expect_200 "/config/malsori-config.js" "Runtime config /config/malsori-config.js")"
+if ! rg -q "__MALSORI_CONFIG__" "${runtime_config_file}"; then
+  echo "[FAIL] runtime config script does not expose __MALSORI_CONFIG__ contract" >&2
+  sed -n '1,40p' "${runtime_config_file}" >&2 || true
+  rm -f "${runtime_config_file}"
+  exit 1
+fi
+rm -f "${runtime_config_file}"
+
 echo "[4/7] Verify API health contract"
 health_file="$(http_get_expect_200 "/v1/health" "API /v1/health")"
 backend_admin_enabled="$(python3 - "${health_file}" <<'PY'

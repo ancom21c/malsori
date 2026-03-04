@@ -100,7 +100,7 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
-- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + API contract checks).
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke).
 
 ## QA & CI
 
@@ -117,4 +117,6 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 ## Documentation
 
 - `webapp/README.md` – application overview and local usage instructions.
+- `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
+- `docs/studio-console-rollout-plan-2026-03-04.md` – Studio Console 단계적 확장(DoD/회귀체크/롤백) 계획.
 - `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation notes and backlog.
