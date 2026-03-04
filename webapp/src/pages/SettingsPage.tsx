@@ -69,6 +69,10 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { formatLocalizedDateTime } from "../utils/time";
+import {
+  asBackendApiBaseValidationCode,
+  normalizeBackendApiBaseUrl,
+} from "../utils/backendEndpointUrl";
 
 type SettingsTab = "file" | "streaming";
 
@@ -174,6 +178,21 @@ function isPresetFormEqual(a: PresetFormState, b: PresetFormState) {
     a.configJson === b.configJson &&
     a.isDefault === b.isDefault
   );
+}
+
+function resolveBackendApiBaseValidationMessage(
+  error: unknown,
+  t: (key: string) => string,
+  fallbackKey: string
+): string {
+  const code = asBackendApiBaseValidationCode(error);
+  if (code === "BACKEND_API_BASE_REQUIRED") {
+    return t("pleaseEnterTheApiBaseUrl");
+  }
+  if (code === "BACKEND_API_BASE_INVALID") {
+    return t("pleaseEnterAValidApiBaseUrl");
+  }
+  return error instanceof Error ? error.message : t(fallbackKey);
 }
 
 export default function SettingsPage() {
@@ -567,9 +586,13 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseEnterTheBackendPresetName"), { variant: "warning" });
       return;
     }
-    const trimmedBaseUrl = backendPresetForm.apiBaseUrl.trim();
-    if (!trimmedBaseUrl) {
-      enqueueSnackbar(t("pleaseEnterTheApiBaseUrl"), { variant: "warning" });
+    let normalizedBaseUrl: string;
+    try {
+      normalizedBaseUrl = normalizeBackendApiBaseUrl(backendPresetForm.apiBaseUrl);
+    } catch (error) {
+      enqueueSnackbar(resolveBackendApiBaseValidationMessage(error, t, "failedToSaveBackendPreset"), {
+        variant: "warning",
+      });
       return;
     }
     const trimmedDescription = backendPresetForm.description.trim();
@@ -587,7 +610,7 @@ export default function SettingsPage() {
           name: trimmedName,
           description: trimmedDescription,
           deployment: backendPresetForm.deployment,
-          apiBaseUrl: trimmedBaseUrl,
+          apiBaseUrl: normalizedBaseUrl,
           verifySsl: backendPresetForm.verifySsl,
           clientId: resolvedClientId ?? null,
           clientSecret: resolvedClientSecret ?? null,
@@ -598,7 +621,7 @@ export default function SettingsPage() {
           name: trimmedName,
           description: trimmedDescription || undefined,
           deployment: backendPresetForm.deployment,
-          apiBaseUrl: trimmedBaseUrl,
+          apiBaseUrl: normalizedBaseUrl,
           verifySsl: backendPresetForm.verifySsl,
           clientId: resolvedClientId,
           clientSecret: resolvedClientSecret,
@@ -612,7 +635,7 @@ export default function SettingsPage() {
           name: trimmedName,
           description: trimmedDescription || undefined,
           deployment: backendPresetForm.deployment,
-          apiBaseUrl: trimmedBaseUrl,
+          apiBaseUrl: normalizedBaseUrl,
           verifySsl: backendPresetForm.verifySsl,
           clientId: resolvedClientId,
           clientSecret: resolvedClientSecret,
@@ -622,10 +645,9 @@ export default function SettingsPage() {
         enqueueSnackbar(t("addedBackendPresets"), { variant: "success" });
       }
     } catch (error) {
-      enqueueSnackbar(
-        error instanceof Error ? error.message : t("failedToSaveBackendPreset"),
-        { variant: "error" }
-      );
+      enqueueSnackbar(resolveBackendApiBaseValidationMessage(error, t, "failedToSaveBackendPreset"), {
+        variant: "error",
+      });
     }
   };
 
@@ -715,16 +737,16 @@ export default function SettingsPage() {
           : typeof preset.api_base_url === "string"
             ? preset.api_base_url
             : "";
-      const apiBaseUrl = apiBaseRaw.trim();
-      if (!name || !apiBaseUrl) {
+      if (!name) {
         throw new Error(t("youWillNeedAPresetNameAndApiBaseUrl"));
       }
+      const normalizedApiBaseUrl = normalizeBackendApiBaseUrl(apiBaseRaw);
       const created = await createBackendEndpointPreset({
         name,
         description:
           typeof preset.description === "string" ? preset.description : undefined,
         deployment,
-        apiBaseUrl,
+        apiBaseUrl: normalizedApiBaseUrl,
         verifySsl: typeof preset.verifySsl === "boolean" ? preset.verifySsl : true,
         clientId:
           typeof preset.clientId === "string"
@@ -748,10 +770,8 @@ export default function SettingsPage() {
       handleBackendPresetSelect(created);
       enqueueSnackbar(t("backendPresetsHaveBeenLoaded"), { variant: "success" });
     } catch (error) {
-      enqueueSnackbar(
-        error instanceof Error ? error.message : t("failedToLoadBackendPreset"),
-        { variant: "error" }
-      );
+      const message = resolveBackendApiBaseValidationMessage(error, t, "failedToLoadBackendPreset");
+      enqueueSnackbar(message, { variant: "error" });
     } finally {
       event.target.value = "";
     }
@@ -766,6 +786,19 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseEnterThePythonApiBaseUrlFirst"), { variant: "warning" });
       return;
     }
+    let normalizedPresetApiBaseUrl: string;
+    try {
+      normalizedPresetApiBaseUrl = normalizeBackendApiBaseUrl(selectedBackendPreset.apiBaseUrl);
+    } catch (error) {
+      const message = resolveBackendApiBaseValidationMessage(
+        error,
+        t,
+        "applyingBackendEndpointFailed"
+      );
+      setBackendStateError(message);
+      enqueueSnackbar(message, { variant: "warning" });
+      return;
+    }
     const adminToken = backendAdminToken.trim();
     if (!adminToken) {
       enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
@@ -778,7 +811,7 @@ export default function SettingsPage() {
     try {
       const state = await apiClient.updateBackendEndpoint({
         deployment: selectedBackendPreset.deployment,
-        apiBaseUrl: selectedBackendPreset.apiBaseUrl,
+        apiBaseUrl: normalizedPresetApiBaseUrl,
         clientId: selectedBackendPreset.clientId ?? null,
         clientSecret: selectedBackendPreset.clientSecret ?? null,
         verifySsl: selectedBackendPreset.verifySsl ?? true,

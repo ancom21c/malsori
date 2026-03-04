@@ -282,6 +282,9 @@ export class RtzrApiClient {
     if (normalized === "BACKEND_API_BASE_REQUIRED") {
       return tStatic("pleaseEnterTheApiBaseUrl");
     }
+    if (normalized === "BACKEND_API_BASE_INVALID") {
+      return tStatic("pleaseEnterAValidApiBaseUrl");
+    }
     if (normalized === "SERVER_CONFIG_ERROR") {
       return tStatic("serverConfigurationError");
     }

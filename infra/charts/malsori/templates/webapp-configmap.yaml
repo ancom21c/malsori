@@ -1,4 +1,3 @@
-{{- if .Values.webapp.apiBaseUrl }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,4 +20,3 @@ data:
         runtimeErrorReportingEnabled: {{- if .Values.webapp.runtimeErrorReportingEnabled }} true {{- else }} false {{- end }},
       }
     );
-{{- end }}

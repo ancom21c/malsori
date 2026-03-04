@@ -90,7 +90,7 @@ Once configured, use the “Connect Google Drive” button in the webapp; the AP
 ### Connecting the webapp to the Python API
 
 The React app talks only to the Python proxy. When you run `npm run dev`, Vite proxies `/api/*` to `http://localhost:8000` by default, so the “Python API Base URL” can be left as `/api` (**설정 → 환경 설정**). If the proxy runs elsewhere, set the value to a full URL (or adjust the Vite proxy target).  
-Helm deployments can override this default by writing `/config/malsori-config.js` (via ConfigMap) so the SPA automatically targets the ingress-exposed API host.
+Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime webapp settings. Set `webapp.apiBaseUrl` when you want the SPA to target an ingress API host, and use flags like `webapp.runtimeErrorReportingEnabled` for runtime behavior control.
 
 ### Useful Scripts
 
@@ -100,7 +100,7 @@ Helm deployments can override this default by writing `/config/malsori-config.js
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
-- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes and `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion.
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes, `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion, and `DETAIL_SMOKE_ID=<id>` to enable detail ready-state smoke.
 
 ## QA & CI
 

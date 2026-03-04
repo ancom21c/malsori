@@ -4,13 +4,10 @@ import type {
   BackendEndpointDeployment,
   BackendEndpointPreset,
 } from "../../data/app-db";
+import { normalizeBackendApiBaseUrl } from "../../utils/backendEndpointUrl";
 
 function sanitizeBaseUrl(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  return trimmed.replace(/\/+$/, "");
+  return normalizeBackendApiBaseUrl(value);
 }
 
 async function clearDefaultBackendPreset() {

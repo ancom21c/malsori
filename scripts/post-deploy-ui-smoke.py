@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
+from urllib.parse import quote
 
 from playwright.sync_api import Browser, Error, Page, sync_playwright
 
@@ -88,6 +89,41 @@ def _assert_page_health(result: PageLoadResult, *, min_root_text_length: int = 4
         raise RuntimeError(f"{result.path}: console error detected: {result.console_errors[0]}")
 
 
+def _assert_detail_empty_state(page: Page, result: PageLoadResult) -> Dict[str, Any]:
+    _assert_page_health(result, min_root_text_length=10)
+    alert_count = page.locator('[role="alert"]').count()
+    if alert_count < 1:
+        raise RuntimeError(f"{result.path}: detail empty-state alert was not found")
+    return {
+        "mode": "empty",
+        "status": result.status,
+        "root_text_length": result.root_text_length,
+        "page_error_count": len(result.page_errors),
+        "console_error_count": len(result.console_errors),
+        "alert_count": alert_count,
+    }
+
+
+def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, Any]:
+    _assert_page_health(result, min_root_text_length=80)
+    alert_count = page.locator('[role="alert"]').count()
+    if alert_count > 0:
+        raise RuntimeError(f"{result.path}: unexpected alert detected in detail ready-state")
+    card_count = page.locator(".MuiCard-root").count()
+    if card_count < 3:
+        raise RuntimeError(
+            f"{result.path}: expected >=3 cards in detail workspace, got {card_count}"
+        )
+    return {
+        "mode": "ready",
+        "status": result.status,
+        "root_text_length": result.root_text_length,
+        "page_error_count": len(result.page_errors),
+        "console_error_count": len(result.console_errors),
+        "card_count": card_count,
+    }
+
+
 def _check_mobile_overlap(page: Page) -> Dict[str, Any]:
     geometry = page.evaluate(
         """
@@ -147,29 +183,45 @@ def _check_mobile_overlap(page: Page) -> Dict[str, Any]:
     return result
 
 
-def run(base_url: str, screenshot_dir: Path) -> Dict[str, Any]:
+def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         "base_url": base_url,
         "desktop_routes": {},
         "mobile": {},
         "checks": {},
     }
+    detail_empty_path = "/transcriptions/smoke-detail-empty"
+    detail_ready_path = (
+        f"/transcriptions/{quote(detail_id, safe='')}" if detail_id else None
+    )
+    summary["checks"]["detail_smoke_mode"] = "empty+ready" if detail_ready_path else "empty-only"
     screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
-            for path in ("/", "/settings", "/realtime", "/transcriptions/smoke-detail"):
+            desktop_paths = ["/", "/settings", "/realtime", detail_empty_path]
+            if detail_ready_path:
+                desktop_paths.append(detail_ready_path)
+            for path in desktop_paths:
                 page, result = _open_page(browser, base_url, path, mobile=False)
                 try:
-                    min_root_text_length = 10 if path.startswith("/transcriptions/") else 40
-                    _assert_page_health(result, min_root_text_length=min_root_text_length)
-                    summary["desktop_routes"][path] = {
-                        "status": result.status,
-                        "root_text_length": result.root_text_length,
-                        "page_error_count": len(result.page_errors),
-                        "console_error_count": len(result.console_errors),
-                    }
+                    if path == detail_empty_path:
+                        summary["desktop_routes"][path] = _assert_detail_empty_state(
+                            page, result
+                        )
+                    elif detail_ready_path and path == detail_ready_path:
+                        summary["desktop_routes"][path] = _assert_detail_ready_state(
+                            page, result
+                        )
+                    else:
+                        _assert_page_health(result, min_root_text_length=40)
+                        summary["desktop_routes"][path] = {
+                            "status": result.status,
+                            "root_text_length": result.root_text_length,
+                            "page_error_count": len(result.page_errors),
+                            "console_error_count": len(result.console_errors),
+                        }
                     if path == "/realtime":
                         clicked = page.evaluate(
                             """
@@ -232,10 +284,16 @@ def main() -> int:
         default="/tmp/malsori-ui-smoke",
         help="Directory to write screenshots",
     )
+    parser.add_argument(
+        "--detail-id",
+        default="",
+        help="Optional transcription id for detail ready-state smoke.",
+    )
     args = parser.parse_args()
 
     try:
-        summary = run(args.base_url.rstrip("/"), Path(args.screenshot_dir))
+        detail_id = args.detail_id.strip() or None
+        summary = run(args.base_url.rstrip("/"), Path(args.screenshot_dir), detail_id)
     except Error as exc:
         print(f"[FAIL] Playwright error: {exc}", file=sys.stderr)
         return 1

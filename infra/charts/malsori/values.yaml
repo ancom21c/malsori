@@ -33,6 +33,8 @@ pythonApi:
   resources: {}
 
 webapp:
+  # Optional API base override for SPA runtime config.
+  # Leave empty to keep web defaults (/api fallback), while still emitting runtime flags.
   apiBaseUrl: ""
   driveAuthMode: ""
   googleClientId: ""

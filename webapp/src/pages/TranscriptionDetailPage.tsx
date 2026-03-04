@@ -452,7 +452,8 @@ export default function TranscriptionDetailPage() {
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
-    return await appDb.transcriptions.get(transcriptionId);
+    const record = await appDb.transcriptions.get(transcriptionId);
+    return record ?? null;
   }, [transcriptionId]);
 
   const segments = useLiveQuery(async () => {

@@ -1259,6 +1259,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Please enter the API Base URL.",
     ja: "API ベース URL を入力してください。",
   },
+  pleaseEnterAValidApiBaseUrl: {
+    ko: "유효한 API Base URL(http/https)을 입력해 주세요.",
+    en: "Please enter a valid API Base URL (http/https).",
+    ja: "有効な API ベース URL（http/https）を入力してください。",
+  },
   pleaseEnterTheBackendPresetName: {
     ko: "백엔드 프리셋 이름을 입력해 주세요.",
     en: "Please enter the backend preset name.",

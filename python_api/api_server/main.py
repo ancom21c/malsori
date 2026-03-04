@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, List, Literal, Optional
+from urllib.parse import urlparse
 
 from copy import deepcopy
 
@@ -172,6 +173,28 @@ def _truncate_log_text(value: Optional[str], max_length: int) -> Optional[str]:
     if len(text) <= max_length:
         return text
     return f"{text[:max_length]}...(truncated)"
+
+
+def _normalize_backend_api_base_url(value: str) -> str:
+    base_url = value.strip()
+    if not base_url:
+        _raise_api_error(400, "BACKEND_API_BASE_REQUIRED", "api_base_url is required.")
+
+    parsed = urlparse(base_url)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"} or not parsed.hostname:
+        _raise_api_error(
+            400,
+            "BACKEND_API_BASE_INVALID",
+            "api_base_url must be an absolute http(s) URL including host.",
+        )
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        _raise_api_error(
+            400,
+            "BACKEND_API_BASE_INVALID",
+            "api_base_url must not include credentials, query, or fragment.",
+        )
+    return base_url.rstrip("/")
 
 
 class _SuppressDocsAccessFilter(logging.Filter):
@@ -337,9 +360,7 @@ async def set_backend_endpoint(
     _: Settings = Depends(_require_backend_admin),
 ) -> BackendEndpointState:
     """Persist a new upstream endpoint configuration."""
-    base_url = payload.api_base_url.strip()
-    if not base_url:
-        _raise_api_error(400, "BACKEND_API_BASE_REQUIRED", "api_base_url is required.")
+    base_url = _normalize_backend_api_base_url(payload.api_base_url)
     updates: Dict[str, Any] = {
         "pronaia_api_base": base_url,
         "deployment": payload.deployment,

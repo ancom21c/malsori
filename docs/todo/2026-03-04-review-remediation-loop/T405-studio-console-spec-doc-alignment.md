@@ -5,6 +5,7 @@
 ### 문제
 
 - Studio Console 관련 문서 간 scope 정의가 일부 불일치한다(대상 화면 수/단계 기술 기준 차이).
+- 예: rollout goal은 detail route를 포함하지만, 같은 문서의 route-level smoke 예시는 detail을 누락하고 있다.
 - rollout 문서의 evidence 요구(before/after, a11y notes)와 실제 저장 방식이 느슨해 추적성이 낮다.
 
 ### 목표

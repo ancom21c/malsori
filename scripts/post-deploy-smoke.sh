@@ -11,6 +11,7 @@ ALLOW_INSECURE_TLS="${ALLOW_INSECURE_TLS:-0}"
 RUN_UI_SMOKE="${RUN_UI_SMOKE:-auto}"
 UI_SMOKE_SCREENSHOT_DIR="${UI_SMOKE_SCREENSHOT_DIR:-/tmp/malsori-ui-smoke}"
 EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED="${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED:-1}"
+DETAIL_SMOKE_ID="${DETAIL_SMOKE_ID:-}"
 
 for cmd in curl kubectl helm python3 rg; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -361,7 +362,12 @@ if [[ "${RUN_UI_SMOKE}" != "0" ]]; then
   fi
 
   echo "[9/9] Verify UI runtime contract"
-  python3 scripts/post-deploy-ui-smoke.py \
-    --base-url "${BASE_URL}" \
+  ui_smoke_args=(
+    --base-url "${BASE_URL}"
     --screenshot-dir "${UI_SMOKE_SCREENSHOT_DIR}"
+  )
+  if [[ -n "${DETAIL_SMOKE_ID}" ]]; then
+    ui_smoke_args+=(--detail-id "${DETAIL_SMOKE_ID}")
+  fi
+  python3 scripts/post-deploy-ui-smoke.py "${ui_smoke_args[@]}"
 fi
