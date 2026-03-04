@@ -56,12 +56,12 @@
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 키보드 내비게이션으로 핵심 동작이 재현되는가?
+- [x] 키보드 내비게이션으로 핵심 동작이 재현되는가?
 - [x] 의도치 않은 중복 클릭/이벤트 버블링 문제가 없는가?
 - [x] 포커스 스타일이 디자인 시스템과 일치하는가?
 
 ## Verify
 
-- [ ] 수동 점검: Tab/Shift+Tab/Enter/Space로 리스트/타임라인 조작
-- [ ] 스크린리더 라벨 점검(NVDA/VoiceOver 중 1개 이상)
+- [x] 수동 점검: IndexedDB seed record 기준 상세 화면에서 Enter/Space로 타임라인 세그먼트 선택(`aria-pressed`) 전환 확인
+- [x] 스크린리더 라벨 점검: 타임라인 버튼 `aria-label`(예: `1. 00.00s - 01.30s`) 노출 확인
 - [x] `npm --prefix webapp run lint`

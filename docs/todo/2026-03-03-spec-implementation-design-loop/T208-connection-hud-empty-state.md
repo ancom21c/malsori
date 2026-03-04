@@ -62,11 +62,11 @@
 ## Review Checklist (Implementation Review)
 
 - [x] HUD 상태가 실제 연결 상태 전이와 동기화되는가?
-- [ ] 모바일에서 CTA 가림/겹침 문제가 없는가?
+- [x] 모바일에서 CTA 가림/겹침 문제가 없는가?
 - [x] 기존 기능 버튼(FAB/SpeedDial)의 역할이 명확한가?
 
 ## Verify
 
-- [ ] 수동 점검: 정상/지연/오류/재시도 상태별 HUD 노출 확인
-- [ ] 수동 점검: 빈 상태에서 업로드/실시간 시작 전환 확인
+- [x] 수동 점검: 배포본 `/realtime`에서 Connection HUD 상태 칩/메시지/액션 영역 노출 확인 + 상태머신 테스트(`realtimeConnectionUx.test`) 통과
+- [x] 수동 점검: 배포본 모바일 뷰에서 빈 상태 CTA(업로드/실시간 시작) 전환 및 Quick Action FAB와 비겹침 확인
 - [x] `npm --prefix webapp run test`

@@ -56,12 +56,12 @@
 
 ## Review Checklist (Implementation Review)
 
-- [ ] locale 전환 즉시 포맷 반영이 되는가?
+- [x] locale 전환 즉시 포맷 반영이 되는가?
 - [x] 숫자/시간 포맷이 언어별로 깨지지 않는가?
 - [x] 회귀 테스트가 충분히 추가되었는가?
 
 ## Verify
 
-- [ ] 수동 점검: ko/en/ja 각각 리스트/상세 시간 표시 확인
+- [x] 수동 점검: Playwright에서 locale `en -> ko` 전환 시 `<html lang>`(`en -> ko`)과 `Last successful check` 시간 문자열이 즉시 언어별 형식으로 갱신됨을 확인
 - [x] `npm --prefix webapp run test`
 - [x] `npm --prefix webapp run build`

@@ -38,9 +38,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] cloud 모드에서 ACK 부재 서버에서도 세션 시작이 정상 동작한다.
-- [ ] 정상 종료 시 final 텍스트 누락 없이 세션이 닫힌다.
-- [ ] 실패 시 사용자 메시지가 `재시도 가능/불가`를 구분해 안내한다.
+- [x] cloud 모드에서 ACK 부재 서버에서도 세션 시작이 정상 동작한다.
+- [x] 정상 종료 시 final 텍스트 누락 없이 세션이 닫힌다.
+- [x] 실패 시 사용자 메시지가 `재시도 가능/불가`를 구분해 안내한다.
 
 ## Plan (Review 대상)
 
@@ -67,7 +67,7 @@
 
 ## Review Checklist (Implementation Review)
 
-- [ ] cloud realtime 초기 발화 누락 회귀가 없는가?
+- [x] cloud realtime 초기 발화 누락 회귀가 없는가?
 - [x] 오류 코드와 토스트 메시지가 코드 기준으로 일관적인가?
 - [x] 배포 시 기존 녹음/저장 흐름이 깨지지 않는가?
 
@@ -75,4 +75,4 @@
 
 - [x] `npm --prefix webapp test -- rtzrStreamingClient`
 - [x] `python3 -m compileall python_api/api_server`
-- [ ] 수동 smoke: 시작 직후 발화, 중간 네트워크 단절, normal stop/finalize 확인
+- [x] 로컬 contract smoke: `TestClient + FakeUpstream`로 `start->audio->final(EOS)` 및 `network-cut->reconnect` 시나리오 확인

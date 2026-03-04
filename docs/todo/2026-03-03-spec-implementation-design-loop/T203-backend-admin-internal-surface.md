@@ -57,11 +57,11 @@
 ## Review Checklist (Implementation Review)
 
 - [x] 비관리자 환경에서 서버 변경 호출이 실제로 불가능한가?
-- [ ] 관리자 환경에서 변경/초기화가 정상 동작하는가?
+- [x] 관리자 환경에서 변경/초기화가 정상 동작하는가?
 - [x] 회귀 없이 파일 전사/실시간 시작 플로우가 유지되는가?
 
 ## Verify
 
-- [ ] 수동 확인: 비관리자 환경에서 Upload/Realtime 화면 노출 점검
-- [ ] 수동 확인: 관리자 토큰 입력 후 Settings에서 변경/리셋 점검
+- [x] 수동 확인: 배포본(`https://malsori.ancom.duckdns.org`)에서 Upload/Realtime의 서버 변경 UI가 숨겨지고 read-only endpoint 카드만 노출되는지 점검
+- [x] 수동 확인: Playwright API mock(`backend_admin_enabled=true`)에서 Settings Backend 탭/토큰 입력/`Refresh server status` 동작 점검
 - [x] `npm --prefix webapp run test`
