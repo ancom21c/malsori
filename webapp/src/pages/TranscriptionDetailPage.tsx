@@ -1,6 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  FormGroup,
+  IconButton,
+  InputAdornment,
+  Stack,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
@@ -543,6 +567,31 @@ export default function TranscriptionDetailPage() {
       }, 0) ?? 0;
     return maxSegmentEndMs > 0 ? maxSegmentEndMs / 1000 : 0;
   }, [mediaDurationSeconds, segments]);
+
+  const segmentStats = useMemo(() => {
+    const entries = segments ?? [];
+    const speakers = new Set<string>();
+    let timedCount = 0;
+    let correctedCount = 0;
+    for (const segment of entries) {
+      if (segmentHasTiming(segment)) {
+        timedCount += 1;
+      }
+      if (segment.correctedText && segment.correctedText.trim().length > 0) {
+        correctedCount += 1;
+      }
+      const speakerToken = segment.speaker_label?.trim() || segment.spk?.trim();
+      if (speakerToken) {
+        speakers.add(speakerToken);
+      }
+    }
+    return {
+      segmentCount: entries.length,
+      timedCount,
+      correctedCount,
+      speakerCount: speakers.size,
+    };
+  }, [segments]);
 
   const loopRange = useMemo(() => {
     if (loopStartSeconds === null || loopEndSeconds === null) {
@@ -1578,6 +1627,59 @@ export default function TranscriptionDetailPage() {
     );
   }
 
+  const videoReady = Boolean(videoUrl || videoBlobRef.current);
+  const detailCopy =
+    locale === "ko"
+      ? {
+        overviewTitle: "상세 콘솔 개요",
+        analysisTitle: "분석 워크스페이스",
+        analysisSubheader: "파형 타임라인, 루프 구간, 세그먼트 탐색을 한 곳에서 관리합니다.",
+        transcriptTitle: "전사 워크스페이스",
+        transcriptSubheader: "세그먼트 교정/탐색/노트 모드를 한 레이어에서 처리합니다.",
+        status: "상태",
+        segments: "세그먼트",
+        timed: "타이밍",
+        speakers: "화자",
+        corrections: "교정",
+        duration: "길이",
+        loop: "루프",
+        cursor: "커서",
+        off: "꺼짐",
+        mediaReadyAudioVideo: "오디오+비디오 준비",
+        mediaReadyAudio: "오디오 준비",
+        mediaLoading: "미디어 로딩중",
+        mediaPending: "미디어 대기",
+      }
+      : {
+        overviewTitle: "Detail Console Overview",
+        analysisTitle: "Analysis Workspace",
+        analysisSubheader: "Waveform timeline, loop range, and segment navigation are grouped here.",
+        transcriptTitle: "Transcript Workspace",
+        transcriptSubheader: "Review, correct, and navigate transcript segments with keyboard and waveform sync.",
+        status: "Status",
+        segments: "Segments",
+        timed: "Timed",
+        speakers: "Speakers",
+        corrections: "Corrections",
+        duration: "Duration",
+        loop: "Loop",
+        cursor: "Cursor",
+        off: "Off",
+        mediaReadyAudioVideo: "Audio + Video Ready",
+        mediaReadyAudio: "Audio Ready",
+        mediaLoading: "Media Loading",
+        mediaPending: "Media Pending",
+      };
+  const mediaStatusLabel = audioReady
+    ? videoReady
+      ? detailCopy.mediaReadyAudioVideo
+      : detailCopy.mediaReadyAudio
+    : audioLoading || videoLoading
+      ? detailCopy.mediaLoading
+      : detailCopy.mediaPending;
+  const mediaStatusColor: "success" | "warning" | "default" =
+    audioReady ? "success" : audioLoading || videoLoading ? "warning" : "default";
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <MediaPlaybackSection
@@ -1744,103 +1846,189 @@ export default function TranscriptionDetailPage() {
         onClose={handleSpeakerEditClose}
       />
 
-      <Stack spacing={2}>
-        <SegmentWaveformTimeline
-          audioSourceUrl={audioUrl}
-          segments={segments ?? []}
-          activeSegmentId={activeSegmentId}
-          currentTimeSeconds={mediaCurrentTimeSeconds}
-          durationSeconds={timelineDurationSeconds}
-          loopEnabled={loopEnabled}
-          loopStartSeconds={loopStartSeconds}
-          loopEndSeconds={loopEndSeconds}
-          onSeek={handleSeekToPlaybackTime}
-          onSelectSegment={handleSelectSegmentForTimeline}
-          onSetLoopStart={handleSetLoopStartAtCurrent}
-          onSetLoopEnd={handleSetLoopEndAtCurrent}
-          onSetLoopFromActiveSegment={handleSetLoopFromActiveSegment}
-          onClearLoop={handleClearLoopRange}
-          onToggleLoop={setLoopEnabled}
-          t={t}
-        />
+      <Stack spacing={2.25}>
+        <Card variant="outlined">
+          <CardContent sx={{ py: 2 }}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", md: "center" }}
+              >
+                <Typography variant="subtitle1">{detailCopy.overviewTitle}</Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" variant="outlined" label={`${detailCopy.status}: ${transcription.status}`} />
+                  <Chip size="small" variant="outlined" label={`${detailCopy.segments}: ${segmentStats.segmentCount}`} />
+                  <Chip size="small" variant="outlined" label={`${detailCopy.timed}: ${segmentStats.timedCount}`} />
+                  <Chip size="small" variant="outlined" label={`${detailCopy.speakers}: ${segmentStats.speakerCount}`} />
+                  <Chip size="small" variant="outlined" label={`${detailCopy.corrections}: ${segmentStats.correctedCount}`} />
+                </Stack>
+                <Chip
+                  size="small"
+                  color={mediaStatusColor}
+                  label={mediaStatusLabel}
+                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                />
+              </Stack>
+          </CardContent>
+        </Card>
 
-        <Stack spacing={0.5}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={noteMode}
-                onChange={(event) => setNoteMode(event.target.checked)}
+        <Card
+          variant="outlined"
+          sx={{
+            backgroundImage: (theme) =>
+              `linear-gradient(165deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+                theme.palette.background.paper,
+                0.96
+              )} 58%)`,
+          }}
+        >
+          <CardHeader
+            title={detailCopy.analysisTitle}
+            subheader={detailCopy.analysisSubheader}
+          />
+          <CardContent>
+            <Stack spacing={2}>
+              <SegmentWaveformTimeline
+                audioSourceUrl={audioUrl}
+                segments={segments ?? []}
+                activeSegmentId={activeSegmentId}
+                currentTimeSeconds={mediaCurrentTimeSeconds}
+                durationSeconds={timelineDurationSeconds}
+                loopEnabled={loopEnabled}
+                loopStartSeconds={loopStartSeconds}
+                loopEndSeconds={loopEndSeconds}
+                onSeek={handleSeekToPlaybackTime}
+                onSelectSegment={handleSelectSegmentForTimeline}
+                onSetLoopStart={handleSetLoopStartAtCurrent}
+                onSetLoopEnd={handleSetLoopEndAtCurrent}
+                onSetLoopFromActiveSegment={handleSetLoopFromActiveSegment}
+                onClearLoop={handleClearLoopRange}
+                onToggleLoop={setLoopEnabled}
+                t={t}
               />
-            }
-            label={t("noteMode")}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {t("noteModeHelper")}
-          </Typography>
-        </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${detailCopy.duration}: ${timelineDurationSeconds > 0 ? `${timelineDurationSeconds.toFixed(1)}s` : "--"}`}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  color={loopEnabled && loopRange ? "primary" : "default"}
+                  label={
+                    loopEnabled && loopRange
+                      ? `${detailCopy.loop}: ${loopRange.startSeconds.toFixed(1)}s ~ ${loopRange.endSeconds.toFixed(1)}s`
+                      : `${detailCopy.loop}: ${detailCopy.off}`
+                  }
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`${detailCopy.cursor}: ${mediaCurrentTimeSeconds.toFixed(1)}s`}
+                />
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
 
-        {noteMode ? (
-          <TextField
-            multiline
-            minRows={8}
-            fullWidth
-            label={t("noteModeTextAreaLabel")}
-            placeholder={t("noteModePlaceholder")}
-            value={noteModeText}
-            InputProps={{ readOnly: true }}
+        <Card
+          variant="outlined"
+          sx={{
+            backgroundImage: (theme) =>
+              `linear-gradient(170deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(
+                theme.palette.background.paper,
+                0.98
+              )} 62%)`,
+          }}
+        >
+          <CardHeader
+            title={detailCopy.transcriptTitle}
+            subheader={detailCopy.transcriptSubheader}
           />
-        ) : segments === undefined ? (
-          <Box
-            sx={{ py: 6, display: "flex", justifyContent: "center" }}
-            role="status"
-            aria-label={t("loading")}
-          >
-            <CircularProgress />
-          </Box>
-        ) : segments.length === 0 ? (
-          <Alert severity="info">
-            {t(
-              "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
-            )}
-          </Alert>
-        ) : (
-          <TranscriptionView
-            segments={segments}
-            activeSegmentId={activeSegmentId}
-            activeWordHighlight={activeWordHighlight}
-            wordDetailsVisibility={wordDetailsVisibility}
-            editingSegmentId={editingSegmentId}
-            editingValue={editingValue}
-            editingWordInputs={editingWordInputs}
-            editingWordTimings={editingWordTimings}
-            savingEdit={savingEdit}
-            audioReady={audioReady}
-            onSpeakerClick={handleSpeakerClick}
-            onSelectSegment={handleSelectSegmentForTimeline}
-            onPlaySegment={handlePlaySegment}
-            onStartEdit={handleStartEdit}
-            onWordInputChange={handleWordInputChange}
-            onEditValueChange={setEditingValue}
-            onCancelEdit={handleCancelEdit}
-            onSaveEdit={() => void handleSaveEdit()}
-            onWordDetailsToggle={(segmentId) => {
-              setWordDetailsVisibility((prev) => {
-                const nextVisible = !(prev[segmentId] ?? false);
-                if (!nextVisible && activeWordHighlightRef.current?.segmentId === segmentId) {
-                  setActiveWordHighlight(null);
-                  activeWordHighlightRef.current = null;
-                }
-                return {
-                  ...prev,
-                  [segmentId]: nextVisible,
-                };
-              });
-            }}
-            onKeyDown={handleEditKeyDown}
-            segmentCardRefs={segmentCardRefs}
-            t={t}
-          />
-        )}
+          <CardContent>
+            <Stack spacing={1.5}>
+              <Stack spacing={0.5}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={noteMode}
+                      onChange={(event) => setNoteMode(event.target.checked)}
+                    />
+                  }
+                  label={t("noteMode")}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {t("noteModeHelper")}
+                </Typography>
+              </Stack>
+              <Divider />
+              {noteMode ? (
+                <TextField
+                  multiline
+                  minRows={8}
+                  fullWidth
+                  label={t("noteModeTextAreaLabel")}
+                  placeholder={t("noteModePlaceholder")}
+                  value={noteModeText}
+                  InputProps={{ readOnly: true }}
+                />
+              ) : segments === undefined ? (
+                <Box
+                  sx={{ py: 6, display: "flex", justifyContent: "center" }}
+                  role="status"
+                  aria-label={t("loading")}
+                >
+                  <CircularProgress />
+                </Box>
+              ) : segments.length === 0 ? (
+                <Alert severity="info">
+                  {t(
+                    "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
+                  )}
+                </Alert>
+              ) : (
+                <TranscriptionView
+                  segments={segments}
+                  activeSegmentId={activeSegmentId}
+                  activeWordHighlight={activeWordHighlight}
+                  wordDetailsVisibility={wordDetailsVisibility}
+                  editingSegmentId={editingSegmentId}
+                  editingValue={editingValue}
+                  editingWordInputs={editingWordInputs}
+                  editingWordTimings={editingWordTimings}
+                  savingEdit={savingEdit}
+                  audioReady={audioReady}
+                  onSpeakerClick={handleSpeakerClick}
+                  onSelectSegment={handleSelectSegmentForTimeline}
+                  onPlaySegment={handlePlaySegment}
+                  onStartEdit={handleStartEdit}
+                  onWordInputChange={handleWordInputChange}
+                  onEditValueChange={setEditingValue}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={() => void handleSaveEdit()}
+                  onWordDetailsToggle={(segmentId) => {
+                    setWordDetailsVisibility((prev) => {
+                      const nextVisible = !(prev[segmentId] ?? false);
+                      if (!nextVisible && activeWordHighlightRef.current?.segmentId === segmentId) {
+                        setActiveWordHighlight(null);
+                        activeWordHighlightRef.current = null;
+                      }
+                      return {
+                        ...prev,
+                        [segmentId]: nextVisible,
+                      };
+                    });
+                  }}
+                  onKeyDown={handleEditKeyDown}
+                  segmentCardRefs={segmentCardRefs}
+                  t={t}
+                />
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
       </Stack>
     </Box >
   );

@@ -14,6 +14,10 @@
   - 파일: `webapp/src/pages/SettingsPage.tsx`
   - 변경: Overview HUD + 섹션별 상태 스트립(Transcription/Permissions/Backend) 추가로 정보구조 계층화
   - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`, `npm --prefix webapp run test -- AppRouter`
+- 2026-03-04: `S3 (Detail)` 1차 반영 완료
+  - 파일: `webapp/src/pages/TranscriptionDetailPage.tsx`
+  - 변경: Detail overview metrics, Analysis workspace(파형/루프), Transcript workspace(교정/노트)로 레이아웃 재구성
+  - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`, `npm --prefix webapp run test -- AppRouter`
 
 ## Rollout Stages
 
