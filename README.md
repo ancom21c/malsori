@@ -54,8 +54,9 @@ export PRONAIA_CLIENT_SECRET=your-client-secret
 uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
-The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, and `/v1/streaming` for realtime WebSocket relay.  
+The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, `/v1/streaming` for realtime WebSocket relay, and `/v1/observability/runtime-error` for browser runtime error telemetry.  
 For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth when enabled.
+`/v1/observability/runtime-error` is a write-only operational signal intended for same-origin/internal use; keep it behind internal ingress policy or equivalent edge controls in production.
 
 #### Proxy Contract Mapping
 

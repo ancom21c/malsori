@@ -77,3 +77,23 @@ class HealthStatusResponse(BaseModel):
     auth_enabled: bool
     source: Literal["default", "override"]
     backend_admin_enabled: bool
+
+
+class FrontendRuntimeErrorReport(BaseModel):
+    """Client-side runtime error payload forwarded by the webapp."""
+
+    kind: Literal["error", "unhandledrejection"]
+    message: str = Field(..., min_length=1, max_length=2000)
+    stack: Optional[str] = Field(default=None, max_length=8000)
+    page_url: Optional[str] = Field(default=None, max_length=1024)
+    route: Optional[str] = Field(default=None, max_length=512)
+    user_agent: Optional[str] = Field(default=None, max_length=1024)
+    locale: Optional[str] = Field(default=None, max_length=64)
+    app_version: Optional[str] = Field(default=None, max_length=128)
+
+
+class FrontendRuntimeErrorAck(BaseModel):
+    """Ack response for runtime error ingestion."""
+
+    accepted: Literal[True] = True
+    event_id: str

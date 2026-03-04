@@ -48,6 +48,8 @@ from .config import (
 from .models import (
     BackendEndpointState,
     BackendEndpointUpdateRequest,
+    FrontendRuntimeErrorAck,
+    FrontendRuntimeErrorReport,
     HealthStatusResponse,
     STTRequest,
     STTResponse,
@@ -161,6 +163,17 @@ def _log_streaming_message(direction: str, message: Any) -> None:
     )
 
 
+def _truncate_log_text(value: Optional[str], max_length: int) -> Optional[str]:
+    if not value:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if len(text) <= max_length:
+        return text
+    return f"{text[:max_length]}...(truncated)"
+
+
 class _SuppressDocsAccessFilter(logging.Filter):
     """Filter out access logs for documentation endpoints used by health probes."""
 
@@ -268,6 +281,36 @@ async def health_status() -> HealthStatusResponse:
         source=_resolve_backend_source(),
         backend_admin_enabled=settings.backend_admin_enabled,
     )
+
+
+@app.post(
+    "/v1/observability/runtime-error",
+    response_model=FrontendRuntimeErrorAck,
+    status_code=202,
+)
+async def ingest_frontend_runtime_error(
+    payload: FrontendRuntimeErrorReport,
+) -> FrontendRuntimeErrorAck:
+    """Ingest a browser runtime error report for operational triage."""
+    event_id = uuid.uuid4().hex[:12]
+
+    logger.error(
+        (
+            "frontend-runtime-error event_id=%s kind=%s route=%s page_url=%s locale=%s "
+            "app_version=%s message=%s stack=%s user_agent=%s"
+        ),
+        event_id,
+        payload.kind,
+        _truncate_log_text(payload.route, 300),
+        _truncate_log_text(payload.page_url, 700),
+        _truncate_log_text(payload.locale, 48),
+        _truncate_log_text(payload.app_version, 96),
+        _truncate_log_text(payload.message, 1000),
+        _truncate_log_text(payload.stack, 2000),
+        _truncate_log_text(payload.user_agent, 300),
+    )
+
+    return FrontendRuntimeErrorAck(event_id=event_id)
 
 
 @app.get("/v1/backend/endpoint", response_model=BackendEndpointState)

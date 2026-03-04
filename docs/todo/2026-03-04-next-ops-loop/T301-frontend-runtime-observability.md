@@ -24,9 +24,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 런타임 에러가 배포 당일에 자동 탐지된다.
-- [ ] 장애 발생 시 최소한의 재현 정보(URL, message, stack 일부)를 확보한다.
-- [ ] 운영 문서에 확인 절차가 명확히 정리된다.
+- [x] 런타임 에러가 배포 당일에 자동 탐지된다.
+- [x] 장애 발생 시 최소한의 재현 정보(URL, message, stack 일부)를 확보한다.
+- [x] 운영 문서에 확인 절차가 명확히 정리된다.
 
 ## Plan (Review 대상)
 
@@ -42,15 +42,29 @@
 
 ## Implementation Log
 
-- [ ] 미구현
+- [x] `webapp/src/services/observability/runtimeErrorReporter.ts` 추가:
+  - `window.error`, `window.unhandledrejection`를 수집
+  - 중복 시그니처 dedupe
+  - `navigator.sendBeacon` 우선, 실패 시 `fetch(..., keepalive)` fallback
+  - `/v1/observability/runtime-error`로 최소/트렁케이트된 payload 전송
+- [x] `webapp/src/main.tsx`에서 리포터 초기화 연결
+- [x] `python_api/api_server/models.py`, `python_api/api_server/main.py`에 수집 API 추가:
+  - `POST /v1/observability/runtime-error` (`202 Accepted`)
+  - 운영 triage 용 로그 필드(event_id/kind/route/page_url/message/stack 일부) 남김
+- [x] 단위 테스트 추가: `webapp/src/services/observability/runtimeErrorReporter.test.ts`
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 런타임 에러가 실제로 수집/표시되는가?
-- [ ] 정상 흐름 성능 저하가 없는가?
-- [ ] 보안 리스크(토큰/본문 유출)가 없는가?
+- [x] 런타임 에러가 실제로 수집/표시되는가?
+- [x] 정상 흐름 성능 저하가 없는가?
+- [x] 보안 리스크(토큰/본문 유출)가 없는가?
 
 ## Verify
 
-- [ ] 자동 테스트/스모크 시나리오 추가
-- [ ] 운영 문서 업데이트
+- [x] 자동 테스트/스모크 시나리오 추가
+  - `npm --prefix webapp run test -- runtimeErrorReporter`
+  - `npm --prefix webapp run lint`
+  - `npm --prefix webapp run build`
+  - `python3 -m compileall python_api/api_server`
+- [x] 운영 문서 업데이트
+  - `README.md`에 `/v1/observability/runtime-error` 운영 목적/노출 정책 반영
