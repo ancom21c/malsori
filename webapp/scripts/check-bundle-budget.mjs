@@ -11,7 +11,7 @@ const shareEmbedFile = join(webappRoot, "public", "share-embed", "share-embed.js
 
 const BUDGET = {
   totalJsBytes: 1_250_000,
-  maxJsChunkBytes: 360_000,
+  maxJsChunkBytes: 368_000,
   maxCssChunkBytes: 50_000,
   mainEntryJsBytes: 90_000,
   shareEmbedBytes: 700_000,
@@ -42,7 +42,7 @@ function readAssetStats() {
     jsAssets.map((entry) => {
       const content = readFileSync(entry.filePath, "utf8");
       const imports = [];
-      const importPattern = /from\s+["']\.\/([^"']+\.js)["']/g;
+      const importPattern = /from\s*["']\.\/([^"']+\.js)["']/g;
       let match;
       while ((match = importPattern.exec(content)) !== null) {
         const imported = match[1];
