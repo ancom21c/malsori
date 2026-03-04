@@ -4,6 +4,13 @@
 
 `/`, `/realtime`, `/settings`, `/transcriptions/:id`까지 Studio Console 시각 언어를 확장하되, 기능 동선/접근성/성능 회귀 없이 단계적으로 배포한다.
 
+## Execution Status
+
+- 2026-03-04: `S1 (Realtime)` 1차 반영 완료
+  - 파일: `webapp/src/pages/RealtimeSessionPage.tsx`
+  - 변경: 상태/지연/복구 액션을 상단 HUD로 재정렬, 하단 컨트롤을 primary(main+stop)/secondary(camera) 도크로 분리
+  - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`
+
 ## Rollout Stages
 
 | Stage | Target | Scope | DoD |

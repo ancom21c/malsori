@@ -25,6 +25,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useSnackbar } from "notistack";
@@ -657,6 +658,16 @@ export default function RealtimeSessionPage() {
         ? `${Math.round(latencyStaleMs / 1000)}s`
         : "--";
   const showConnectionBanner = sessionActive && connectionUxState.phase !== "normal";
+  const sessionStateLabel = t(SESSION_STATE_LABEL_KEY[sessionState]);
+  const latencyLevelLabel = t(LATENCY_LEVEL_LABEL_KEY[latencyLevel]);
+  const connectionBannerMessage =
+    connectionUxState.phase === "failed"
+      ? t("realtimeReconnectFailedDetail")
+      : connectionUxState.reconnectAttempt > 0
+        ? t("attemptingToReconnectToStreaming", {
+            values: { attempt: connectionUxState.reconnectAttempt },
+          })
+        : t("aStreamingErrorOccurredTheConnectionIsBeingRestored");
 
   useEffect(() => {
     setFloatingActionsVisible(!sessionActive);
@@ -2050,7 +2061,10 @@ export default function RealtimeSessionPage() {
               flexDirection: "column",
               gap: 2,
               // Add padding at bottom for floating buttons + safe area
-              pb: "calc(100px + env(safe-area-inset-bottom))",
+              pb: {
+                xs: "calc(188px + env(safe-area-inset-bottom))",
+                sm: "calc(124px + env(safe-area-inset-bottom))",
+              },
               minHeight: 0,
               "@media (orientation: landscape)": showVideoSection
                 ? {
@@ -2070,22 +2084,6 @@ export default function RealtimeSessionPage() {
               {sessionState !== "idle" && <LinearProgress />}
               <CardContent>
                 <Stack spacing={2}>
-                  {!sessionActive && (
-                    <Typography variant="body2" color="text.secondary">
-                      {t("currentlySelectedStreamingSetting", {
-                        values: {
-                          name: activeStreamingPreset?.name ?? defaultStreamingPreset?.name ?? t("defaultSettings"),
-                        },
-                      })}
-                      {activeStreamingPreset?.description
-                        ? ` – ${activeStreamingPreset.description}`
-                        : ""}
-                      <br />
-                      {t("automaticTemporaryStorageCycleSeconds", {
-                        values: { seconds: realtimeAutoSaveSeconds },
-                      })}
-                    </Typography>
-                  )}
                   {!apiBaseUrl.trim() && (
                     <Alert severity="warning">
                       {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
@@ -2094,45 +2092,86 @@ export default function RealtimeSessionPage() {
                   <Card
                     variant="outlined"
                     sx={{
+                      position: "relative",
+                      overflow: "hidden",
                       borderColor:
                         connectionUxState.phase === "failed"
                           ? "error.main"
                           : connectionUxState.phase === "reconnecting"
                           ? "warning.main"
                           : "divider",
-                      backgroundColor:
+                      backgroundImage: (theme) =>
                         connectionUxState.phase === "failed"
-                          ? "rgba(211, 47, 47, 0.06)"
+                          ? `linear-gradient(145deg, ${alpha(theme.palette.error.main, 0.16)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
                           : connectionUxState.phase === "reconnecting"
-                          ? "rgba(237, 108, 2, 0.08)"
-                          : "background.paper",
+                            ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.17)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
+                            : `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`,
                       transition: "border-color 200ms ease, background-color 200ms ease",
                       "@media (prefers-reduced-motion: reduce)": {
                         transition: "none",
                       },
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        inset: 0,
+                        pointerEvents: "none",
+                        opacity: connectionUxState.phase === "normal" ? 0.4 : 0.2,
+                        backgroundImage: (theme) =>
+                          `linear-gradient(90deg, ${alpha(theme.palette.common.white, 0.35)} 0%, ${alpha(theme.palette.common.white, 0)} 40%)`,
+                      },
                     }}
                   >
-                    <CardContent sx={{ "&:last-child": { pb: 2 } }}>
-                      <Stack spacing={1.25}>
+                    <CardContent sx={{ position: "relative", "&:last-child": { pb: 2 } }}>
+                      <Stack spacing={1.5}>
                         <Stack
-                          direction={{ xs: "column", sm: "row" }}
-                          spacing={1}
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={1.25}
                           justifyContent="space-between"
-                          alignItems={{ xs: "flex-start", sm: "center" }}
+                          alignItems={{ xs: "flex-start", md: "center" }}
                         >
+                          <Stack spacing={0.25}>
+                            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.75 }}>
+                              {t("realTimeTranscription")}
+                            </Typography>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: "50%",
+                                  flexShrink: 0,
+                                  bgcolor:
+                                    connectionUxState.phase === "failed"
+                                      ? "error.main"
+                                      : connectionUxState.phase === "reconnecting"
+                                        ? "warning.main"
+                                        : "success.main",
+                                  boxShadow: (theme) =>
+                                    `0 0 0 4px ${
+                                      connectionUxState.phase === "failed"
+                                        ? alpha(theme.palette.error.main, 0.2)
+                                        : connectionUxState.phase === "reconnecting"
+                                          ? alpha(theme.palette.warning.main, 0.2)
+                                          : alpha(theme.palette.success.main, 0.2)
+                                    }`,
+                                }}
+                              />
+                              <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+                                {sessionStateLabel}
+                              </Typography>
+                            </Stack>
+                          </Stack>
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Chip
-                              label={`${t("status")}: ${t(SESSION_STATE_LABEL_KEY[sessionState])}`}
+                              label={`${t("status")}: ${sessionStateLabel}`}
                               color="primary"
                               variant="outlined"
                             />
-                            {sessionActive ? (
-                              <Chip
-                                label={`${t("realtimeLatency")}: ${t(LATENCY_LEVEL_LABEL_KEY[latencyLevel])} · ${latencyValueLabel}`}
-                                color={latencyChipColor}
-                                variant="outlined"
-                              />
-                            ) : null}
+                            <Chip
+                              label={`${t("realtimeLatency")}: ${latencyLevelLabel} · ${latencyValueLabel}`}
+                              color={latencyChipColor}
+                              variant="outlined"
+                            />
                             {sessionState === "countdown" ? (
                               <Chip
                                 label={t("readyToStartS", {
@@ -2143,11 +2182,69 @@ export default function RealtimeSessionPage() {
                               />
                             ) : null}
                           </Stack>
-                          {showConnectionBanner ? (
+                        </Stack>
+                        <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
+                          <Box
+                            sx={{
+                              flex: 1,
+                              px: 1.25,
+                              py: 1,
+                              borderRadius: 2,
+                              border: "1px solid",
+                              borderColor: (theme) => alpha(theme.palette.text.primary, 0.12),
+                              bgcolor: (theme) => alpha(theme.palette.common.white, 0.55),
+                            }}
+                          >
+                            <Typography variant="caption" color="text.secondary">
+                              {t("currentlySelectedStreamingSetting", {
+                                values: {
+                                  name:
+                                    activeStreamingPreset?.name ??
+                                    defaultStreamingPreset?.name ??
+                                    t("defaultSettings"),
+                                },
+                              })}
+                            </Typography>
+                            {activeStreamingPreset?.description ? (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {activeStreamingPreset.description}
+                              </Typography>
+                            ) : null}
+                          </Box>
+                          <Box
+                            sx={{
+                              flex: 1,
+                              px: 1.25,
+                              py: 1,
+                              borderRadius: 2,
+                              border: "1px solid",
+                              borderColor: (theme) => alpha(theme.palette.text.primary, 0.12),
+                              bgcolor: (theme) => alpha(theme.palette.common.white, 0.55),
+                            }}
+                          >
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {t("automaticTemporaryStorageCycleSeconds", {
+                                values: { seconds: realtimeAutoSaveSeconds },
+                              })}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {t("realtimeLatency")}: {latencyLevelLabel} · {latencyValueLabel}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        {showConnectionBanner ? (
+                          <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                            justifyContent="space-between"
+                            alignItems={{ xs: "flex-start", sm: "center" }}
+                          >
+                            <Typography variant="body2">{connectionBannerMessage}</Typography>
                             <Stack direction="row" spacing={1}>
                               <Button
                                 size="small"
-                                color="inherit"
+                                variant="contained"
+                                color="primary"
                                 onClick={() => void handleRetryConnection()}
                                 disabled={retryingConnection}
                               >
@@ -2155,6 +2252,7 @@ export default function RealtimeSessionPage() {
                               </Button>
                               <Button
                                 size="small"
+                                variant="outlined"
                                 color="inherit"
                                 onClick={() => stopSession(true)}
                                 disabled={retryingConnection}
@@ -2162,18 +2260,7 @@ export default function RealtimeSessionPage() {
                                 {t("abortSession")}
                               </Button>
                             </Stack>
-                          ) : null}
-                        </Stack>
-                        {showConnectionBanner ? (
-                          <Typography variant="body2">
-                            {connectionUxState.phase === "failed"
-                              ? t("realtimeReconnectFailedDetail")
-                              : connectionUxState.reconnectAttempt > 0
-                              ? t("attemptingToReconnectToStreaming", {
-                                  values: { attempt: connectionUxState.reconnectAttempt },
-                                })
-                              : t("aStreamingErrorOccurredTheConnectionIsBeingRestored")}
-                          </Typography>
+                          </Stack>
                         ) : null}
                         {connectionEventMessage ? (
                           <Typography variant="caption" color="text.secondary">
@@ -2374,84 +2461,103 @@ export default function RealtimeSessionPage() {
           pointerEvents: "none",
         }}
       >
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ pointerEvents: "auto", flexWrap: "wrap", justifyContent: "center" }}>
-          <Tooltip title={mainButtonTooltip}>
-            <span>
-              <Fab
-                variant="extended"
-                color={mainButtonColor}
-                size="large"
-                disabled={mainButtonDisabled}
-                onClick={handleMainButtonClick}
-                onPointerDown={handleMainButtonPointerDown}
-                onPointerUp={clearMainButtonPointerState}
-                onPointerLeave={clearMainButtonPointerState}
-                onPointerCancel={clearMainButtonPointerState}
-                aria-label={mainButtonLabel}
-                sx={{
-                  px: { xs: 4, sm: 6 },
-                  minWidth: { xs: 220, sm: 280 },
-                  fontWeight: 700,
-                  fontSize: { xs: "1rem", sm: "1.05rem" },
-                  boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
-                }}
+        <Box
+          sx={{
+            pointerEvents: "auto",
+            px: { xs: 1.25, sm: 1.5 },
+            py: 1,
+            maxWidth: "calc(100vw - 20px)",
+            borderRadius: 999,
+            border: "1px solid",
+            borderColor: (theme) => alpha(theme.palette.text.primary, 0.16),
+            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.88),
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 18px 40px rgba(0,0,0,0.2)",
+          }}
+        >
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center">
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Tooltip title={mainButtonTooltip}>
+                <span>
+                  <Fab
+                    variant="extended"
+                    color={mainButtonColor}
+                    size="large"
+                    disabled={mainButtonDisabled}
+                    onClick={handleMainButtonClick}
+                    onPointerDown={handleMainButtonPointerDown}
+                    onPointerUp={clearMainButtonPointerState}
+                    onPointerLeave={clearMainButtonPointerState}
+                    onPointerCancel={clearMainButtonPointerState}
+                    aria-label={mainButtonLabel}
+                    sx={{
+                      px: { xs: 4, sm: 6 },
+                      minWidth: { xs: 220, sm: 280 },
+                      fontWeight: 700,
+                      fontSize: { xs: "1rem", sm: "1.05rem" },
+                      boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
+                    }}
+                  >
+                    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      {mainButtonIcon}
+                      <Box component="span" sx={{ lineHeight: 1 }}>
+                        {mainButtonLabel}
+                      </Box>
+                    </Box>
+                  </Fab>
+                </span>
+              </Tooltip>
+              {showStopFab && (
+                <Tooltip title={t("sessionEnds")}>
+                  <Fab
+                    color="error"
+                    aria-label={t("sessionEnds")}
+                    onClick={handleStopFabClick}
+                    sx={{
+                      boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    <StopCircleIcon />
+                  </Fab>
+                </Tooltip>
+              )}
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+                <span>
+                  <Fab
+                    color={cameraEnabled ? "secondary" : "default"}
+                    size="medium"
+                    onClick={handleToggleCamera}
+                    disabled={cameraLoading || !cameraSupported}
+                    aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                    sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+                  >
+                    {cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
+                  </Fab>
+                </span>
+              </Tooltip>
+              <Tooltip
+                title={
+                  cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")
+                }
               >
-                <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  {mainButtonIcon}
-                  <Box component="span" sx={{ lineHeight: 1 }}>
-                    {mainButtonLabel}
-                  </Box>
-                </Box>
-              </Fab>
-            </span>
-          </Tooltip>
-          {showStopFab && (
-            <Tooltip title={t("sessionEnds")}>
-              <Fab
-                color="error"
-                aria-label={t("sessionEnds")}
-                onClick={handleStopFabClick}
-                sx={{
-                  boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
-                }}
-              >
-                <StopCircleIcon />
-              </Fab>
-            </Tooltip>
-          )}
-          <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
-            <span>
-              <Fab
-                color={cameraEnabled ? "secondary" : "default"}
-                size="medium"
-                onClick={handleToggleCamera}
-                disabled={cameraLoading || !cameraSupported}
-                aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
-                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
-              >
-                {cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
-              </Fab>
-            </span>
-          </Tooltip>
-          <Tooltip
-            title={
-              cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")
-            }
-          >
-            <span>
-              <Fab
-                color="default"
-                size="medium"
-                onClick={handleSwitchCamera}
-                disabled={!cameraEnabled || cameraLoading}
-                aria-label={cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
-                sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
-              >
-                <CameraswitchRoundedIcon />
-              </Fab>
-            </span>
-          </Tooltip>
-        </Stack>
+                <span>
+                  <Fab
+                    color="default"
+                    size="medium"
+                    onClick={handleSwitchCamera}
+                    disabled={!cameraEnabled || cameraLoading}
+                    aria-label={cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
+                    sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+                  >
+                    <CameraswitchRoundedIcon />
+                  </Fab>
+                </span>
+              </Tooltip>
+            </Stack>
+          </Stack>
+        </Box>
       </Box>
 
       {/* Countdown Overlay */}
