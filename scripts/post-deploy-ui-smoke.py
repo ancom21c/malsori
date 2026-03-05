@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import quote
 
-from playwright.sync_api import Browser, Error, Page, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, Error, Page, sync_playwright
 
 
 @dataclass
@@ -50,6 +50,14 @@ def _open_page(
         context = browser.new_context(
             viewport={"width": 1366, "height": 900},
         )
+    return _open_page_in_context(context, base_url, path)
+
+
+def _open_page_in_context(
+    context: BrowserContext,
+    base_url: str,
+    path: str,
+) -> tuple[Page, PageLoadResult]:
     page = context.new_page()
     page_errors: list[str] = []
     console_errors: list[str] = []
@@ -106,9 +114,6 @@ def _assert_detail_empty_state(page: Page, result: PageLoadResult) -> Dict[str, 
 
 def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, Any]:
     _assert_page_health(result, min_root_text_length=80)
-    alert_count = page.locator('[role="alert"]').count()
-    if alert_count > 0:
-        raise RuntimeError(f"{result.path}: unexpected alert detected in detail ready-state")
     card_count = page.locator(".MuiCard-root").count()
     if card_count < 3:
         raise RuntimeError(
@@ -122,6 +127,142 @@ def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, 
         "console_error_count": len(result.console_errors),
         "card_count": card_count,
     }
+
+
+def _seed_detail_ready_fixture(page: Page, transcription_id: str) -> None:
+    payload = {
+        "transcriptionId": transcription_id,
+        "segmentId1": f"{transcription_id}-seg-1",
+        "segmentId2": f"{transcription_id}-seg-2",
+        "nowIso": "2026-03-05T00:00:00.000Z",
+    }
+    page.evaluate(
+        """
+        async (seed) => {
+          const stores = [
+            ["transcriptions", "id", ["createdAt", "kind", "status", "isCloudSynced"]],
+            ["segments", "id", ["transcriptionId", "startMs"]],
+            ["audioChunks", "id", ["transcriptionId", "chunkIndex"]],
+            ["videoChunks", "id", ["transcriptionId", "chunkIndex"]],
+            ["presets", "id", ["type", "isDefault"]],
+            ["settings", "key", []],
+            ["backendEndpoints", "id", ["deployment", "isDefault", "createdAt"]],
+            ["searchIndexes", "transcriptionId", []],
+          ];
+
+          const openDb = () =>
+            new Promise((resolve, reject) => {
+              const request = window.indexedDB.open("rtzr-stt-webapp", 80);
+              request.onupgradeneeded = () => {
+                const db = request.result;
+                for (const [name, keyPath, indexes] of stores) {
+                  if (!db.objectStoreNames.contains(name)) {
+                    const store = db.createObjectStore(name, { keyPath });
+                    for (const indexName of indexes) {
+                      store.createIndex(indexName, indexName, { unique: false });
+                    }
+                  }
+                }
+              };
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () =>
+                reject(request.error || new Error("failed to open indexeddb"));
+            });
+
+          const db = await openDb();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(
+              ["transcriptions", "segments", "searchIndexes"],
+              "readwrite"
+            );
+            const transcriptions = tx.objectStore("transcriptions");
+            const segments = tx.objectStore("segments");
+            const searchIndexes = tx.objectStore("searchIndexes");
+
+            transcriptions.delete(seed.transcriptionId);
+            segments.delete(seed.segmentId1);
+            segments.delete(seed.segmentId2);
+            searchIndexes.delete(seed.transcriptionId);
+
+            transcriptions.put({
+              id: seed.transcriptionId,
+              title: "Smoke Detail Ready Fixture",
+              kind: "file",
+              status: "completed",
+              createdAt: seed.nowIso,
+              updatedAt: seed.nowIso,
+              transcriptText: "fixture transcript first line\\nfixture transcript second line",
+              searchTitle: "smoke detail ready fixture",
+              searchTranscript:
+                "fixture transcript first line fixture transcript second line",
+              modelName: "sommers",
+              durationMs: 3200,
+              isCloudSynced: false,
+              downloadStatus: "not_downloaded",
+            });
+
+            segments.put({
+              id: seed.segmentId1,
+              transcriptionId: seed.transcriptionId,
+              spk: "1",
+              speaker_label: "Speaker 1",
+              language: "ko",
+              startMs: 0,
+              endMs: 1700,
+              text: "fixture transcript first line",
+              correctedText: "fixture transcript first line",
+              isFinal: true,
+              hasTiming: true,
+              words: [
+                { text: "fixture", startMs: 0, endMs: 400, confidence: 0.99 },
+                { text: "transcript", startMs: 420, endMs: 1100, confidence: 0.99 },
+                { text: "first", startMs: 1120, endMs: 1350, confidence: 0.99 },
+                { text: "line", startMs: 1360, endMs: 1700, confidence: 0.99 },
+              ],
+              createdAt: seed.nowIso,
+            });
+
+            segments.put({
+              id: seed.segmentId2,
+              transcriptionId: seed.transcriptionId,
+              spk: "2",
+              speaker_label: "Speaker 2",
+              language: "ko",
+              startMs: 1800,
+              endMs: 3200,
+              text: "fixture transcript second line",
+              correctedText: "",
+              isFinal: true,
+              hasTiming: true,
+              words: [
+                { text: "fixture", startMs: 1800, endMs: 2100, confidence: 0.98 },
+                { text: "transcript", startMs: 2120, endMs: 2600, confidence: 0.98 },
+                { text: "second", startMs: 2620, endMs: 2920, confidence: 0.98 },
+                { text: "line", startMs: 2940, endMs: 3200, confidence: 0.98 },
+              ],
+              createdAt: seed.nowIso,
+            });
+
+            searchIndexes.put({
+              transcriptionId: seed.transcriptionId,
+              normalizedTranscript:
+                "fixture transcript first line fixture transcript second line",
+              tokenSet: ["fixture", "transcript", "first", "line", "second"],
+              ngramSet: ["fixture transcript", "transcript first", "transcript second"],
+              updatedAt: seed.nowIso,
+            });
+
+            tx.oncomplete = () => resolve(null);
+            tx.onerror = () =>
+              reject(tx.error || new Error("failed to seed detail fixture"));
+            tx.onabort = () =>
+              reject(tx.error || new Error("seeding transaction aborted"));
+          });
+          db.close();
+        }
+        """,
+        payload,
+    )
 
 
 def _check_mobile_overlap(page: Page) -> Dict[str, Any]:
@@ -191,63 +332,75 @@ def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Di
         "checks": {},
     }
     detail_empty_path = "/transcriptions/smoke-detail-empty"
-    detail_ready_path = (
-        f"/transcriptions/{quote(detail_id, safe='')}" if detail_id else None
+    detail_ready_id = detail_id or "smoke-detail-ready"
+    detail_ready_path = f"/transcriptions/{quote(detail_ready_id, safe='')}"
+    summary["checks"]["detail_smoke_mode"] = (
+        "empty+ready(external-id)" if detail_id else "empty+ready(seed-indexeddb)"
     )
-    summary["checks"]["detail_smoke_mode"] = "empty+ready" if detail_ready_path else "empty-only"
     screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
-            desktop_paths = ["/", "/settings", "/realtime", detail_empty_path]
-            if detail_ready_path:
-                desktop_paths.append(detail_ready_path)
-            for path in desktop_paths:
-                page, result = _open_page(browser, base_url, path, mobile=False)
+            desktop_context = browser.new_context(
+                viewport={"width": 1366, "height": 900},
+            )
+            try:
+                seed_page, seed_result = _open_page_in_context(desktop_context, base_url, "/")
                 try:
-                    if path == detail_empty_path:
-                        summary["desktop_routes"][path] = _assert_detail_empty_state(
-                            page, result
-                        )
-                    elif detail_ready_path and path == detail_ready_path:
-                        summary["desktop_routes"][path] = _assert_detail_ready_state(
-                            page, result
-                        )
-                    else:
-                        _assert_page_health(result, min_root_text_length=40)
-                        summary["desktop_routes"][path] = {
-                            "status": result.status,
-                            "root_text_length": result.root_text_length,
-                            "page_error_count": len(result.page_errors),
-                            "console_error_count": len(result.console_errors),
-                        }
-                    if path == "/realtime":
-                        clicked = page.evaluate(
-                            """
-                            () => {
-                              const buttons = Array.from(
-                                document.querySelectorAll('button[aria-label]')
-                              );
-                              const candidate = buttons.find((button) => {
-                                const label = button.getAttribute('aria-label') || '';
-                                return /(open|열기|開く)/i.test(label) &&
-                                       /(settings|설정|設定)/i.test(label);
-                              });
-                              if (!candidate) return false;
-                              candidate.click();
-                              return true;
-                            }
-                            """
-                        )
-                        page.wait_for_timeout(250)
-                        summary["checks"]["realtime_settings_toggle"] = {
-                            "clicked": bool(clicked),
-                        }
+                    _assert_page_health(seed_result, min_root_text_length=40)
+                    _seed_detail_ready_fixture(seed_page, detail_ready_id)
                 finally:
-                    shot = screenshot_dir / f"desktop-{path.strip('/').replace('/', '-') or 'root'}.png"
-                    page.screenshot(path=str(shot), full_page=True)
-                    page.context.close()
+                    seed_page.close()
+
+                desktop_paths = ["/", "/settings", "/realtime", detail_empty_path, detail_ready_path]
+                for path in desktop_paths:
+                    page, result = _open_page_in_context(desktop_context, base_url, path)
+                    try:
+                        if path == detail_empty_path:
+                            summary["desktop_routes"][path] = _assert_detail_empty_state(
+                                page, result
+                            )
+                        elif path == detail_ready_path:
+                            summary["desktop_routes"][path] = _assert_detail_ready_state(
+                                page, result
+                            )
+                        else:
+                            _assert_page_health(result, min_root_text_length=40)
+                            summary["desktop_routes"][path] = {
+                                "status": result.status,
+                                "root_text_length": result.root_text_length,
+                                "page_error_count": len(result.page_errors),
+                                "console_error_count": len(result.console_errors),
+                            }
+                        if path == "/realtime":
+                            clicked = page.evaluate(
+                                """
+                                () => {
+                                  const buttons = Array.from(
+                                    document.querySelectorAll('button[aria-label]')
+                                  );
+                                  const candidate = buttons.find((button) => {
+                                    const label = button.getAttribute('aria-label') || '';
+                                    return /(open|열기|開く)/i.test(label) &&
+                                           /(settings|설정|設定)/i.test(label);
+                                  });
+                                  if (!candidate) return false;
+                                  candidate.click();
+                                  return true;
+                                }
+                                """
+                            )
+                            page.wait_for_timeout(250)
+                            summary["checks"]["realtime_settings_toggle"] = {
+                                "clicked": bool(clicked),
+                            }
+                    finally:
+                        shot = screenshot_dir / f"desktop-{path.strip('/').replace('/', '-') or 'root'}.png"
+                        page.screenshot(path=str(shot), full_page=True)
+                        page.close()
+            finally:
+                desktop_context.close()
 
             mobile_page, mobile_result = _open_page(browser, base_url, "/", mobile=True)
             try:

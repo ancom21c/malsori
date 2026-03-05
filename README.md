@@ -100,7 +100,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
-- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes, `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion, and `DETAIL_SMOKE_ID=<id>` to enable detail ready-state smoke.
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes and `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion. UI smoke now verifies detail empty/ready states by default (seeded fixture); set `DETAIL_SMOKE_ID=<id>` to override with a real record id.
 
 ## QA & CI
 

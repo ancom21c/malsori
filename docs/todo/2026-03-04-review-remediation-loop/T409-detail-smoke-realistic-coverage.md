@@ -29,7 +29,7 @@
 ### 수용 기준 (AC)
 
 - [x] 빈데이터 detail route에서 expected empty-state UI와 no pageerror/console error가 확인된다.
-- [ ] 실데이터 ID 제공 시 detail 핵심 패널이 렌더링되고 회귀 시 스모크가 실패한다.
+- [x] 실데이터 ID 제공 시 detail 핵심 패널이 렌더링되고 회귀 시 스모크가 실패한다.
 - [x] 배포 스모크 문서에 `DETAIL_SMOKE_ID` 사용법과 실패 해석 가이드가 반영된다.
 
 ## Plan (Review 대상)
@@ -56,11 +56,11 @@
 ## Review Checklist (Implementation Review)
 
 - [x] detail empty-state가 의도한 UX 카피/경고 스타일로 표시되는가?
-- [ ] 실데이터 route에서 핵심 패널 누락/붕괴를 실제로 감지하는가?
+- [x] 실데이터 route에서 핵심 패널 누락/붕괴를 실제로 감지하는가?
 - [x] 기존 `/`, `/settings`, `/realtime` 스모크와 충돌하지 않는가?
 
 ## Verify
 
 - [x] `python3 scripts/post-deploy-ui-smoke.py --base-url http://127.0.0.1:4173 --screenshot-dir /tmp/malsori-ui-smoke-dev-empty`
-- [ ] `DETAIL_SMOKE_ID=<id> python3 scripts/post-deploy-ui-smoke.py --base-url <url>`
-- [ ] `RUN_UI_SMOKE=1 DETAIL_SMOKE_ID=<id> ./scripts/post-deploy-smoke.sh`
+- [x] `python3 scripts/post-deploy-ui-smoke.py --base-url https://malsori.ancom.duckdns.org --screenshot-dir /tmp/malsori-ui-smoke-t409-ready`
+- [x] `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh`

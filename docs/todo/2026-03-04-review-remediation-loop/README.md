@@ -24,7 +24,7 @@
 | T406 | P2 | Backend endpoint URL 입력/저장 검증 강화 | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T406-backend-endpoint-url-validation.md` |
 | T407 | P2 | 모바일 배경 렌더링 비용 최적화 | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T407-mobile-background-performance.md` |
 | T408 | P2 | Studio Shell 공통 컴포넌트화 + 비주얼 시스템 고도화 | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T408-studio-shell-design-system.md` |
-| T409 | P1 | Detail route 스모크 실효성 강화(실데이터/빈데이터 분리 검증) | Done | Done | Done | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T409-detail-smoke-realistic-coverage.md` |
+| T409 | P1 | Detail route 스모크 실효성 강화(실데이터/빈데이터 분리 검증) | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T409-detail-smoke-realistic-coverage.md` |
 | T410 | P2 | 접근성 시맨틱 정합성 보강(landmark/heading/skip-link) | Done | Pending | Pending | Pending | Pending | `docs/todo/2026-03-04-review-remediation-loop/T410-a11y-landmark-heading-semantics.md` |
 | T411 | P1 | Helm webapp 런타임 설정 게이트 해소(apiBaseUrl 의존 제거) | Done | Done | Done | Done | Done | `docs/todo/2026-03-04-review-remediation-loop/T411-helm-runtime-config-gating-fix.md` |
 
