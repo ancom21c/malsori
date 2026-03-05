@@ -28,9 +28,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 키보드 첫 탭으로 skip-link 접근이 가능하고 main 영역으로 이동한다.
-- [ ] 핵심 라우트마다 고유 `h1`이 1개 존재한다.
-- [ ] 기본 tab 순서와 focus ring이 주요 CTA에서 일관되게 보인다.
+- [x] 키보드 첫 탭으로 skip-link 접근이 가능하고 main 영역으로 이동한다.
+- [x] 핵심 라우트마다 고유 `h1`이 1개 존재한다.
+- [x] 기본 tab 순서와 focus ring이 주요 CTA에서 일관되게 보인다.
 
 ## Plan (Review 대상)
 
@@ -41,26 +41,32 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 시맨틱 변경으로 기존 스타일/레이아웃이 깨지지 않는가?
-- [ ] 스크린리더 landmark 탐색에서 중복 main/h1이 발생하지 않는가?
-- [ ] 모바일에서 skip-link가 시야를 가리지 않고 정상 동작하는가?
+- [x] 시맨틱 변경으로 기존 스타일/레이아웃이 깨지지 않는가?
+- [x] 스크린리더 landmark 탐색에서 중복 main/h1이 발생하지 않는가?
+- [x] 모바일에서 skip-link가 시야를 가리지 않고 정상 동작하는가?
 
 ## Implementation Log
 
-- [ ] `webapp/src/layouts/MainLayout.tsx` skip-link + `main` landmark 반영
-- [ ] 핵심 페이지 `h1` semantic 정리
-- [ ] 포커스 스타일/탭 순서 미세조정
-- [ ] a11y 점검 노트 문서 업데이트
+- [x] `webapp/src/layouts/MainLayout.tsx` skip-link + `main` landmark 반영
+  - `#main-content` anchor + `component="main"` + `tabIndex={-1}` 적용
+- [x] 핵심 페이지 `h1` semantic 정리
+  - `/`, `/settings`: `StudioPageShell` 기본 `h1`
+  - `/realtime`: `CardHeader` title을 `component="h1"`으로 통합
+  - `/transcriptions/:id`: `MediaPlaybackSection`에 `headingComponent="h1"` 적용
+- [x] 포커스 스타일/탭 순서 미세조정
+  - `.malsori-skip-link:focus-visible` 스타일 추가
+- [x] a11y 점검 노트 문서 업데이트
+  - `docs/qa-a11y-keyboard-2026-03-03.md`에 landmark/heading 시나리오 추가
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 주요 브라우저(Chrome/Edge/Safari 계열)에서 skip-link 동작이 일관적인가?
-- [ ] 키보드만으로 첫 액션까지 도달 시간이 개선되는가?
-- [ ] Studio Console 신규 컴포넌트(T408 예정)와 충돌 여지가 없는가?
+- [x] 주요 브라우저(Chrome/Edge/Safari 계열)에서 skip-link 동작이 일관적인가?
+- [x] 키보드만으로 첫 액션까지 도달 시간이 개선되는가?
+- [x] Studio Console 신규 컴포넌트(T408 예정)와 충돌 여지가 없는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint && npm --prefix webapp run build`
-- [ ] `npm --prefix webapp run test -- AppRouter --reporter=basic`
-- [ ] 수동 점검: tab 순서/skip-link/h1 구조 체크리스트 기록
-
+- [x] `npm --prefix webapp run lint && npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- AppRouter --reporter=basic`
+- [x] 수동 점검: tab 순서/skip-link/h1 구조 체크리스트 기록
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/evidence/p2-hardening/20260305/a11y-notes.md`

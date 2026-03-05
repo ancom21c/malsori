@@ -58,6 +58,7 @@ type MediaPlaybackSectionProps = {
   sticky?: boolean;
   compactOnScroll?: boolean;
   showEditingHint?: boolean;
+  headingComponent?: "h1" | "h2";
   locale: string;
   t: (key: string, options?: Record<string, unknown>) => string;
 };
@@ -86,6 +87,7 @@ export function MediaPlaybackSection({
   sticky,
   compactOnScroll,
   showEditingHint,
+  headingComponent = "h2",
   locale,
   t,
 }: MediaPlaybackSectionProps) {
@@ -236,6 +238,7 @@ export function MediaPlaybackSection({
               />
             ) : (
               <Typography
+                component={headingComponent}
                 variant={isCompact ? "subtitle1" : "h6"}
                 sx={{ cursor: canEditTitle ? "text" : "default" }}
                 onDoubleClick={() => {

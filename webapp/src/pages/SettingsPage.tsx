@@ -73,6 +73,7 @@ import {
   asBackendApiBaseValidationCode,
   normalizeBackendApiBaseUrl,
 } from "../utils/backendEndpointUrl";
+import { ContextCard, StatusChipSet, StudioPageShell } from "../components/studio";
 
 type SettingsTab = "file" | "streaming";
 
@@ -1118,6 +1119,24 @@ export default function SettingsPage() {
 
   return (
     <>
+      <StudioPageShell
+        title={t("setting")}
+        description={t("settingsConsoleOverview")}
+        headingId="settings-page-title"
+        statusSlot={
+          <StatusChipSet
+            items={[
+              {
+                key: "permissions-ready",
+                label: t("permissionsReadyCount", {
+                  values: { ready: permissionReadyCount, total: permissionTotalCount },
+                }),
+                color: permissionReadyCount === permissionTotalCount ? "success" : "warning",
+              },
+            ]}
+          />
+        }
+      >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
         <Box
           sx={{
@@ -1169,57 +1188,20 @@ export default function SettingsPage() {
                 />
               </Stack>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1.25}>
-                <Box
-                  sx={{
-                    flex: 1,
-                    p: 1.25,
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {t("pythonApiBaseUrl")}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
-                    {apiConfigured ? apiBaseUrl : t("notConfigured")}
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    flex: 1,
-                    p: 1.25,
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: (theme) => alpha(theme.palette.secondary.main, 0.08),
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {t("manageTranscriptionSettings")}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
-                    {selectedPresetName ?? t("defaultSettings")} · {activeTab === "file" ? t("generalStt") : t("streamingStt")}
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    flex: 1,
-                    p: 1.25,
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                    {t("backendSettings")}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 650 }}>
-                    {backendSummary}
-                  </Typography>
-                </Box>
+                <ContextCard
+                  tone="primary"
+                  title={t("pythonApiBaseUrl")}
+                  value={apiConfigured ? apiBaseUrl : t("notConfigured")}
+                />
+                <ContextCard
+                  tone="secondary"
+                  title={t("manageTranscriptionSettings")}
+                  value={`${selectedPresetName ?? t("defaultSettings")} · ${activeTab === "file" ? t("generalStt") : t("streamingStt")}`}
+                />
+                <ContextCard
+                  title={t("backendSettings")}
+                  value={backendSummary}
+                />
               </Stack>
             </Stack>
           </CardContent>
@@ -2033,6 +2015,7 @@ export default function SettingsPage() {
           </Card>
         ) : null}
       </Box>
+      </StudioPageShell>
       <ConfirmDialog
         open={backendDeleteOpen}
         title={t("delete")}

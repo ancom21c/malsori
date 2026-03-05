@@ -52,6 +52,7 @@ import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
 import { SegmentWaveformTimeline } from "../components/SegmentWaveformTimeline";
 import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { StatusChipSet } from "../components/studio";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -1684,6 +1685,7 @@ export default function TranscriptionDetailPage() {
         onTitleUpdate={handleTitleUpdate}
         sticky
         compactOnScroll
+        headingComponent="h1"
         locale={locale}
         t={t}
       />
@@ -1835,18 +1837,34 @@ export default function TranscriptionDetailPage() {
                 alignItems={{ xs: "flex-start", md: "center" }}
               >
                 <Typography variant="subtitle1">{detailCopy.overviewTitle}</Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" variant="outlined" label={`${detailCopy.status}: ${transcription.status}`} />
-                  <Chip size="small" variant="outlined" label={`${detailCopy.segments}: ${segmentStats.segmentCount}`} />
-                  <Chip size="small" variant="outlined" label={`${detailCopy.timed}: ${segmentStats.timedCount}`} />
-                  <Chip size="small" variant="outlined" label={`${detailCopy.speakers}: ${segmentStats.speakerCount}`} />
-                  <Chip size="small" variant="outlined" label={`${detailCopy.corrections}: ${segmentStats.correctedCount}`} />
-                </Stack>
-                <Chip
-                  size="small"
-                  color={mediaStatusColor}
-                  label={mediaStatusLabel}
-                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                <StatusChipSet
+                  items={[
+                    {
+                      key: "detail-status",
+                      label: `${detailCopy.status}: ${transcription.status}`,
+                    },
+                    {
+                      key: "detail-segments",
+                      label: `${detailCopy.segments}: ${segmentStats.segmentCount}`,
+                    },
+                    {
+                      key: "detail-timed",
+                      label: `${detailCopy.timed}: ${segmentStats.timedCount}`,
+                    },
+                    {
+                      key: "detail-speakers",
+                      label: `${detailCopy.speakers}: ${segmentStats.speakerCount}`,
+                    },
+                    {
+                      key: "detail-corrections",
+                      label: `${detailCopy.corrections}: ${segmentStats.correctedCount}`,
+                    },
+                    {
+                      key: "detail-media",
+                      label: mediaStatusLabel,
+                      color: mediaStatusColor,
+                    },
+                  ]}
                 />
               </Stack>
           </CardContent>

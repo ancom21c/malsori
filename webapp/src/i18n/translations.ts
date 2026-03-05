@@ -1184,6 +1184,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Open menu",
     ja: "メニューを開く",
   },
+  skipToMainContent: {
+    ko: "본문으로 바로 이동",
+    en: "Skip to main content",
+    ja: "メイン コンテンツへスキップ",
+  },
   quickActions: {
     ko: "빠른 작업",
     en: "Quick actions",

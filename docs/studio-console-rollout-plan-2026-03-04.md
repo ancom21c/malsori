@@ -6,6 +6,10 @@
 
 ## Execution Status
 
+- 2026-03-03: `S0 (List)` 1차 반영 완료
+  - 파일: `webapp/src/pages/TranscriptionListPage.tsx`
+  - 변경: 검색/필터 shell 정리, empty-state CTA hierarchy 개선, 모바일 sticky action strip 보강
+  - 검증: `npm --prefix webapp run lint`, `npm --prefix webapp run build`
 - 2026-03-04: `S1 (Realtime)` 1차 반영 완료
   - 파일: `webapp/src/pages/RealtimeSessionPage.tsx`
   - 변경: 상태/지연/복구 액션을 상단 HUD로 재정렬, 하단 컨트롤을 primary(main+stop)/secondary(camera) 도크로 분리
@@ -23,6 +27,7 @@
 
 | Stage | Target | Scope | DoD |
 |---|---|---|---|
+| S0 | List | 목록/필터/CTA shell 정리 | 최초 진입 시 주요 CTA가 즉시 보이고 모바일 sticky CTA와 FAB 충돌 없음 |
 | S1 | Realtime | HUD/상태/주요 액션 hierarchy 정리 | 연결 상태와 액션 우선순위가 3초 내 파악 가능, 기존 녹음/종료/복구 동작 무회귀 |
 | S2 | Settings | 정보구조 계층화(운영/권한/설정 블록) | 관리자/일반 사용자 구분 맥락이 즉시 보이고 JSON 편집 동선 유지 |
 | S3 | Detail | 결과 분석/오디오 패널 시각 통일 | 세그먼트 탐색/재생/다운로드 동선 유지, 스캔 가독성 향상 |
@@ -35,6 +40,8 @@ Reuse baseline tokens and patterns from:
 - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-desktop.svg`
 - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-mobile.svg`
 
+`docs/plan-studio-console-v3.md`를 scope canonical 문서로 사용하고, 본 문서는 stage 실행/검증 기록 전용으로 유지한다.
+
 Shared components to normalize first:
 
 1. `StudioPageShell` (Tier-1 header + Tier-2 content zoning)
@@ -45,7 +52,7 @@ Shared components to normalize first:
 ## Regression Checklist Per Stage
 
 1. Functional
-   - route-level smoke: `/`, `/settings`, `/realtime`
+   - route-level smoke: `/`, `/settings`, `/realtime`, `/transcriptions/:id`
    - primary CTA discoverability (first screen without scroll)
    - 기존 API 호출 파라미터/폼 값 무회귀
 2. Accessibility
@@ -61,7 +68,7 @@ Shared components to normalize first:
 
 ## Rollback Strategy
 
-1. 변경은 화면 단위 커밋으로 분리한다 (`S1`, `S2`, `S3`).
+1. 변경은 화면 단위 커밋으로 분리한다 (`S0`, `S1`, `S2`, `S3`).
 2. 각 단계 배포 후 `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh`를 통과해야 다음 단계로 진행한다.
 3. 회귀 발생 시 해당 단계 커밋만 revert 가능하도록 공통 토큰 변경과 화면별 변경을 분리한다.
 
@@ -72,3 +79,13 @@ For each stage, preserve:
 1. desktop/mobile before-after screenshots
 2. smoke output log (API + UI)
 3. a11y quick check notes (focus order + contrast)
+
+## Evidence Storage Convention
+
+- 기본 경로: `docs/ui-proposed/2026-03-03-studio-console-v3/evidence/<stage>/<yyyymmdd>/`
+- 필수 파일:
+  - `desktop-before.png`, `desktop-after.png`
+  - `mobile-before.png`, `mobile-after.png`
+  - `smoke.log`
+  - `a11y-notes.md`
+- 템플릿: `docs/ui-proposed/2026-03-03-studio-console-v3/evidence-template.md`

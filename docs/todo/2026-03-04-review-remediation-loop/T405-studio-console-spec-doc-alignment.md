@@ -29,9 +29,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] Studio Console 관련 문서에서 대상 화면/단계 정의가 모순 없이 일치한다.
-- [ ] evidence 저장 위치/파일명 규칙이 명문화된다.
-- [ ] 신규 배포 시 동일 템플릿으로 증적을 남길 수 있다.
+- [x] Studio Console 관련 문서에서 대상 화면/단계 정의가 모순 없이 일치한다.
+- [x] evidence 저장 위치/파일명 규칙이 명문화된다.
+- [x] 신규 배포 시 동일 템플릿으로 증적을 남길 수 있다.
 
 ## Plan (Review 대상)
 
@@ -42,23 +42,27 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 문서 개편이 기존 히스토리 추적을 훼손하지 않는가?
-- [ ] 운영자가 바로 사용할 수 있는 수준으로 구체적인가?
-- [ ] 과도한 문서 중복을 만들지 않는가?
+- [x] 문서 개편이 기존 히스토리 추적을 훼손하지 않는가?
+- [x] 운영자가 바로 사용할 수 있는 수준으로 구체적인가?
+- [x] 과도한 문서 중복을 만들지 않는가?
 
 ## Implementation Log
 
-- [ ] Studio Console 관련 문서 scope 정렬
-- [ ] evidence 기록 템플릿/가이드 추가
-- [ ] 관련 README/todo 링크 갱신
+- [x] Studio Console 관련 문서 scope 정렬
+  - `docs/plan-studio-console-v3.md`: detail route/S0~S3 scope + canonical 문서 규칙 추가
+  - `docs/studio-console-rollout-plan-2026-03-04.md`: stage/route smoke/evidence 규칙 정렬
+- [x] evidence 기록 템플릿/가이드 추가
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/evidence-template.md` 신규 추가
+- [x] 관련 README/todo 링크 갱신
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/README.md`에 template 링크 추가
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 문서 간 상호 참조가 깨진 링크 없이 동작하는가?
-- [ ] 문서만 보고도 stage별 증적 생성이 가능한가?
-- [ ] TODO 보드 정합성 게이트가 통과하는가?
+- [x] 문서 간 상호 참조가 깨진 링크 없이 동작하는가?
+- [x] 문서만 보고도 stage별 증적 생성이 가능한가?
+- [x] TODO 보드 정합성 게이트가 통과하는가?
 
 ## Verify
 
-- [ ] 문서 diff 리뷰 완료
-- [ ] `node scripts/check-todo-board-consistency.mjs`
+- [x] 문서 diff 리뷰 완료
+- [x] `node scripts/check-todo-board-consistency.mjs`

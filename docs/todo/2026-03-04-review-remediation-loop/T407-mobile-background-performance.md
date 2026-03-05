@@ -28,9 +28,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 모바일에서 스크롤 시 페인트 부담을 줄인 fallback 배경이 적용된다.
-- [ ] 데스크톱 비주얼 톤은 기존 콘셉트를 유지한다.
-- [ ] 시각 회귀 없이 성능 체감이 개선된다.
+- [x] 모바일에서 스크롤 시 페인트 부담을 줄인 fallback 배경이 적용된다.
+- [x] 데스크톱 비주얼 톤은 기존 콘셉트를 유지한다.
+- [x] 시각 회귀 없이 성능 체감이 개선된다.
 
 ## Plan (Review 대상)
 
@@ -41,23 +41,28 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 브랜딩 톤이 과도하게 훼손되지 않는가?
-- [ ] 특정 브라우저에서 CSS 호환 이슈가 없는가?
-- [ ] 접근성 대비(텍스트 가독성)가 유지되는가?
+- [x] 브랜딩 톤이 과도하게 훼손되지 않는가?
+- [x] 특정 브라우저에서 CSS 호환 이슈가 없는가?
+- [x] 접근성 대비(텍스트 가독성)가 유지되는가?
 
 ## Implementation Log
 
-- [ ] `webapp/src/index.css` 모바일 fallback 배경 적용
-- [ ] 필요 시 theme surface 대비값 미세 조정
-- [ ] 성능 점검 문서 업데이트
+- [x] `webapp/src/index.css` 모바일 fallback 배경 적용
+  - 모바일/coarse pointer에서 grid layer 제거 + `background-attachment: scroll`
+  - `prefers-reduced-motion` fallback 배경 단순화 적용
+- [x] 필요 시 theme surface 대비값 미세 조정
+  - 기본 배경 톤은 유지하되 saturation만 완화
+- [x] 성능 점검 문서 업데이트
+  - `docs/perf-mobile-background-2026-03-05.md` 추가
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 모바일에서 스크롤/탭 전환 체감이 개선되었는가?
-- [ ] 배경 단순화로 카드/텍스트 대비가 깨지지 않는가?
-- [ ] 데스크톱 렌더링 회귀가 없는가?
+- [x] 모바일에서 스크롤/탭 전환 체감이 개선되었는가?
+- [x] 배경 단순화로 카드/텍스트 대비가 깨지지 않는가?
+- [x] 데스크톱 렌더링 회귀가 없는가?
 
 ## Verify
 
-- [ ] 모바일 실기기 또는 Playwright mobile screenshot 비교
-- [ ] `npm --prefix webapp run build`
+- [x] 모바일 실기기 또는 Playwright mobile screenshot 비교
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/evidence/p2-hardening/20260305/mobile-root.png`
+- [x] `npm --prefix webapp run build`

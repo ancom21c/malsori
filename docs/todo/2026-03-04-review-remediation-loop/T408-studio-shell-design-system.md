@@ -31,9 +31,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 4개 주요 화면에서 공통 shell 패턴이 일관된 정보 위계를 제공한다.
-- [ ] 공통 컴포넌트 도입 후 페이지별 중복 UI 로직이 감소한다.
-- [ ] 모바일에서 sticky CTA/FAB 충돌이 재발하지 않는다.
+- [x] 4개 주요 화면에서 공통 shell 패턴이 일관된 정보 위계를 제공한다.
+- [x] 공통 컴포넌트 도입 후 페이지별 중복 UI 로직이 감소한다.
+- [x] 모바일에서 sticky CTA/FAB 충돌이 재발하지 않는다.
 
 ## Plan (Review 대상)
 
@@ -45,25 +45,37 @@
 
 ## Review Checklist (Plan Review)
 
-- [ ] 공통화가 페이지별 특수 요구를 과도하게 제한하지 않는가?
-- [ ] 컴포넌트 API가 과복잡해지지 않는가?
-- [ ] 단계적 롤백이 가능한 단위로 쪼개졌는가?
+- [x] 공통화가 페이지별 특수 요구를 과도하게 제한하지 않는가?
+- [x] 컴포넌트 API가 과복잡해지지 않는가?
+- [x] 단계적 롤백이 가능한 단위로 쪼개졌는가?
 
 ## Implementation Log
 
-- [ ] 공통 Studio shell 컴포넌트 초안 구현
-- [ ] `StatusBus` + `ContextRail` 컴포넌트 추출
-- [ ] 주요 화면 순차 마이그레이션
-- [ ] 디자인 가이드/문서 업데이트
+- [x] 공통 Studio shell 컴포넌트 초안 구현
+  - `webapp/src/components/studio/StudioPageShell.tsx`
+  - `webapp/src/components/studio/StatusChipSet.tsx`
+  - `webapp/src/components/studio/ActionStrip.tsx`
+  - `webapp/src/components/studio/ContextCard.tsx`
+- [x] `StatusBus` + `ContextRail` 컴포넌트 추출
+  - `StatusChipSet` + `ContextCard` 패턴으로 state/context strip 통합
+- [x] 주요 화면 순차 마이그레이션
+  - `/`: `StudioPageShell` + `ActionStrip`
+  - `/settings`: `StudioPageShell` + `ContextCard` + `StatusChipSet`
+  - `/realtime`: HUD chip stack -> `StatusChipSet`
+  - `/transcriptions/:id`: overview chip stack -> `StatusChipSet`
+- [x] 디자인 가이드/문서 업데이트
+  - `docs/plan-studio-console-v3.md`, `docs/studio-console-rollout-plan-2026-03-04.md` 정합화
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 시각/동선 일관성이 실제로 개선되었는가?
-- [ ] 성능/접근성 회귀가 없는가?
-- [ ] 코드 중복 감소 효과가 확인되는가?
+- [x] 시각/동선 일관성이 실제로 개선되었는가?
+- [x] 성능/접근성 회귀가 없는가?
+- [x] 코드 중복 감소 효과가 확인되는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint && npm --prefix webapp run build`
-- [ ] `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh`
-- [ ] stage별 desktop/mobile 스크린샷 비교
+- [x] `npm --prefix webapp run lint && npm --prefix webapp run build`
+- [x] `python3 scripts/post-deploy-ui-smoke.py --base-url https://malsori.ancom.duckdns.org --screenshot-dir docs/ui-proposed/2026-03-03-studio-console-v3/evidence/p2-hardening/20260305`
+- [x] stage별 desktop/mobile 스크린샷 비교
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/evidence/p2-hardening/20260305/desktop-root.png`
+  - `docs/ui-proposed/2026-03-03-studio-console-v3/evidence/p2-hardening/20260305/mobile-root.png`

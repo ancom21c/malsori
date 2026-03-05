@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
   Chip,
   Checkbox,
   CircularProgress,
@@ -57,6 +56,7 @@ import { useUiStore } from "../store/uiStore";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { formatLocalizedDateTime } from "../utils/time";
+import { ActionStrip, StudioPageShell } from "../components/studio";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -387,49 +387,48 @@ export default function TranscriptionListPage() {
 
   const hasAnyTranscriptions = !isLoadingTranscriptions && sortedTranscriptions.length > 0;
   const showNoMatches = hasAnyTranscriptions && filteredTranscriptions.length === 0;
+  const quickActionSlot = showTopActions ? (
+    <ActionStrip ariaLabel={t("quickActions")} sx={{ width: "auto" }}>
+      <Tooltip title={t("fileTranscriptionRequest")}>
+        <IconButton
+          onClick={openUploadDialog}
+          color="primary"
+          size="small"
+          aria-label={t("fileTranscriptionRequest")}
+          sx={{
+            bgcolor: "action.hover",
+            "&:hover": { bgcolor: "action.selected" },
+          }}
+        >
+          <CloudUploadIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t("startRealTimeTranscription")}>
+        <IconButton
+          component={RouterLink}
+          to="/realtime"
+          color="secondary"
+          size="small"
+          aria-label={t("startRealTimeTranscription")}
+          sx={{
+            bgcolor: "action.hover",
+            "&:hover": { bgcolor: "action.selected" },
+          }}
+        >
+          <GraphicEqIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </ActionStrip>
+  ) : null;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <StudioPageShell
+      title={t("transcriptionList")}
+      description={t("checkFileTranscriptionAndRealTimeTranscriptionResultsInChronologicalOrder")}
+      headingId="transcription-list-title"
+      actionSlot={quickActionSlot}
+    >
       <Card>
-        <CardHeader
-          title={t("transcriptionList")}
-          subheader={t("checkFileTranscriptionAndRealTimeTranscriptionResultsInChronologicalOrder")}
-          action={
-            showTopActions ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Tooltip title={t("fileTranscriptionRequest")}>
-                  <IconButton
-                    onClick={openUploadDialog}
-                    color="primary"
-                    size="small"
-                    aria-label={t("fileTranscriptionRequest")}
-                    sx={{
-                      bgcolor: "action.hover",
-                      "&:hover": { bgcolor: "action.selected" },
-                    }}
-                  >
-                    <CloudUploadIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={t("startRealTimeTranscription")}>
-                  <IconButton
-                    component={RouterLink}
-                    to="/realtime"
-                    color="secondary"
-                    size="small"
-                    aria-label={t("startRealTimeTranscription")}
-                    sx={{
-                      bgcolor: "action.hover",
-                      "&:hover": { bgcolor: "action.selected" },
-                    }}
-                  >
-                    <GraphicEqIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-            ) : undefined
-          }
-        />
         <CardContent sx={{ px: 0 }}>
           <Box sx={{ px: 3, pb: 3 }}>
             <Stack spacing={2}>
@@ -640,13 +639,10 @@ export default function TranscriptionListPage() {
                     )}
                   </Typography>
                 </Box>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1.5}
+                <ActionStrip
+                  ariaLabel={t("quickActions")}
                   sx={{
-                    width: "100%",
                     maxWidth: 560,
-                    justifyContent: "center",
                     pt: 0.5,
                     display: { xs: "none", sm: "flex" },
                   }}
@@ -675,7 +671,7 @@ export default function TranscriptionListPage() {
                   >
                     {t("startRealTimeTranscription")}
                   </Button>
-                </Stack>
+                </ActionStrip>
                 <Button
                   size="small"
                   variant="text"
@@ -686,43 +682,28 @@ export default function TranscriptionListPage() {
                 >
                   {t("manageTranscriptionSettings")}
                 </Button>
-                <Box
-                  sx={{
-                    display: { xs: "block", sm: "none" },
-                    position: "sticky",
-                    bottom: "calc(12px + env(safe-area-inset-bottom))",
-                    width: "calc(100% - 92px)",
-                    maxWidth: 560,
-                    mr: "auto",
-                    borderRadius: 999,
-                    p: 0.75,
-                    backgroundColor: (theme) => theme.palette.background.paper,
-                    boxShadow: (theme) => theme.shadows[3],
-                  }}
-                >
-                  <Stack direction="row" spacing={0.75}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<CloudUploadIcon />}
-                      onClick={openUploadDialog}
-                      sx={{ flex: 1, minWidth: 0 }}
-                    >
-                      {t("fileTranscriptionRequest")}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="secondary"
-                      startIcon={<GraphicEqIcon />}
-                      component={RouterLink}
-                      to="/realtime"
-                      sx={{ flex: 1, minWidth: 0 }}
-                    >
-                      {t("realTimeTranscription")}
-                    </Button>
-                  </Stack>
-                </Box>
+                <ActionStrip ariaLabel={t("quickActions")} stickyMobile>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<CloudUploadIcon />}
+                    onClick={openUploadDialog}
+                    sx={{ flex: 1, minWidth: 0 }}
+                  >
+                    {t("fileTranscriptionRequest")}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="secondary"
+                    startIcon={<GraphicEqIcon />}
+                    component={RouterLink}
+                    to="/realtime"
+                    sx={{ flex: 1, minWidth: 0 }}
+                  >
+                    {t("realTimeTranscription")}
+                  </Button>
+                </ActionStrip>
               </Stack>
             </Box>
           ) : showNoMatches ? (
@@ -890,6 +871,6 @@ export default function TranscriptionListPage() {
         onConfirm={() => void handleDeleteConfirm()}
         onCancel={handleDeleteCancel}
       />
-    </Box>
+    </StudioPageShell>
   );
 }

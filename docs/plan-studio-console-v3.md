@@ -7,6 +7,7 @@ Target screens:
 - `/` transcription list
 - `/realtime` realtime session
 - `/settings` settings workspace
+- `/transcriptions/:id` detail workspace
 
 Design direction:
 
@@ -52,6 +53,12 @@ Typography:
 - Tier 2 primary: editable forms.
 - Tier 2 secondary: operational guidance, admin constraints, import/export tools.
 
+### Detail
+
+- Tier 1: transcription header + session metadata + health chips.
+- Tier 2 primary: transcript correction workspace.
+- Tier 2 secondary: analysis lane(waveform/loop/media status).
+
 ## Component Mapping
 
 | Current file | v3 role | Action |
@@ -59,6 +66,7 @@ Typography:
 | `webapp/src/pages/TranscriptionListPage.tsx` | List Tier 1/2 shell | keep + restructure sections |
 | `webapp/src/pages/RealtimeSessionPage.tsx` | Realtime Tier 1/2 shell | keep + add HUD + panel zoning |
 | `webapp/src/pages/SettingsPage.tsx` | Settings Tier 1/2 shell | keep + strengthen admin context |
+| `webapp/src/pages/TranscriptionDetailPage.tsx` | Detail Tier 1/2 shell | keep + split analysis/transcript lanes |
 | `webapp/src/components/TranscriptionView.tsx` | Segment work panel | keep + a11y hardening |
 | `webapp/src/components/SegmentWaveformTimeline.tsx` | Detail secondary panel | keep + semantic controls |
 | `webapp/src/components/BackendEndpointReadonlyCard.tsx` | Secondary context card | new |
@@ -68,6 +76,7 @@ Typography:
 1. List page shell and empty-state CTA (low risk, high visibility)
 2. Realtime connection HUD and action hierarchy (medium risk, highest value)
 3. Settings information density tuning (medium risk, admin-only)
+4. Detail dual-lane workspace tuning (medium risk, high retention impact)
 
 Risk notes:
 
@@ -80,6 +89,12 @@ Risk notes:
 - Desktop: `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-desktop.svg`
 - Mobile: `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-mobile.svg`
 
+## Canonical Spec/Evidence Rule
+
+- This document is the canonical scope for Studio Console v3.
+- Rollout execution details live in `docs/studio-console-rollout-plan-2026-03-04.md`.
+- Evidence naming/storage follows `docs/ui-proposed/2026-03-03-studio-console-v3/evidence-template.md`.
+
 ## Comparison vs Current Screens
 
 | Screen | Current (2026-02 baseline) | v3 proposal | Expected gain | Primary risk |
@@ -87,3 +102,4 @@ Risk notes:
 | List | empty-state CTA is present but context is light | explicit CTA card + mobile sticky strip | faster first action | CTA/FAB overlap on small viewport |
 | Realtime | status chips + warning banners are split | unified HUD card with state + action | quicker failure recovery | duplicate signaling with snackbar |
 | Settings | dense forms and state info mixed together | tiered layout with explicit guidance blocks | lower cognitive load | vertical scroll growth on mobile |
+| Detail | playback/editor/analysis hierarchy is split across ad-hoc blocks | analysis + transcript dual lane with shared status chips | faster correction loop | chip density on mobile |

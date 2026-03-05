@@ -4,6 +4,7 @@ body {
   margin: 0;
   font-family: "IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif;
   min-height: 100vh;
+  background-color: #f4f6f5;
   background:
     radial-gradient(circle at 18% 0%, rgba(31, 111, 100, 0.14) 0%, transparent 58%),
     radial-gradient(circle at 92% 12%, rgba(217, 130, 91, 0.12) 0%, transparent 56%),
@@ -25,6 +26,26 @@ body {
   background-attachment: fixed;
 }
 
+.malsori-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -64px;
+  z-index: 1600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #103f39;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  transition: top 160ms ease;
+}
+
+.malsori-skip-link:focus-visible {
+  top: 12px;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 @keyframes malsori-fade-up {
   from {
     opacity: 0;
@@ -40,7 +61,24 @@ body {
   animation: malsori-fade-up 240ms ease-out both;
 }
 
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  body {
+    background:
+      radial-gradient(circle at 12% 0%, rgba(31, 111, 100, 0.1) 0%, transparent 56%),
+      radial-gradient(circle at 88% 12%, rgba(217, 130, 91, 0.1) 0%, transparent 54%),
+      linear-gradient(180deg, #f9faf8 0%, #eef4f2 56%, #f5f1ec 100%);
+    background-attachment: scroll;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  body {
+    background:
+      radial-gradient(circle at 18% 0%, rgba(31, 111, 100, 0.08) 0%, transparent 54%),
+      linear-gradient(180deg, #fafbf9 0%, #f2f5f4 100%);
+    background-attachment: scroll;
+  }
+
   .malsori-page {
     animation: none;
   }

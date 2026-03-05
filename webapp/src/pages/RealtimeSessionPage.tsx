@@ -80,6 +80,7 @@ import {
   reduceRealtimeConnectionUxState,
   type RealtimeLatencyLevel,
 } from "./realtimeConnectionUx";
+import { StatusChipSet } from "../components/studio";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -2075,12 +2076,19 @@ export default function RealtimeSessionPage() {
             }}
           >
             <Card sx={{ minHeight: "100%" }}>
-              {!sessionActive && (
-                <CardHeader
-                  title={t("realTimeTranscription")}
-                  subheader={t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")}
-                />
-              )}
+              <CardHeader
+                title={
+                  <Typography component="h1" variant={sessionActive ? "h6" : "h5"}>
+                    {t("realTimeTranscription")}
+                  </Typography>
+                }
+                subheader={
+                  sessionActive
+                    ? undefined
+                    : t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")
+                }
+                sx={sessionActive ? { pb: 1 } : undefined}
+              />
               {sessionState !== "idle" && <LinearProgress />}
               <CardContent>
                 <Stack spacing={2}>
@@ -2161,27 +2169,31 @@ export default function RealtimeSessionPage() {
                               </Typography>
                             </Stack>
                           </Stack>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Chip
-                              label={`${t("status")}: ${sessionStateLabel}`}
-                              color="primary"
-                              variant="outlined"
-                            />
-                            <Chip
-                              label={`${t("realtimeLatency")}: ${latencyLevelLabel} · ${latencyValueLabel}`}
-                              color={latencyChipColor}
-                              variant="outlined"
-                            />
-                            {sessionState === "countdown" ? (
-                              <Chip
-                                label={t("readyToStartS", {
-                                  values: { seconds: Math.max(countdown, 0) },
-                                })}
-                                color="secondary"
-                                variant="outlined"
-                              />
-                            ) : null}
-                          </Stack>
+                          <StatusChipSet
+                            items={[
+                              {
+                                key: "session-status",
+                                label: `${t("status")}: ${sessionStateLabel}`,
+                                color: "primary",
+                              },
+                              {
+                                key: "session-latency",
+                                label: `${t("realtimeLatency")}: ${latencyLevelLabel} · ${latencyValueLabel}`,
+                                color: latencyChipColor,
+                              },
+                              ...(sessionState === "countdown"
+                                ? [
+                                    {
+                                      key: "session-countdown",
+                                      label: t("readyToStartS", {
+                                        values: { seconds: Math.max(countdown, 0) },
+                                      }),
+                                      color: "secondary" as const,
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          />
                         </Stack>
                         <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                           <Box

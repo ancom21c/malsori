@@ -187,6 +187,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <Box
+        component="a"
+        href="#main-content"
+        className="malsori-skip-link"
+      >
+        {t("skipToMainContent")}
+      </Box>
       <AppBar
         position="sticky"
         elevation={1}
@@ -373,6 +380,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </Toolbar>
       </AppBar>
       <Container
+        component="main"
+        id="main-content"
+        tabIndex={-1}
         maxWidth="lg"
         sx={{
           flex: 1,
@@ -388,7 +398,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <Box
           key={location.pathname}
           className="malsori-page"
-          sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+          sx={{ flex: 1, display: "flex", flexDirection: "column", outline: "none" }}
         >
           {children}
         </Box>
