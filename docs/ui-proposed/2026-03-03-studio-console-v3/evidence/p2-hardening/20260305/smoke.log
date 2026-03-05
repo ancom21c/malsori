@@ -3,26 +3,26 @@
   "desktop_routes": {
     "/": {
       "status": 200,
-      "root_text_length": 546,
+      "root_text_length": 569,
       "page_error_count": 0,
       "console_error_count": 0
     },
     "/settings": {
       "status": 200,
-      "root_text_length": 3138,
+      "root_text_length": 3211,
       "page_error_count": 0,
       "console_error_count": 0
     },
     "/realtime": {
       "status": 200,
-      "root_text_length": 1158,
+      "root_text_length": 1179,
       "page_error_count": 0,
       "console_error_count": 0
     },
     "/transcriptions/smoke-detail-empty": {
       "mode": "empty",
       "status": 200,
-      "root_text_length": 50,
+      "root_text_length": 95,
       "page_error_count": 0,
       "console_error_count": 0,
       "alert_count": 1
@@ -30,7 +30,7 @@
     "/transcriptions/smoke-detail-ready": {
       "mode": "ready",
       "status": 200,
-      "root_text_length": 1020,
+      "root_text_length": 1041,
       "page_error_count": 0,
       "console_error_count": 0,
       "card_count": 6
@@ -38,7 +38,7 @@
   },
   "mobile": {
     "status": 200,
-    "root_text_length": 564,
+    "root_text_length": 587,
     "page_error_count": 0,
     "console_error_count": 0,
     "quick_fab_found": true,

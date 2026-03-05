@@ -25,5 +25,9 @@
 
 ## Notes
 
-- 배포 반영 후 운영 URL에서 스크린리더 rotor(main/heading)와 첫 Tab skip-link 동작을 재점검한다.
-
+- 배포 반영 후 Playwright spot-check 결과:
+  - `/` `h1_count=1`
+  - `/settings` `h1_count=1`
+  - `/realtime` `h1_count=1`
+  - `/transcriptions/smoke-detail-empty` `h1_count=1`
+  - first tab focus: `{ tag: "A", text: "Skip to main content", href: "#main-content" }`
