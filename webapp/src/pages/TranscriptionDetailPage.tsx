@@ -1615,8 +1615,15 @@ export default function TranscriptionDetailPage() {
 
   if (transcription === undefined) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress />
+      <Box sx={{ py: 6 }}>
+        <Stack spacing={2} alignItems="flex-start">
+          <Typography component="h1" variant="h5">
+            {t("detailConsoleOverview")}
+          </Typography>
+          <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
+            <CircularProgress />
+          </Box>
+        </Stack>
       </Box>
     );
   }
@@ -1624,6 +1631,9 @@ export default function TranscriptionDetailPage() {
   if (!transcription) {
     return (
       <Box sx={{ py: 6 }}>
+        <Typography component="h1" variant="h5" sx={{ mb: 2 }}>
+          {t("detailConsoleOverview")}
+        </Typography>
         <Alert severity="warning">{t("noTranscriptionRecordsFound")}</Alert>
       </Box>
     );

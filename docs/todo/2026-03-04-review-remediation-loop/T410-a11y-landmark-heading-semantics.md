@@ -53,6 +53,7 @@
   - `/`, `/settings`: `StudioPageShell` 기본 `h1`
   - `/realtime`: `CardHeader` title을 `component="h1"`으로 통합
   - `/transcriptions/:id`: `MediaPlaybackSection`에 `headingComponent="h1"` 적용
+  - `/transcriptions/:id` 로딩/데이터없음 fallback에서도 `h1` 유지
 - [x] 포커스 스타일/탭 순서 미세조정
   - `.malsori-skip-link:focus-visible` 스타일 추가
 - [x] a11y 점검 노트 문서 업데이트
