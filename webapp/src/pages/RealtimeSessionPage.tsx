@@ -14,7 +14,7 @@ import {
 import { alpha } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useSnackbar } from "notistack";
+import { useSnackbar, type OptionsObject } from "notistack";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../store/settingsStore";
 import { usePresets } from "../hooks/usePresets";
@@ -363,6 +363,14 @@ export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const enqueueRealtimeSnackbar = useCallback(
+    (message: string, options?: OptionsObject) =>
+      enqueueSnackbar(message, {
+        anchorOrigin: { vertical: "top", horizontal: "center" },
+        ...options,
+      }),
+    [enqueueSnackbar]
+  );
   const microphonePromptedRef = useRef(false);
   const storagePromptedRef = useRef(false);
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
@@ -404,7 +412,7 @@ export default function RealtimeSessionPage() {
       const nextState = granted ? "granted" : await checkMicrophonePermission();
       setMicrophonePermissionState(nextState);
       if (!granted) {
-        enqueueSnackbar(
+        enqueueRealtimeSnackbar(
           t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
           { variant: "warning" }
         );
@@ -412,7 +420,7 @@ export default function RealtimeSessionPage() {
     };
 
     void requestPermission();
-  }, [enqueueSnackbar, t]);
+  }, [enqueueRealtimeSnackbar, t]);
 
   useEffect(() => {
     if (storagePromptedRef.current) {
@@ -435,7 +443,7 @@ export default function RealtimeSessionPage() {
       const nextState = granted ? "granted" : await checkPersistentStoragePermission();
       setStoragePermissionState(nextState);
       if (!granted) {
-        enqueueSnackbar(
+        enqueueRealtimeSnackbar(
           t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
           { variant: "warning" }
         );
@@ -443,19 +451,19 @@ export default function RealtimeSessionPage() {
     };
 
     void requestPermission();
-  }, [enqueueSnackbar, storagePermissionSupported, t]);
+  }, [enqueueRealtimeSnackbar, storagePermissionSupported, t]);
 
   const handleRetryMicrophonePermission = useCallback(async () => {
     const granted = await requestMicrophonePermission();
     const nextState = granted ? "granted" : await checkMicrophonePermission();
     setMicrophonePermissionState(nextState);
-    enqueueSnackbar(
+    enqueueRealtimeSnackbar(
       granted
         ? t("microphonePermissionHasBeenGranted")
         : t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
       { variant: granted ? "success" : "warning" }
     );
-  }, [enqueueSnackbar, t]);
+  }, [enqueueRealtimeSnackbar, t]);
 
   const handleRetryStoragePermission = useCallback(async () => {
     if (!storagePermissionSupported) {
@@ -464,13 +472,13 @@ export default function RealtimeSessionPage() {
     const granted = await requestPersistentStoragePermission();
     const nextState = granted ? "granted" : await checkPersistentStoragePermission();
     setStoragePermissionState(nextState);
-    enqueueSnackbar(
+    enqueueRealtimeSnackbar(
       granted
         ? t("storagePermissionsGranted")
         : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
       { variant: granted ? "success" : "warning" }
     );
-  }, [enqueueSnackbar, storagePermissionSupported, t]);
+  }, [enqueueRealtimeSnackbar, storagePermissionSupported, t]);
 
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const sessionStateRef = useRef<SessionState>("idle");
@@ -598,11 +606,11 @@ export default function RealtimeSessionPage() {
         : t("aStreamingErrorOccurredTheConnectionIsBeingRestored"));
 
   useEffect(() => {
-    setFloatingActionsVisible(!sessionActive);
+    setFloatingActionsVisible(false);
     return () => {
-      setFloatingActionsVisible(true);
+      setFloatingActionsVisible(null);
     };
-  }, [sessionActive, setFloatingActionsVisible]);
+  }, [setFloatingActionsVisible]);
 
   useEffect(() => {
     if (!sessionActive) {
@@ -741,7 +749,7 @@ export default function RealtimeSessionPage() {
       console.error("Failed to start camera recorder", error);
       const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
       setCameraError(message);
-      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("cameraRecordingFailed"), { variant: "error" });
       return;
     }
 
@@ -779,7 +787,7 @@ export default function RealtimeSessionPage() {
     recorder.addEventListener("error", (event) => {
       console.error("Camera recording error", event);
       setCameraError(t("cameraRecordingFailed"));
-      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("cameraRecordingFailed"), { variant: "error" });
       cameraShouldRecordRef.current = false;
       void stopVideoRecorder();
       stopCameraStream();
@@ -792,9 +800,9 @@ export default function RealtimeSessionPage() {
       console.error("Failed to capture camera stream", error);
       const message = error instanceof Error ? error.message : t("cameraRecordingFailed");
       setCameraError(message);
-      enqueueSnackbar(t("cameraRecordingFailed"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("cameraRecordingFailed"), { variant: "error" });
     }
-  }, [cameraEnabled, enqueueSnackbar, stopCameraStream, stopVideoRecorder, t]);
+  }, [cameraEnabled, enqueueRealtimeSnackbar, stopCameraStream, stopVideoRecorder, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1247,7 +1255,7 @@ export default function RealtimeSessionPage() {
           setErrorMessage(null);
         }
         if (recovered) {
-          enqueueSnackbar(t("streamingConnectionRecovered"), { variant: "success" });
+          enqueueRealtimeSnackbar(t("streamingConnectionRecovered"), { variant: "success" });
         }
       },
       onClose: (event) => {
@@ -1296,7 +1304,7 @@ export default function RealtimeSessionPage() {
         onError: (error) => {
           console.error(t("recordingError"), error);
           setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
-          enqueueSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
+          enqueueRealtimeSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
           stopSession(true);
         },
         onStop: () => {
@@ -1319,7 +1327,7 @@ export default function RealtimeSessionPage() {
       setErrorMessage(
         error instanceof Error ? error.message : t("yourMicrophoneDeviceCannotBeUsed")
       );
-      enqueueSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
       stopSession(true);
       throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
     }
@@ -1374,18 +1382,18 @@ export default function RealtimeSessionPage() {
     const navigateId = id;
     resetSessionState();
     if (shouldDiscard) {
-      enqueueSnackbar(t("theSessionHasBeenAborted"), { variant: "warning" });
+      enqueueRealtimeSnackbar(t("theSessionHasBeenAborted"), { variant: "warning" });
       return;
     }
     if (navigateId) {
       navigate(buildTranscriptionDetailPath(navigateId));
     }
     if (aborted) {
-      enqueueSnackbar(t("realTimeTranscriptionWasInterruptedAndTheResultsWereTemporarilyStored"), {
+      enqueueRealtimeSnackbar(t("realTimeTranscriptionWasInterruptedAndTheResultsWereTemporarilyStored"), {
         variant: "warning",
       });
     } else {
-      enqueueSnackbar(t("realTimeTranscriptionResultsAreSaved"), { variant: "success" });
+      enqueueRealtimeSnackbar(t("realTimeTranscriptionResultsAreSaved"), { variant: "success" });
     }
   };
 
@@ -1454,7 +1462,7 @@ export default function RealtimeSessionPage() {
     if (!decoderConfig) {
       const message = t("cannotRetryWithoutOriginalConfiguration");
       setErrorMessage(message);
-      enqueueSnackbar(message, { variant: "error" });
+      enqueueRealtimeSnackbar(message, { variant: "error" });
       return;
     }
 
@@ -1559,12 +1567,12 @@ export default function RealtimeSessionPage() {
 
   const handleStartSession = async () => {
     if (sessionState !== "idle") {
-      enqueueSnackbar(t("thereIsRealTimeTranscriptionAlreadyUnderway"), { variant: "info" });
+      enqueueRealtimeSnackbar(t("thereIsRealTimeTranscriptionAlreadyUnderway"), { variant: "info" });
       return;
     }
     if (!apiBaseUrl || apiBaseUrl.trim().length === 0) {
       setErrorMessage(t("pleaseSetThePythonApiBaseUrlFirst"));
-      enqueueSnackbar(t("pleaseSetThePythonApiBaseUrlFirst"), { variant: "warning" });
+      enqueueRealtimeSnackbar(t("pleaseSetThePythonApiBaseUrlFirst"), { variant: "warning" });
       return;
     }
 
@@ -1580,7 +1588,7 @@ export default function RealtimeSessionPage() {
     } catch (error) {
       console.error(t("streamingSettingsJsonParsingFailure"), error);
       setErrorMessage(t("pleaseCheckTheStreamingSettingsJson"));
-      enqueueSnackbar(t("streamingSettingsJsonIsInvalid"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("streamingSettingsJsonIsInvalid"), { variant: "error" });
       return;
     }
     const existingRuntimeConfig = isRecord((decoderConfig as { stream_config?: unknown }).stream_config)
@@ -1625,7 +1633,7 @@ export default function RealtimeSessionPage() {
     } catch (error) {
       console.error(t("localTranscriptionRecordCreationFailed"), error);
       setErrorMessage(t("localTranscriptionRecordsCannotBeCreated"));
-      enqueueSnackbar(t("localTranscriptionRecordsCannotBeCreated"), { variant: "error" });
+      enqueueRealtimeSnackbar(t("localTranscriptionRecordsCannotBeCreated"), { variant: "error" });
       return;
     }
 
@@ -1733,7 +1741,7 @@ export default function RealtimeSessionPage() {
   const handleToggleCamera = () => {
     if (!cameraSupported) {
       setCameraError(t("cameraNotSupported"));
-      enqueueSnackbar(t("cameraNotSupported"), { variant: "info" });
+      enqueueRealtimeSnackbar(t("cameraNotSupported"), { variant: "info" });
       return;
     }
     setCameraEnabled((prev) => !prev);

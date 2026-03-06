@@ -191,7 +191,7 @@ export default function UiConceptsPage() {
 
   useEffect(() => {
     setFloatingActionsVisible(false);
-    return () => setFloatingActionsVisible(true);
+    return () => setFloatingActionsVisible(null);
   }, [setFloatingActionsVisible]);
 
   const concepts = useMemo<Concept[]>(() => {

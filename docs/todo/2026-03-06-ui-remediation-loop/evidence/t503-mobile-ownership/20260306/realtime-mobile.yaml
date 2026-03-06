@@ -1,0 +1,49 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to main content" [ref=e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=e5]:
+      - generic [ref=e6]:
+        - button "Open menu" [ref=e7] [cursor=pointer]:
+          - img [ref=e8]
+        - link "MalSori" [ref=e16] [cursor=pointer]:
+          - /url: /
+        - button "Select language" [ref=e17] [cursor=pointer]:
+          - img [ref=e19]
+          - generic [ref=e21]:
+            - img "United States flag" [ref=e22]: 🇺🇸
+            - text: English
+    - main [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e27]:
+          - generic [ref=e32]:
+            - generic [ref=e34]:
+              - generic [ref=e35]: Real-time Transcription
+              - heading "Waiting" [level=6] [ref=e38]
+            - generic [ref=e40]:
+              - heading "Waiting" [level=6] [ref=e41]
+              - heading "--" [level=6] [ref=e42]
+          - generic [ref=e45]:
+            - generic [ref=e47]:
+              - generic [ref=e48] [cursor=pointer]:
+                - switch "Note mode" [ref=e51]
+                - generic [ref=e54]: Note mode
+              - generic [ref=e55]: Show everything in one text area without timestamps or bubbles.
+            - separator [ref=e56]
+            - paragraph [ref=e59]: When you start a session, recognized sentences will appear in this area in order.
+        - generic [ref=e84]:
+          - button "Stream Transcription Settings" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+          - button "Real-time Transcription" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - button "Enable camera" [ref=e92] [cursor=pointer]:
+            - img [ref=e93]
+  - generic:
+    - alert [ref=e98]:
+      - generic [ref=e99]:
+        - img [ref=e100]
+        - text: Unable to request storage permission. Please check your browser settings.
+    - alert [ref=e105]:
+      - generic [ref=e106]:
+        - img [ref=e107]
+        - text: Unable to request microphone permission. Please check your browser settings.

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 type UiState = {
-  floatingActionsVisible: boolean;
-  setFloatingActionsVisible: (visible: boolean) => void;
+  floatingActionsVisibleOverride: boolean | null;
+  setFloatingActionsVisible: (visible: boolean | null) => void;
 
   uploadDialogOpen: boolean;
   setUploadDialogOpen: (open: boolean) => void;
@@ -11,8 +11,8 @@ type UiState = {
 };
 
 export const useUiStore = create<UiState>((set) => ({
-  floatingActionsVisible: true,
-  setFloatingActionsVisible: (visible) => set({ floatingActionsVisible: visible }),
+  floatingActionsVisibleOverride: null,
+  setFloatingActionsVisible: (visible) => set({ floatingActionsVisibleOverride: visible }),
 
   uploadDialogOpen: false,
   setUploadDialogOpen: (open) => set({ uploadDialogOpen: open }),

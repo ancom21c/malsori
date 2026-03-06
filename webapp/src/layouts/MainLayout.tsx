@@ -43,13 +43,57 @@ type MainLayoutProps = {
   children: ReactNode;
 };
 
+type MobileActionOwner = "global-fallback" | "page-owned" | "realtime-dock";
+
+type RouteChromePolicy = {
+  mobileActionOwner: MobileActionOwner;
+  defaultFloatingActionsVisible: boolean;
+  contentPaddingBottom: {
+    xs: string;
+    sm: number;
+  };
+};
+
+function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
+  if (pathname.startsWith("/realtime")) {
+    return {
+      mobileActionOwner: "realtime-dock",
+      defaultFloatingActionsVisible: false,
+      contentPaddingBottom: {
+        xs: "calc(24px + env(safe-area-inset-bottom))",
+        sm: 4,
+      },
+    };
+  }
+
+  if (pathname.startsWith("/settings") || pathname.startsWith("/transcriptions/")) {
+    return {
+      mobileActionOwner: "page-owned",
+      defaultFloatingActionsVisible: false,
+      contentPaddingBottom: {
+        xs: "calc(24px + env(safe-area-inset-bottom))",
+        sm: 4,
+      },
+    };
+  }
+
+  return {
+    mobileActionOwner: "global-fallback",
+    defaultFloatingActionsVisible: true,
+    contentPaddingBottom: {
+      xs: "calc(120px + env(safe-area-inset-bottom))",
+      sm: 4,
+    },
+  };
+}
+
 export default function MainLayout({ children }: MainLayoutProps) {
   const theme = useTheme();
   const compactActions = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
   const hydrateSettings = useSettingsStore((state) => state.hydrate);
   const hydrated = useSettingsStore((state) => state.hydrated);
-  const floatingActionsVisible = useUiStore((state) => state.floatingActionsVisible);
+  const floatingActionsVisibleOverride = useUiStore((state) => state.floatingActionsVisibleOverride);
   const uploadDialogOpen = useUiStore((state) => state.uploadDialogOpen);
   const openUploadDialog = useUiStore((state) => state.openUploadDialog);
   const closeUploadDialog = useUiStore((state) => state.closeUploadDialog);
@@ -121,6 +165,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const isRealtimeRoute = useMemo(() => {
     return location.pathname.startsWith("/realtime");
   }, [location.pathname]);
+  const routeChromePolicy = useMemo(
+    () => resolveRouteChromePolicy(location.pathname),
+    [location.pathname]
+  );
+  const floatingActionsVisible =
+    floatingActionsVisibleOverride ?? routeChromePolicy.defaultFloatingActionsVisible;
 
   useEffect(() => {
     if (!hydrated) {
@@ -383,10 +433,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         sx={{
           flex: 1,
           pt: 4,
-          pb: {
-            xs: "calc(120px + env(safe-area-inset-bottom))",
-            sm: 4,
-          },
+          pb: routeChromePolicy.contentPaddingBottom,
           display: "flex",
           flexDirection: "column",
         }}
@@ -427,7 +474,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             >
               {t("fileUpload")}
             </Button>
-            {!isRealtimeRoute && (
+            {routeChromePolicy.mobileActionOwner === "global-fallback" && !isRealtimeRoute && (
               <Button
                 variant="contained"
                 color="secondary"
@@ -444,7 +491,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         ) : (
           <>
             <UploadFab onClick={handleUploadFabClick} ref={uploadFabRef} />
-            {!isRealtimeRoute ? <MicFab onClick={() => navigate("/realtime")} /> : null}
+            {routeChromePolicy.mobileActionOwner === "global-fallback" && !isRealtimeRoute ? (
+              <MicFab onClick={() => navigate("/realtime")} />
+            ) : null}
           </>
         )
       ) : null}

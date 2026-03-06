@@ -179,6 +179,7 @@ export default function TranscriptionListPage() {
   const { t, locale } = useI18n();
   const { syncManager } = useSync();
   const openUploadDialog = useUiStore((state) => state.openUploadDialog);
+  const setFloatingActionsVisible = useUiStore((state) => state.setFloatingActionsVisible);
 
   const isLoadingTranscriptions = transcriptions === undefined;
 
@@ -388,6 +389,15 @@ export default function TranscriptionListPage() {
 
   const hasAnyTranscriptions = !isLoadingTranscriptions && sortedTranscriptions.length > 0;
   const showNoMatches = hasAnyTranscriptions && filteredTranscriptions.length === 0;
+  const listPageOwnsPrimaryAction = !isLoadingTranscriptions && !hasAnyTranscriptions;
+
+  useEffect(() => {
+    setFloatingActionsVisible(listPageOwnsPrimaryAction ? false : null);
+    return () => {
+      setFloatingActionsVisible(null);
+    };
+  }, [listPageOwnsPrimaryAction, setFloatingActionsVisible]);
+
   const quickActionSlot = showTopActions ? (
     <ActionStrip ariaLabel={t("quickActions")} sx={{ width: "auto" }}>
       <Tooltip title={t("fileTranscriptionRequest")}>
@@ -683,7 +693,7 @@ export default function TranscriptionListPage() {
                 >
                   {t("manageTranscriptionSettings")}
                 </Button>
-                <ActionStrip ariaLabel={t("quickActions")} stickyMobile>
+                <ActionStrip ariaLabel={t("quickActions")} stickyMobile stickyRightOffset={0}>
                   <Button
                     variant="contained"
                     size="small"

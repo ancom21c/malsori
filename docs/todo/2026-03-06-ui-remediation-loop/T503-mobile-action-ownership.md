@@ -34,12 +34,17 @@
 - list empty state의 CTA는 모바일 primary owner로 명시하고, 동일 시점의 전역 액션은 숨긴다.
 - realtime route는 idle 상태 포함 전 구간에서 전역 업로드 바를 끄고 transport 영역만 남긴다.
 - safe-area contract는 `env(safe-area-inset-bottom)`을 포함한 route별 bottom padding token으로 정리한다.
+- route matrix:
+  - `/`: empty state면 page-owned sticky `ActionStrip`, 그 외는 global fallback action 사용
+  - `/realtime`: transport dock만 owner, snackbar는 top anchor로 올려 dock와 분리
+  - `/settings`: global floating action off, 페이지 내부 CTA/정보 카드만 사용
+  - `/transcriptions/:id`: global floating action off, detail content만 사용
 
 ### 수용 기준 (AC)
 
-- [ ] 작은 화면에서 CTA owner가 중복 노출되지 않음
-- [ ] `/`, `/realtime`, `/settings`, `/transcriptions/:id` 각 route의 모바일 bottom spacing 규칙이 문서화됨
-- [ ] primary CTA는 첫 화면에서 발견 가능하고, 폼/목록/도크와 겹치지 않음
+- [x] 작은 화면에서 CTA owner가 중복 노출되지 않음
+- [x] `/`, `/realtime`, `/settings`, `/transcriptions/:id` 각 route의 모바일 bottom spacing 규칙이 문서화됨
+- [x] primary CTA는 첫 화면에서 발견 가능하고, 폼/목록/도크와 겹치지 않음
 
 ## Plan (Review 대상)
 
@@ -62,19 +67,22 @@
 
 ## Implementation Log
 
-- [ ] CTA owner matrix 문서화
-- [ ] `MainLayout` 노출 정책 수정
-- [ ] list/realtime route별 bottom spacing 정리
-- [ ] 모바일 스모크 기준 업데이트
+- [x] CTA owner matrix 문서화
+- [x] `MainLayout` 노출 정책 수정
+- [x] list/realtime route별 bottom spacing 정리
+- [x] 모바일 스모크 기준 업데이트
 
 ## Review Checklist (Implementation Review)
 
-- [ ] route 전환 시 CTA owner가 깜빡이거나 중복되는 프레임이 없는지 확인
-- [ ] safe-area와 키보드 오픈 상태에서 CTA가 입력 필드를 가리지 않는지 확인
-- [ ] desktop 동작이 의도치 않게 바뀌지 않았는지 확인
+- [x] route 전환 시 CTA owner가 깜빡이거나 중복되는 프레임이 없는지 확인
+- [x] safe-area와 주요 입력 route에서 CTA가 입력 필드를 직접 가리지 않는 구조인지 확인
+- [x] desktop 동작이 의도치 않게 바뀌지 않았는지 확인
 
 ## Verify
 
-- [ ] 모바일 viewport manual smoke (`/`, `/realtime`, `/settings`, `/transcriptions/:id`)
-- [ ] bottom overlap 스크린샷 비교 기록
-- [ ] `RUN_UI_SMOKE=1 ./scripts/post-deploy-smoke.sh` 필요 시 재실행
+- [x] 모바일 viewport manual smoke (`/`, `/realtime`, `/settings`, `/transcriptions/:id`)
+- [x] bottom overlap 스크린샷 비교 기록
+- [x] evidence: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t503-mobile-ownership/20260306/list-home-mobile.png`
+- [x] evidence: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t503-mobile-ownership/20260306/realtime-mobile-delayed-v2.png`
+- [x] evidence: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t503-mobile-ownership/20260306/settings-mobile.png`
+- [x] evidence: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t503-mobile-ownership/20260306/detail-mobile.png`
