@@ -32,7 +32,11 @@ import {
   type RecorderChunkInfo,
 } from "../services/audio/recorderManager";
 import type { LocalWordTiming, PresetConfig } from "../data/app-db";
-import { DEFAULT_STREAMING_PRESETS } from "../data/defaultPresets";
+import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
+import {
+  buildTranscriptionDetailPath,
+  resolveRealtimeStreamingConfigString,
+} from "./realtimeSessionModel";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
@@ -382,10 +386,7 @@ export default function RealtimeSessionPage() {
     },
     [streamingPresets]
   );
-  const fallbackStreamingConfig = useMemo(
-    () => DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}",
-    []
-  );
+  const fallbackStreamingConfig = DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON;
 
   useEffect(() => {
     if (microphonePromptedRef.current) {
@@ -1377,7 +1378,7 @@ export default function RealtimeSessionPage() {
       return;
     }
     if (navigateId) {
-      navigate(`/transcriptions/${navigateId}`);
+      navigate(buildTranscriptionDetailPath(navigateId));
     }
     if (aborted) {
       enqueueSnackbar(t("realTimeTranscriptionWasInterruptedAndTheResultsWereTemporarilyStored"), {
@@ -1568,13 +1569,12 @@ export default function RealtimeSessionPage() {
     }
 
     let decoderConfig: Record<string, unknown>;
-    const trimmedRequest = streamingRequestJson?.trim() ?? "";
-    const configString =
-      trimmedRequest.length > 0
-        ? trimmedRequest
-        : activeStreamingPreset?.configJson ??
-        defaultStreamingPreset?.configJson ??
-        fallbackStreamingConfig;
+    const configString = resolveRealtimeStreamingConfigString({
+      draftJson: streamingRequestJson,
+      activePresetConfigJson: activeStreamingPreset?.configJson,
+      defaultPresetConfigJson: defaultStreamingPreset?.configJson,
+      fallbackConfigJson: fallbackStreamingConfig,
+    });
     try {
       decoderConfig = JSON.parse(configString);
     } catch (error) {

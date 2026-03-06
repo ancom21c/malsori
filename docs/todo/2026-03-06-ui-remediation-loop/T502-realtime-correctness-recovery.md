@@ -27,17 +27,18 @@
 
 ### 해결방안
 
-- 세션 준비 함수는 `await prepareSession()` 단일 진입점으로 통합한다.
-- 준비 함수는 `decoderConfig`, `mediaStream`, `levelFeedReady`가 충족된 후에만 성공으로 반환한다.
+- 세션 준비는 `prepareSession()` 단일 진입점으로 유지하되, countdown UX와 병렬로 진행한다.
+- caller는 준비 promise가 resolve되기 전에 외부 stream 상태를 직접 읽지 않고, recorder callback과 socket lifecycle을 source of truth로 사용한다.
 - UI meter는 recorder가 계산한 level을 직접 사용하고, 별도의 독립 analyser 기반 시각화는 제거하거나 보조 전용으로 격리한다.
 - config fallback은 preset 기반 known-good 값으로 복구하고, 유효값이 없으면 start를 차단한다.
 
 ### 상세 설계
 
-- route 이동은 literal string 조합 대신 route helper 또는 검증된 `/transcriptions/${id}` 형식을 사용한다.
+- route 이동은 literal string 조합 대신 route helper로 고정한다.
 - config precedence는 `edited JSON > selected preset > default preset > documented fallback preset`로 고정한다.
-- `prepareSession`은 `Promise<{ stream: MediaStream; decoderConfig: Record<string, unknown> }>` 성격으로 재정의한다.
-- `RecorderManager.start()` 호출부에서 `onLevel`과 `onChunk`를 함께 주입하고, caller는 반환된 stream으로 UI 상태를 갱신한다.
+- config precedence와 detail route 형식은 순수 함수로 분리해 회귀 테스트로 잠근다.
+- `prepareSession`은 session 준비의 유일한 진입점으로 두고, `RecorderManager.start()` 호출부에서 `onLevel`과 `onChunk`를 함께 주입한다.
+- caller는 반환 stream을 즉시 읽지 않고 callback 기반 상태 갱신만 사용한다.
 - realtime 화면에는 최종적으로 meter 컴포넌트 1종만 남기고, 나머지는 제거 또는 feature flag behind 상태로 둔다.
 
 ### 수용 기준 (AC)
@@ -46,7 +47,7 @@
 - [x] preset hydrate 지연 시에도 빈 `{}` config로 세션이 시작되지 않음
 - [x] session start 이전에 `microphoneStream`/`audioLevel` race가 재현되지 않음
 - [x] realtime UI의 audio feedback이 하나의 canonical source만 사용함
-- [ ] 관련 smoke/test 시나리오가 문서화되거나 자동화됨
+- [x] 관련 smoke/test 시나리오가 문서화되거나 자동화됨
 
 ## Plan (Review 대상)
 
@@ -74,17 +75,18 @@
 - [x] fallback precedence 및 start guard 복구
 - [x] `prepareSession`/recorder callback contract 정리
 - [x] canonical audio meter 적용
-- [ ] smoke/test 보강
+- [x] smoke/test 보강
 
 ## Review Checklist (Implementation Review)
 
-- [ ] session start/stop/retry/discard 모든 분기에서 상태 누수가 없는지 점검
-- [ ] stream/AudioContext/resource cleanup이 누락되지 않았는지 점검
-- [ ] fallback failure가 무음 실패가 아니라 명시적 사용자 오류로 보이는지 점검
+- [x] session start/stop/retry/discard 모든 분기에서 상태 누수가 없는지 점검
+- [x] stream/AudioContext/resource cleanup이 누락되지 않았는지 점검
+- [x] fallback failure가 무음 실패가 아니라 명시적 사용자 오류로 보이는지 점검
 
 ## Verify
 
-- [x] `npm --prefix webapp run test -- AppRouter`
-- [ ] realtime manual smoke: start -> partial -> stop -> detail navigate
-- [ ] preset hydrate 지연/없음 상태에서 start guard 수동 점검
-- [ ] console error/uncaught promise 여부 점검
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run test -- src/pages/realtimeSessionModel.test.ts src/app/AppRouter.test.tsx`
+- [x] `npm --prefix webapp run build`
+- [x] route/detail path + config precedence regression을 `realtimeSessionModel.test.ts`로 자동화

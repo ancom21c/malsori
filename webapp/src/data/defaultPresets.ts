@@ -64,20 +64,22 @@ export const DEFAULT_FILE_PRESETS: PresetConfig[] = [
   }),
 ];
 
+export const DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON = JSON.stringify(
+  {
+    sample_rate: 16000,
+    encoding: "LINEAR16",
+    use_punctuation: true,
+  },
+  null,
+  2
+);
+
 export const DEFAULT_STREAMING_PRESETS: PresetConfig[] = [
   buildPreset({
     type: "streaming",
     name: tStatic("defaultStreamingPresetName"),
     description: tStatic("defaultStreamingPresetDescription"),
-    configJson: JSON.stringify(
-      {
-        sample_rate: 16000,
-        encoding: "LINEAR16",
-        use_punctuation: true,
-      },
-      null,
-      2
-    ),
+    configJson: DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON,
     isDefault: true,
   }),
 ];
