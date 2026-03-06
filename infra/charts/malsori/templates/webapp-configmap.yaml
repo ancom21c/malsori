@@ -11,6 +11,7 @@ data:
       window.__MALSORI_CONFIG__,
       {
         apiBaseUrl: "{{ .Values.webapp.apiBaseUrl }}",
+        adminApiBaseUrl: "{{ .Values.webapp.adminApiBaseUrl }}",
         {{- if .Values.webapp.driveAuthMode }}
         driveAuthMode: "{{ .Values.webapp.driveAuthMode }}",
         {{- end }}

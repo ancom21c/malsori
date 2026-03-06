@@ -1,4 +1,5 @@
 import { useSettingsStore } from "../../store/settingsStore";
+import { joinBaseUrl, normalizeAdminApiBaseUrl } from "../../utils/baseUrl";
 
 const RUNTIME_ERROR_PATH = "/v1/observability/runtime-error";
 const MAX_SIGNATURES = 120;
@@ -25,7 +26,10 @@ function isRuntimeErrorReportingEnabled(): boolean {
   if (typeof window === "undefined") {
     return false;
   }
-  return window.__MALSORI_CONFIG__?.runtimeErrorReportingEnabled !== false;
+  return (
+    window.__MALSORI_CONFIG__?.runtimeErrorReportingEnabled === true &&
+    resolveAdminBaseUrl().length > 0
+  );
 }
 
 function toSafeText(value: unknown, maxLength: number): string | undefined {
@@ -59,22 +63,8 @@ function normalizeReason(reason: unknown): { message: string; stack?: string } {
   }
 }
 
-function resolveBaseUrl(): string {
-  const configured = useSettingsStore.getState().apiBaseUrl?.trim();
-  if (configured && configured.length > 0) {
-    return configured;
-  }
-  return "/api";
-}
-
-function joinUrl(baseUrl: string, path: string): string {
-  if (baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) {
-    return `${baseUrl.replace(/\/+$/, "")}${path}`;
-  }
-  const normalizedBase = baseUrl.startsWith("/")
-    ? baseUrl
-    : `/${baseUrl}`;
-  return `${normalizedBase.replace(/\/+$/, "")}${path}`;
+function resolveAdminBaseUrl(): string {
+  return normalizeAdminApiBaseUrl(useSettingsStore.getState().adminApiBaseUrl);
 }
 
 function dedupeSignature(signature: string): boolean {
@@ -92,7 +82,11 @@ function dedupeSignature(signature: string): boolean {
 }
 
 function sendPayload(payload: RuntimeErrorPayload): void {
-  const endpoint = joinUrl(resolveBaseUrl(), RUNTIME_ERROR_PATH);
+  const adminBaseUrl = resolveAdminBaseUrl();
+  if (!adminBaseUrl) {
+    return;
+  }
+  const endpoint = joinBaseUrl(adminBaseUrl, RUNTIME_ERROR_PATH);
   const body = JSON.stringify(payload);
 
   try {

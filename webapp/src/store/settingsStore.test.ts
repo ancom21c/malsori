@@ -6,7 +6,8 @@ describe("settingsStore realtimeAutoSaveSeconds guardrails", () => {
   beforeEach(async () => {
     await appDb.settings.clear();
     useSettingsStore.setState({
-      apiBaseUrl: "/api",
+      apiBaseUrl: "/",
+      adminApiBaseUrl: "",
       realtimeAutoSaveSeconds: 10,
       activeBackendPresetId: null,
       defaultSpeakerName: "Speaker",
@@ -44,5 +45,15 @@ describe("settingsStore realtimeAutoSaveSeconds guardrails", () => {
     await useSettingsStore.getState().updateSetting("realtimeAutoSaveSeconds", 99999);
     expect(useSettingsStore.getState().realtimeAutoSaveSeconds).toBe(3600);
     expect((await appDb.settings.get("realtimeAutoSaveSeconds"))?.value).toBe("3600");
+  });
+
+  it("normalizes cleared public api base to same-origin root and keeps admin base optional", async () => {
+    await useSettingsStore.getState().updateSetting("apiBaseUrl", "");
+    await useSettingsStore.getState().updateSetting("adminApiBaseUrl", "  ");
+
+    expect(useSettingsStore.getState().apiBaseUrl).toBe("/");
+    expect(useSettingsStore.getState().adminApiBaseUrl).toBe("");
+    expect((await appDb.settings.get("apiBaseUrl"))?.value).toBe("/");
+    expect((await appDb.settings.get("adminApiBaseUrl"))?.value).toBe("");
   });
 });

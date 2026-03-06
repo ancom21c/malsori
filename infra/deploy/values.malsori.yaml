@@ -46,6 +46,7 @@ pythonApi:
 
 webapp:
   apiBaseUrl: https://malsori.ancom.duckdns.org
+  adminApiBaseUrl: ""
   # Runtime error telemetry endpoint is internal-only in production.
   runtimeErrorReportingEnabled: false
   env: {}

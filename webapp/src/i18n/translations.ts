@@ -214,6 +214,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "API Base URL",
     ja: "API Base URL",
   },
+  internalAdminApiBaseUrl: {
+    ko: "Internal Admin API Base URL",
+    en: "Internal Admin API Base URL",
+    ja: "内部管理 API Base URL",
+  },
   pythonApiBaseUrl: {
     ko: "Python API Base URL",
     en: "Python API Base URL",
@@ -714,6 +719,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Showing the last known server settings.",
     ja: "最後に確認したサーバー設定を表示しています。",
   },
+  pleaseCheckInternalAdminApiBaseUrlAndRetryServerStatus: {
+    ko: "내부 관리자 API Base URL과 서버 상태를 확인한 뒤 다시 시도해 주세요.",
+    en: "Check the internal admin API Base URL and server status, then retry.",
+    ja: "内部管理 API Base URL とサーバー状態を確認してから再試行してください。",
+  },
   pleaseCheckPythonApiBaseUrlAndRetryServerStatus: {
     ko: "Python API Base URL과 서버 상태를 확인한 뒤 다시 시도해 주세요.",
     en: "Check the Python API Base URL and server status, then retry.",
@@ -763,6 +773,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "파일 전사 및 실시간 스트리밍 요청이 이 주소로 전달됩니다.",
     en: "File transcription and live streaming requests are directed to this address.",
     ja: "ファイルのトランスクリプションとライブ ストリーミングのリクエストは、このアドレスに送信されます。",
+  },
+  internalAdminApiBaseUrlHelper: {
+    ko: "내부망 전용 admin 및 observability 요청이 이 주소로 전달됩니다.",
+    en: "Internal-only admin and observability requests are directed to this address.",
+    ja: "内部ネットワーク専用の admin / observability リクエストはこのアドレスに送信されます。",
+  },
+  internalAdminApiBaseUrlNotConfigured: {
+    ko: "내부 관리자 URL 미설정",
+    en: "Internal admin URL not configured",
+    ja: "内部管理 URL 未設定",
   },
   fileTranscriptionRequest: {
     ko: "파일 전사 요청",
@@ -1288,6 +1308,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "Python API Base URL을 먼저 입력해 주세요.",
     en: "Please enter the Python API Base URL first.",
     ja: "最初に Python API のベース URL を入力してください。",
+  },
+  internalAdminApiBaseUrlRequired: {
+    ko: "내부 관리자 API Base URL을 먼저 입력해 주세요.",
+    en: "Please enter the internal admin API Base URL first.",
+    ja: "最初に内部管理 API Base URL を入力してください。",
   },
   pleaseEnterThePythonApiBaseUrlOnTheSettingsPage: {
     ko: "Python API Base URL을 설정 페이지에서 입력해 주세요.",

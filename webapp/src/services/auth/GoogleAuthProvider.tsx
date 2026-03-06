@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../../store/settingsStore";
+import { joinBaseUrl } from "../../utils/baseUrl";
 
 type TokenResponse = {
   access_token?: string;
@@ -67,12 +68,6 @@ function resolveAuthMode(clientId: string): ResolvedDriveAuthMode {
   return clientId.trim().length > 0 ? "gis" : "disabled";
 }
 
-function joinUrl(baseUrl: string, path: string) {
-  const normalizedBase = baseUrl.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
-
 export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [tokenClient, setTokenClient] = useState<TokenClient | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -131,7 +126,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     }
     pendingBrokerRefreshRef.current = true;
     try {
-      const response = await fetch(joinUrl(apiBaseUrl, "/v1/cloud/google/access-token"), {
+      const response = await fetch(joinBaseUrl(apiBaseUrl, "/v1/cloud/google/access-token"), {
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -187,7 +182,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
     const init = async () => {
       try {
-        const response = await fetch(joinUrl(apiBaseUrl, "/v1/cloud/google/status"), {
+        const response = await fetch(joinBaseUrl(apiBaseUrl, "/v1/cloud/google/status"), {
           method: "GET",
           headers: { Accept: "application/json" },
           signal: controller.signal,
@@ -225,7 +220,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      const url = joinUrl(
+      const url = joinBaseUrl(
         apiBaseUrl,
         `/v1/cloud/google/oauth/start?return_to=${encodeURIComponent(returnTo)}`
       );
@@ -248,7 +243,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     clearRefreshTimer();
 
     if (mode === "broker") {
-      void fetch(joinUrl(apiBaseUrl, "/v1/cloud/google/disconnect"), { method: "POST" })
+      void fetch(joinBaseUrl(apiBaseUrl, "/v1/cloud/google/disconnect"), { method: "POST" })
         .catch(() => {
           // ignore
         })

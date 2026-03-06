@@ -33,12 +33,13 @@ pythonApi:
   resources: {}
 
 webapp:
-  # Optional API base override for SPA runtime config.
-  # Leave empty to keep web defaults (/api fallback), while still emitting runtime flags.
-  apiBaseUrl: ""
+  # Public API base for SPA runtime config. "/" keeps same-origin /v1/* routing.
+  apiBaseUrl: "/"
+  # Optional internal-only base for admin APIs and runtime telemetry.
+  adminApiBaseUrl: ""
   driveAuthMode: ""
   googleClientId: ""
-  runtimeErrorReportingEnabled: true
+  runtimeErrorReportingEnabled: false
   env: {}
   resources: {}
 

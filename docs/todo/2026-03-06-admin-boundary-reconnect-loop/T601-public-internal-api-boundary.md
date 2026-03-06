@@ -70,22 +70,23 @@
 
 ## Implementation Log
 
-- [ ] public/admin endpoint inventory 작성
-- [ ] settings/runtime config에 `adminApiBaseUrl` 추가
-- [ ] API client / telemetry routing 분리
-- [ ] chart defaults / docs 정리
-- [ ] smoke/verify 명령 기록
+- [x] public/admin endpoint inventory 작성
+- [x] settings/runtime config에 `adminApiBaseUrl` 추가
+- [x] API client / telemetry routing 분리
+- [x] chart defaults / docs 정리
+- [x] smoke/verify 명령 기록
 
 ## Review Checklist (Implementation Review)
 
-- [ ] public API 호출이 internal base로 잘못 향하지 않는지 확인
-- [ ] internal API 호출이 public base fallback 없이 명시적으로 막히는지 확인
-- [ ] chart/runtime docs가 실제 코드와 일치하는지 diff 기준으로 확인
+- [x] public API 호출이 internal base로 잘못 향하지 않는지 확인
+- [x] internal API 호출이 public base fallback 없이 명시적으로 막히는지 확인
+- [x] chart/runtime docs가 실제 코드와 일치하는지 diff 기준으로 확인
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] `npm --prefix webapp run test -- AppRouter`
-- [ ] `helm template malsori ./infra/charts/malsori -f infra/deploy/values.malsori.yaml >/tmp/malsori-helm-template.yaml`
-- [ ] public/internal API routing smoke note 작성
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- AppRouter`
+- [x] `helm template malsori ./infra/charts/malsori -f infra/deploy/values.malsori.yaml >/tmp/malsori-helm-template.yaml`
+- [x] `npm --prefix webapp run test -- settingsStore runtimeErrorReporter rtzrApiClient`
+- [x] `docs/todo/2026-03-06-admin-boundary-reconnect-loop/evidence/t601-public-internal-api-boundary/20260306/smoke-note.md`

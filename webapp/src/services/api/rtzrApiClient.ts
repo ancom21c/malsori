@@ -12,6 +12,7 @@ import type {
   WordTimestamp,
 } from "./types";
 import { tStatic } from "../../i18n/static";
+import { joinBaseUrl } from "../../utils/baseUrl";
 
 type RawFileTranscribeResponse = {
   id?: string;
@@ -189,15 +190,24 @@ function normalizeStatus(value: unknown): TranscriptionStatus {
 }
 
 export class RtzrApiClient {
-  private readonly getBaseUrl: () => string;
+  private readonly getPublicBaseUrl: () => string;
+  private readonly getAdminBaseUrl: () => string;
 
-  constructor(getBaseUrl: () => string) {
-    this.getBaseUrl = getBaseUrl;
+  constructor(getPublicBaseUrl: () => string, getAdminBaseUrl: () => string) {
+    this.getPublicBaseUrl = getPublicBaseUrl;
+    this.getAdminBaseUrl = getAdminBaseUrl;
   }
 
-  private buildUrl(path: string): string {
-    const base = this.getBaseUrl().replace(/\/?$/, "");
-    return `${base}${path}`;
+  private buildPublicUrl(path: string): string {
+    return joinBaseUrl(this.getPublicBaseUrl(), path);
+  }
+
+  private buildAdminUrl(path: string): string {
+    const base = this.getAdminBaseUrl().trim();
+    if (!base) {
+      throw new Error(tStatic("internalAdminApiBaseUrlRequired"));
+    }
+    return joinBaseUrl(base, path);
   }
 
   private async ensureOk(response: Response): Promise<Response> {
@@ -325,7 +335,7 @@ export class RtzrApiClient {
       formData.append("title", payload.title);
     }
 
-    const response = await fetch(this.buildUrl("/v1/transcribe"), {
+    const response = await fetch(this.buildPublicUrl("/v1/transcribe"), {
       method: "POST",
       body: formData,
     });
@@ -347,7 +357,7 @@ export class RtzrApiClient {
     transcribeId: string
   ): Promise<FileTranscriptionResult> {
     const response = await fetch(
-      this.buildUrl(`/v1/transcribe/${encodeURIComponent(transcribeId)}`),
+      this.buildPublicUrl(`/v1/transcribe/${encodeURIComponent(transcribeId)}`),
       {
         method: "GET",
         headers: {
@@ -385,7 +395,7 @@ export class RtzrApiClient {
   }
 
   async getHealthStatus(): Promise<HealthStatus> {
-    const response = await fetch(this.buildUrl("/v1/health"), {
+    const response = await fetch(this.buildPublicUrl("/v1/health"), {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -409,7 +419,7 @@ export class RtzrApiClient {
   async getBackendEndpointState(options?: {
     adminToken?: string;
   }): Promise<BackendEndpointState> {
-    const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/endpoint"), {
       method: "GET",
       headers: this.withAdminHeaders(
         {
@@ -426,7 +436,7 @@ export class RtzrApiClient {
     payload: BackendEndpointUpdatePayload,
     options?: { adminToken?: string }
   ): Promise<BackendEndpointState> {
-    const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/endpoint"), {
       method: "POST",
       headers: this.withAdminHeaders(
         {
@@ -449,7 +459,7 @@ export class RtzrApiClient {
   async resetBackendEndpoint(options?: {
     adminToken?: string;
   }): Promise<BackendEndpointState> {
-    const response = await fetch(this.buildUrl("/v1/backend/endpoint"), {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/endpoint"), {
       method: "DELETE",
       headers: this.withAdminHeaders(
         {

@@ -15,7 +15,7 @@ describe("runtimeErrorReporter", () => {
       ...(originalRuntimeConfig ?? {}),
       runtimeErrorReportingEnabled: true,
     };
-    useSettingsStore.setState({ apiBaseUrl: "/api" });
+    useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "/internal" });
     __resetRuntimeErrorReporterForTest();
   });
 
@@ -54,7 +54,7 @@ describe("runtimeErrorReporter", () => {
     expect(firstCall).toBeDefined();
     const url = firstCall?.[0];
     const body = firstCall?.[1];
-    expect(url).toBe("/api/v1/observability/runtime-error");
+    expect(url).toBe("/internal/v1/observability/runtime-error");
     expect(body).toBeInstanceOf(Blob);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
@@ -99,7 +99,7 @@ describe("runtimeErrorReporter", () => {
     expect(firstCall).toBeDefined();
     const url = firstCall?.[0];
     const init = firstCall?.[1];
-    expect(url).toBe("/api/v1/observability/runtime-error");
+    expect(url).toBe("/internal/v1/observability/runtime-error");
     expect(init?.method).toBe("POST");
   });
 
@@ -122,6 +122,22 @@ describe("runtimeErrorReporter", () => {
       value: "disabled-case",
     });
     window.dispatchEvent(rejection);
+    await Promise.resolve();
+
+    expect(sendBeacon).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not initialize when admin base url is not configured", async () => {
+    useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
+    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      value: sendBeacon,
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+
+    initRuntimeErrorReporter();
     await Promise.resolve();
 
     expect(sendBeacon).not.toHaveBeenCalled();

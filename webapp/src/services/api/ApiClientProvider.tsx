@@ -10,10 +10,11 @@ type ApiClientProviderProps = {
 
 export function ApiClientProvider({ children }: ApiClientProviderProps) {
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
+  const adminApiBaseUrl = useSettingsStore((state) => state.adminApiBaseUrl);
 
   const client = useMemo(
-    () => new RtzrApiClient(() => apiBaseUrl),
-    [apiBaseUrl]
+    () => new RtzrApiClient(() => apiBaseUrl, () => adminApiBaseUrl),
+    [adminApiBaseUrl, apiBaseUrl]
   );
 
   return (

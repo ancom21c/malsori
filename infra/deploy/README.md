@@ -52,6 +52,12 @@ Use split ingress surfaces in production:
 - Public ingress: `/`, `/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`
 - Internal ingress only: `/v1/backend/*`, `/v1/observability/runtime-error`
 
+Web runtime config should mirror this split:
+
+- `webapp.apiBaseUrl`: public base (`/` for same-origin or `https://malsori.example.com`)
+- `webapp.adminApiBaseUrl`: internal admin base (`https://malsori-internal.example.local`)
+- `webapp.runtimeErrorReportingEnabled`: only meaningful when `adminApiBaseUrl` is set
+
 Example:
 
 ```yaml

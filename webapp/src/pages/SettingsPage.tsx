@@ -75,6 +75,7 @@ import {
 } from "../utils/backendEndpointUrl";
 import { ContextCard, StatusChipSet, StudioPageShell, StudioJsonEditor } from "../components/studio";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { normalizeAdminApiBaseUrl } from "../utils/baseUrl";
 
 type SettingsTab = "file" | "streaming";
 
@@ -208,6 +209,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("file");
   const { enqueueSnackbar } = useSnackbar();
   const apiBaseUrl = useSettingsStore((state) => state.apiBaseUrl);
+  const adminApiBaseUrl = useSettingsStore((state) => state.adminApiBaseUrl);
   const realtimeAutoSaveSeconds = useSettingsStore((state) => state.realtimeAutoSaveSeconds);
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
   const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
@@ -329,11 +331,19 @@ export default function SettingsPage() {
       setBackendAdminEnabled(false);
       return;
     }
+    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    if (!normalizedAdminApiBaseUrl) {
+      setBackendState(null);
+      setBackendStateError(null);
+      setBackendStateLastSuccessAt(null);
+      setBackendAdminEnabled(false);
+      return;
+    }
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
       const health = await apiClient.getHealthStatus();
-      const adminEnabled = health.backendAdminEnabled ?? true;
+      const adminEnabled = health.backendAdminEnabled ?? false;
       setBackendAdminEnabled(adminEnabled);
       if (!adminEnabled) {
         setBackendState(null);
@@ -357,7 +367,7 @@ export default function SettingsPage() {
     } finally {
       setBackendStateLoading(false);
     }
-  }, [apiBaseUrl, apiClient, backendAdminToken, t]);
+  }, [adminApiBaseUrl, apiBaseUrl, apiClient, backendAdminToken, t]);
 
   useEffect(() => {
     void handleRefreshBackendState();
@@ -417,6 +427,7 @@ export default function SettingsPage() {
     return presets.find((preset) => preset.id === selectedPresetId)?.name;
   }, [presets, selectedPresetId]);
   const apiConfigured = Boolean(apiBaseUrl.trim());
+  const adminApiConfigured = Boolean(adminApiBaseUrl.trim());
   const permissionReadyCount = useMemo(() => {
     const microphoneReady = permissionStatus.microphone === "granted" ? 1 : 0;
     const storageReady =
@@ -784,8 +795,8 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseSelectTheBackendPresetToApply"), { variant: "warning" });
       return;
     }
-    if (!apiBaseUrl.trim()) {
-      enqueueSnackbar(t("pleaseEnterThePythonApiBaseUrlFirst"), { variant: "warning" });
+    if (!adminApiBaseUrl.trim()) {
+      enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
       return;
     }
     let normalizedPresetApiBaseUrl: string;
@@ -837,8 +848,8 @@ export default function SettingsPage() {
   };
 
   const handleResetBackendEndpoint = async () => {
-    if (!apiBaseUrl.trim()) {
-      enqueueSnackbar(t("pleaseEnterThePythonApiBaseUrlFirst"), { variant: "warning" });
+    if (!adminApiBaseUrl.trim()) {
+      enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
       return;
     }
     const adminToken = backendAdminToken.trim();
@@ -1204,7 +1215,11 @@ export default function SettingsPage() {
                   />
                   <ContextCard
                     title={t("backendSettings")}
-                    value={backendSummary}
+                    value={
+                      adminApiConfigured
+                        ? backendSummary
+                        : t("internalAdminApiBaseUrlNotConfigured")
+                    }
                   />
                 </Stack>
               </Stack>
@@ -1268,6 +1283,13 @@ export default function SettingsPage() {
                     onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
                     placeholder="http://localhost:8000"
                     helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
+                  />
+                  <TextField
+                    label={t("internalAdminApiBaseUrl")}
+                    value={adminApiBaseUrl}
+                    onChange={(event) => void updateSetting("adminApiBaseUrl", event.target.value)}
+                    placeholder="https://malsori-internal.example.local"
+                    helperText={t("internalAdminApiBaseUrlHelper")}
                   />
                   <TextField
                     label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
@@ -1639,7 +1661,7 @@ export default function SettingsPage() {
                         onClick={() => void handleRefreshBackendState()}
                         disabled={
                           backendStateLoading ||
-                          !apiBaseUrl.trim() ||
+                          !adminApiBaseUrl.trim() ||
                           !backendAdminToken.trim()
                         }
                       >
@@ -1651,7 +1673,7 @@ export default function SettingsPage() {
                         onClick={() => void handleResetBackendEndpoint()}
                         disabled={
                           backendStateLoading ||
-                          !apiBaseUrl.trim() ||
+                          !adminApiBaseUrl.trim() ||
                           backendStatusUnavailable ||
                           !backendAdminToken.trim()
                         }
@@ -1669,7 +1691,7 @@ export default function SettingsPage() {
                             onClick={() => void handleRefreshBackendState()}
                             disabled={
                               backendStateLoading ||
-                              !apiBaseUrl.trim() ||
+                              !adminApiBaseUrl.trim() ||
                               !backendAdminToken.trim()
                             }
                           >
@@ -1685,7 +1707,7 @@ export default function SettingsPage() {
                           <Typography variant="caption" color="text.secondary">
                             {backendState
                               ? t("showingLastKnownServerSettings")
-                              : t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")}
+                              : t("pleaseCheckInternalAdminApiBaseUrlAndRetryServerStatus")}
                           </Typography>
                           {backendStateLastSuccessAt ? (
                             <Typography variant="caption" color="text.secondary">

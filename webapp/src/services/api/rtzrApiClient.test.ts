@@ -27,7 +27,7 @@ describe("RtzrApiClient.getFileTranscriptionStatus", () => {
     );
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const client = new RtzrApiClient(() => "/api");
+    const client = new RtzrApiClient(() => "/", () => "/internal");
     const result = await client.getFileTranscriptionStatus("job-1");
 
     expect(result.status).toBe("processing");
@@ -53,7 +53,7 @@ describe("RtzrApiClient.getFileTranscriptionStatus", () => {
     );
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const client = new RtzrApiClient(() => "/api");
+    const client = new RtzrApiClient(() => "/", () => "/internal");
     const result = await client.getFileTranscriptionStatus("job-2");
     const segment = result.segments?.[0];
 
@@ -84,7 +84,7 @@ describe("RtzrApiClient backend error mapping", () => {
     );
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const client = new RtzrApiClient(() => "/api");
+    const client = new RtzrApiClient(() => "/", () => "/internal");
 
     await expect(client.getBackendEndpointState()).rejects.toThrow(
       tStatic("backendAdminUnauthorized")
@@ -107,9 +107,34 @@ describe("RtzrApiClient backend error mapping", () => {
     );
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const client = new RtzrApiClient(() => "/api");
+    const client = new RtzrApiClient(() => "/", () => "/internal");
     await expect(client.getBackendEndpointState()).rejects.toThrow(
       tStatic("unknownErrorTryAgain")
+    );
+  });
+
+  it("uses the admin base url for backend endpoint requests", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        deployment: "cloud",
+        api_base_url: "https://openapi.vito.ai",
+        transcribe_path: "/v1/transcribe",
+        streaming_path: "/v1/streaming",
+        auth_enabled: true,
+        has_client_id: true,
+        has_client_secret: true,
+        verify_ssl: true,
+        source: "default",
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/", () => "https://internal.example.local");
+    await client.getBackendEndpointState({ adminToken: "token" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://internal.example.local/v1/backend/endpoint",
+      expect.objectContaining({ method: "GET" })
     );
   });
 });
