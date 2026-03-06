@@ -74,6 +74,7 @@ import {
   normalizeBackendApiBaseUrl,
 } from "../utils/backendEndpointUrl";
 import { ContextCard, StatusChipSet, StudioPageShell, StudioJsonEditor } from "../components/studio";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 type SettingsTab = "file" | "streaming";
 
@@ -197,6 +198,7 @@ function resolveBackendApiBaseValidationMessage(
 }
 
 export default function SettingsPage() {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const navOffset = (isSmallScreen ? 56 : 64) + 8;
@@ -1096,7 +1098,10 @@ export default function SettingsPage() {
     setActiveSection(value);
     const target = sectionRefs[value].current;
     if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
     }
   };
 

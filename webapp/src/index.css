@@ -1,5 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Sans:wght@400;600&display=swap");
 
+html {
+  color-scheme: dark;
+  background-color: #0c1010;
+}
+
 body {
   margin: 0;
   font-family: "IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif;
@@ -9,6 +14,22 @@ body {
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: rgba(42, 201, 181, 0.18);
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+select {
+  color-scheme: dark;
+  background-color: #121616;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.95);
 }
 
 /* Animated Mesh Gradient Background */
@@ -107,6 +128,10 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   body {
     background-color: #0c1010;
   }

@@ -53,6 +53,7 @@ import { SegmentWaveformTimeline } from "../components/SegmentWaveformTimeline";
 import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusChipSet } from "../components/studio";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -399,6 +400,7 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 }
 
 export default function TranscriptionDetailPage() {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const { transcriptionId } = useParams<{ transcriptionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -637,8 +639,11 @@ export default function TranscriptionDetailPage() {
     if (!activeSegmentId) return;
     const element = segmentCardRefs.current.get(activeSegmentId);
     if (!element) return;
-    element.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [activeSegmentId]);
+    element.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "center",
+    });
+  }, [activeSegmentId, prefersReducedMotion]);
 
   const isWordDetailsVisible = useCallback(
     (segmentId: string) => Boolean(wordDetailsVisibility[segmentId]),

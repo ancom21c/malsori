@@ -40,10 +40,10 @@
 
 ### 수용 기준 (AC)
 
-- [ ] icon-only control에 누락 `aria-label`이 없음
-- [ ] reduced motion 환경에서 smooth scroll/item spring animation이 비활성화됨
-- [ ] dark theme 환경에서 native control/date picker의 시각 정합성이 유지됨
-- [ ] localization completeness 기준이 문서와 verify에 반영됨
+- [x] icon-only control에 누락 `aria-label`이 없음
+- [x] reduced motion 환경에서 smooth scroll/item spring animation이 비활성화됨
+- [x] dark theme 환경에서 native control/date picker의 시각 정합성이 유지됨
+- [x] localization completeness 기준이 문서와 verify에 반영됨
 
 ## Plan (Review 대상)
 
@@ -66,21 +66,25 @@
 
 ## Implementation Log
 
-- [ ] control/motion inventory 작성
-- [ ] reduced motion 전략 반영
-- [ ] `aria-label` 누락 보강
-- [ ] `color-scheme: dark` 적용 및 native control 점검
-- [ ] a11y/localization verify 문서 갱신
+- [x] control/motion inventory 작성
+- [x] reduced motion 전략 반영
+- [x] `aria-label` 누락 보강
+- [x] `color-scheme: dark` 적용 및 native control 점검
+- [x] a11y/localization verify 문서 갱신
 
 ## Review Checklist (Implementation Review)
 
-- [ ] reduced motion 분기에서 layout collapse나 state mismatch가 없는지 확인
-- [ ] screen reader/keyboard 관점에서 tooltip 없는 상태도 의미 전달이 되는지 확인
-- [ ] 다국어 추가 시 누락을 다시 허용하지 않는 gate가 유지되는지 확인
+- [x] reduced motion 분기에서 layout collapse나 state mismatch가 없는지 확인
+- [x] screen reader/keyboard 관점에서 tooltip 없는 상태도 의미 전달이 되는지 확인
+- [x] 다국어 추가 시 누락을 다시 허용하지 않는 gate가 유지되는지 확인
 
 ## Verify
 
-- [ ] `npm --prefix webapp run i18n:check`
-- [ ] reduced motion 환경 수동 점검
-- [ ] keyboard tab + screen label quick audit
-- [ ] dark mode native control spot-check
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- AppRouter`
+- [x] `npm --prefix webapp run build`
+- [x] reduced motion emulation 확인: `window.matchMedia('(prefers-reduced-motion: reduce)').matches === true`
+- [x] keyboard first-tab audit: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t504-a11y-motion/20260306/home-first-tab.yaml`
+- [x] dark mode native control spot-check: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t504-a11y-motion/20260306/settings-dark-controls-mobile.png`
+- [x] reduced motion mobile spot-check: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t504-a11y-motion/20260306/list-reduced-motion-mobile.png`

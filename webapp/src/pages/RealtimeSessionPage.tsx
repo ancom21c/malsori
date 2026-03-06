@@ -38,6 +38,7 @@ import {
   resolveRealtimeStreamingConfigString,
 } from "./realtimeSessionModel";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
 import {
@@ -363,6 +364,7 @@ export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const enqueueRealtimeSnackbar = useCallback(
     (message: string, options?: OptionsObject) =>
       enqueueSnackbar(message, {
@@ -550,7 +552,6 @@ export default function RealtimeSessionPage() {
   const stopSessionRef = useRef<(aborted: boolean) => void>(() => {
     /* noop */
   });
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
@@ -1684,13 +1685,6 @@ export default function RealtimeSessionPage() {
   };
 
   useEffect(() => {
-    if (segments.length === 0 && !partialText) {
-      return;
-    }
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [segments, partialText]);
-
-  useEffect(() => {
     return () => {
       if (sessionStateRef.current !== "idle") {
         stopSessionRef.current(true);
@@ -2018,11 +2012,15 @@ export default function RealtimeSessionPage() {
             }}
           >
             <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
+              initial={prefersReducedMotion ? { opacity: 1 } : { scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.5, opacity: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { scale: 1.5, opacity: 0 }}
               key={countdown}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0 }
+                  : { type: "spring", stiffness: 300, damping: 20 }
+              }
             >
               <Typography
                 sx={{

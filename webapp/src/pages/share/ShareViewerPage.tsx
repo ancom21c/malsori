@@ -31,6 +31,7 @@ import {
 import { useI18n } from "../../i18n";
 import { MediaPlaybackSection } from "../../components/MediaPlaybackSection";
 import { TranscriptionView } from "../../components/TranscriptionView";
+import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
 
 declare global {
   interface Window {
@@ -42,6 +43,7 @@ const SEGMENT_MATCH_TOLERANCE_MS = 200;
 
 export default function ShareViewerPage() {
   const { t, locale } = useI18n();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [payloadParam, setPayloadParam] = useState<string | null>(
     typeof window !== "undefined" && window.__SHARE_EMBED__ ? window.__SHARE_EMBED__ : null
   );
@@ -317,10 +319,13 @@ export default function ShareViewerPage() {
   const focusSegmentCard = useCallback((segmentId: string) => {
     const cardRef = segmentCardRefs.current.get(segmentId);
     if (cardRef) {
-      cardRef.scrollIntoView({ behavior: "smooth", block: "center" });
+      cardRef.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
       cardRef.focus({ preventScroll: true });
     }
-  }, []);
+  }, [prefersReducedMotion]);
 
   const handlePlaySegment = useCallback(
     (segment: ShareSegment) => {
