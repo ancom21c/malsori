@@ -10,9 +10,6 @@ import {
   ListItemText,
   Menu,
   MenuItem,
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon,
   Toolbar,
   Tooltip,
   Typography,
@@ -58,7 +55,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const closeUploadDialog = useUiStore((state) => state.closeUploadDialog);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
-  const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const uploadFabRef = useRef<HTMLButtonElement | null>(null);
   const prevUploadDialogOpenRef = useRef(false);
   const navigate = useNavigate();
@@ -405,42 +401,46 @@ export default function MainLayout({ children }: MainLayoutProps) {
       </Container>
       {floatingActionsVisible ? (
         compactActions ? (
-          <SpeedDial
-            ariaLabel={t("quickActions")}
-            open={speedDialOpen}
-            onOpen={() => setSpeedDialOpen(true)}
-            onClose={() => setSpeedDialOpen(false)}
-            icon={<SpeedDialIcon />}
+          <Box
             sx={{
               position: "fixed",
-              right: 16,
-              bottom: "calc(16px + env(safe-area-inset-bottom))",
-              "& .MuiFab-primary": {
-                bgcolor: brandColors.base,
-                color: "common.white",
-                "&:hover": { bgcolor: brandColors.dark },
-              },
+              left: 0,
+              right: 0,
+              bottom: 0,
+              p: 2,
+              pb: "calc(16px + env(safe-area-inset-bottom))",
+              background: `linear-gradient(to top, ${theme.palette.background.paper} 60%, transparent)`,
+              backdropFilter: "blur(12px)",
+              display: "flex",
+              gap: 2,
+              zIndex: theme.zIndex.speedDial,
             }}
           >
-            <SpeedDialAction
-              icon={<CloudUploadIcon />}
-              tooltipTitle={t("fileTranscriptionRequest")}
-              onClick={() => {
-                setSpeedDialOpen(false);
-                openUploadDialog();
-              }}
-            />
-            {!isRealtimeRoute ? (
-              <SpeedDialAction
-                icon={<GraphicEqIcon />}
-                tooltipTitle={t("startRealTimeTranscription")}
-                onClick={() => {
-                  setSpeedDialOpen(false);
-                  navigate("/realtime");
-                }}
-              />
-            ) : null}
-          </SpeedDial>
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
+              startIcon={<CloudUploadIcon />}
+              onClick={openUploadDialog}
+              sx={{ borderRadius: "16px", py: 1.5 }}
+            >
+              {t("fileUpload")}
+            </Button>
+            {!isRealtimeRoute && (
+              <Button
+                variant="contained"
+                color="secondary"
+                fullWidth
+                size="large"
+                startIcon={<GraphicEqIcon />}
+                onClick={() => navigate("/realtime")}
+                sx={{ borderRadius: "16px", py: 1.5 }}
+              >
+                {t("realTimeTranscription")}
+              </Button>
+            )}
+          </Box>
         ) : (
           <>
             <UploadFab onClick={handleUploadFabClick} ref={uploadFabRef} />

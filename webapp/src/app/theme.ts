@@ -1,26 +1,34 @@
 import { alpha, createTheme } from "@mui/material/styles";
 
+// V3 Studio Console Design Tokens
+const CONSOLE_RADIUS_LG = 16;
+const CONSOLE_RADIUS_PILL = 999;
+const CONSOLE_ELEV_SOFT = "0 4px 12px rgba(0,0,0,0.5), 0 16px 48px rgba(0,0,0,0.6)"; // deepened multi-layer shadow
+const CONSOLE_BORDER_GLASS = "1px solid rgba(255, 255, 255, 0.08)";
+const CONSOLE_BORDER_BEVEL = "inset 0 1px 0 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 0 rgba(0, 0, 0, 0.2)";
+const FROSTED_GLASS_OPACITY = 0.5;
+
 export const appTheme = createTheme({
   palette: {
-    mode: "light",
+    mode: "dark",
     primary: {
-      main: "#1f6f64",
+      main: "#2ac9b5", // brighter teal for dark bg readability
     },
     secondary: {
-      main: "#d9825b",
+      main: "#f5a37f", // punchy peach
     },
     background: {
-      default: "#f6f2ee",
-      paper: "#ffffff",
+      default: "#121616",
+      paper: "#1a1f1e", // slate gray for panels
     },
     text: {
-      primary: "#1f2a2a",
-      secondary: "#4b5b5a",
+      primary: "rgba(255, 255, 255, 0.9)",
+      secondary: "rgba(255, 255, 255, 0.6)",
     },
-    divider: alpha("#1f2a2a", 0.14),
+    divider: "rgba(255, 255, 255, 0.1)",
   },
   shape: {
-    borderRadius: 12,
+    borderRadius: CONSOLE_RADIUS_LG,
   },
   typography: {
     fontFamily: '"IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif',
@@ -40,22 +48,39 @@ export const appTheme = createTheme({
       fontWeight: 750,
       letterSpacing: -0.2,
     },
+    // Used for metrics, latency, timecodes
     subtitle2: {
-      fontWeight: 750,
-      letterSpacing: -0.1,
+      fontFamily: '"Roboto Mono", "IBM Plex Mono", monospace',
+      fontWeight: 600,
+      letterSpacing: "0.02em",
+      fontSize: "0.8125rem",
+      textTransform: "uppercase",
     },
     button: {
       textTransform: "none",
-      fontWeight: 600,
+      fontWeight: 700,
     },
   },
   components: {
+    MuiAppBar: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          backgroundColor: alpha(theme.palette.background.default, FROSTED_GLASS_OPACITY),
+          backdropFilter: "blur(24px)",
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          boxShadow: "inset 0 -1px 0 0 rgba(255, 255, 255, 0.05)",
+        }),
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: ({ theme }) => ({
-          border: `1px solid ${theme.palette.divider}`,
-          boxShadow: "0 18px 50px rgba(0,0,0,0.06)",
-          backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, rgba(255,255,255,0) 52%)`,
+          borderRadius: CONSOLE_RADIUS_LG,
+          backgroundColor: alpha(theme.palette.background.paper, 0.7),
+          backdropFilter: "blur(24px)",
+          border: CONSOLE_BORDER_GLASS,
+          boxShadow: `${CONSOLE_ELEV_SOFT}, ${CONSOLE_BORDER_BEVEL}`,
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }),
       },
     },
@@ -65,8 +90,7 @@ export const appTheme = createTheme({
           padding: theme.spacing(3, 3, 2.25),
         }),
         title: ({ theme }) => ({
-          fontWeight: 900,
-          letterSpacing: -0.6,
+          fontWeight: 800,
           color: theme.palette.text.primary,
         }),
         subheader: ({ theme }) => ({
@@ -92,37 +116,61 @@ export const appTheme = createTheme({
       },
       styleOverrides: {
         root: ({ theme }) => ({
-          borderRadius: 12,
+          borderRadius: 12, // internal buttons
           fontWeight: 700,
           letterSpacing: 0,
           paddingInline: theme.spacing(2),
+          transition: "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease",
+          "&:active": {
+            transform: "scale(0.96)",
+          },
         }),
         containedPrimary: ({ theme }) => ({
-          backgroundImage: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(
-            theme.palette.primary.main,
-            0.88
-          )} 55%, ${theme.palette.secondary.main} 140%)`,
-          boxShadow: `0 14px 30px ${alpha(theme.palette.primary.main, 0.26)}`,
+          backgroundColor: theme.palette.primary.main,
+          color: "#0a1917", // inverted for readability on bright button
+          boxShadow: `0 0 16px ${alpha(theme.palette.primary.main, 0.4)}, inset 0 1px 0 0 rgba(255,255,255,0.4)`,
           "&:hover": {
-            boxShadow: `0 18px 40px ${alpha(theme.palette.primary.main, 0.3)}`,
+            backgroundColor: theme.palette.primary.light,
+            boxShadow: `0 0 32px ${alpha(theme.palette.primary.main, 0.8)}, inset 0 1px 0 0 rgba(255,255,255,0.5)`,
+            transform: "translateY(-1px)",
           },
         }),
         containedSecondary: ({ theme }) => ({
-          backgroundImage: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${alpha(
-            theme.palette.secondary.main,
-            0.9
-          )} 72%, ${theme.palette.primary.main} 150%)`,
-          boxShadow: `0 14px 30px ${alpha(theme.palette.secondary.main, 0.22)}`,
+          backgroundColor: theme.palette.secondary.main,
+          color: "#1a0b06",
+          boxShadow: `0 0 16px ${alpha(theme.palette.secondary.main, 0.4)}, inset 0 1px 0 0 rgba(255,255,255,0.4)`,
           "&:hover": {
-            boxShadow: `0 18px 40px ${alpha(theme.palette.secondary.main, 0.26)}`,
+            backgroundColor: theme.palette.secondary.light,
+            boxShadow: `0 0 32px ${alpha(theme.palette.secondary.main, 0.8)}, inset 0 1px 0 0 rgba(255,255,255,0.5)`,
+            transform: "translateY(-1px)",
           },
         }),
         outlined: ({ theme }) => ({
-          borderColor: alpha(theme.palette.text.primary, 0.18),
-          backgroundColor: alpha(theme.palette.text.primary, 0.02),
+          borderColor: alpha(theme.palette.text.primary, 0.2),
+          backgroundColor: "transparent",
           "&:hover": {
-            borderColor: alpha(theme.palette.text.primary, 0.26),
-            backgroundColor: alpha(theme.palette.text.primary, 0.04),
+            borderColor: alpha(theme.palette.text.primary, 0.4),
+            backgroundColor: alpha(theme.palette.text.primary, 0.05),
+          },
+        }),
+      },
+    },
+    MuiFab: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease",
+          "&:active": {
+            transform: "scale(0.92)",
+          },
+          "&.MuiFab-primary": {
+            backgroundColor: theme.palette.primary.main,
+            color: "#0a1917",
+            boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.5)}, inset 0 1px 0 0 rgba(255,255,255,0.4)`,
+            "&:hover": {
+              backgroundColor: theme.palette.primary.light,
+              boxShadow: `0 12px 48px ${alpha(theme.palette.primary.main, 0.8)}, inset 0 1px 0 0 rgba(255,255,255,0.5)`,
+              transform: "translateY(-2px) scale(1.02)",
+            },
           },
         }),
       },
@@ -130,12 +178,15 @@ export const appTheme = createTheme({
     MuiChip: {
       styleOverrides: {
         root: ({ theme }) => ({
-          borderRadius: 999,
+          borderRadius: CONSOLE_RADIUS_PILL,
           fontWeight: 650,
-          borderColor: alpha(theme.palette.text.primary, 0.16),
+          borderColor: alpha(theme.palette.text.primary, 0.2),
+          backgroundColor: alpha(theme.palette.background.paper, 0.6),
+          backdropFilter: "blur(12px)",
+          boxShadow: "inset 0 1px 0 0 rgba(255, 255, 255, 0.05)",
         }),
-        outlined: ({ theme }) => ({
-          backgroundColor: alpha(theme.palette.text.primary, 0.03),
+        outlined: () => ({
+          backgroundColor: "transparent",
         }),
       },
     },
@@ -143,7 +194,7 @@ export const appTheme = createTheme({
       styleOverrides: {
         indicator: {
           height: 3,
-          borderRadius: 999,
+          borderRadius: CONSOLE_RADIUS_PILL,
         },
       },
     },
@@ -160,22 +211,23 @@ export const appTheme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: ({ theme }) => ({
-          backgroundColor: theme.palette.common.white,
-          transition: theme.transitions.create(["box-shadow", "border-color"], {
+          backgroundColor: alpha(theme.palette.background.paper, 0.5),
+          transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
             duration: theme.transitions.duration.shorter,
           }),
           "& .MuiOutlinedInput-notchedOutline": {
-            borderColor: alpha(theme.palette.text.primary, 0.14),
+            borderColor: alpha(theme.palette.text.primary, 0.2),
           },
           "&:hover .MuiOutlinedInput-notchedOutline": {
-            borderColor: alpha(theme.palette.text.primary, 0.22),
+            borderColor: alpha(theme.palette.text.primary, 0.4),
           },
           "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
             borderColor: theme.palette.primary.main,
             borderWidth: 1,
           },
           "&.Mui-focused": {
-            boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.12)}`,
+            backgroundColor: alpha(theme.palette.background.paper, 0.9),
+            boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`,
           },
         }),
       },
@@ -183,14 +235,17 @@ export const appTheme = createTheme({
     MuiTooltip: {
       styleOverrides: {
         tooltip: ({ theme }) => ({
-          borderRadius: 10,
+          borderRadius: 8,
           padding: theme.spacing(1, 1.25),
           fontSize: 12,
           lineHeight: 1.2,
+          backgroundColor: alpha(theme.palette.common.white, 0.9),
+          color: theme.palette.common.black,
+          fontWeight: 600,
         }),
       },
     },
   },
 });
 
-export const darkTheme = appTheme; // Placeholder for future dark theme toggle.
+export const darkTheme = appTheme;

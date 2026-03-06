@@ -57,6 +57,7 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { formatLocalizedDateTime } from "../utils/time";
 import { ActionStrip, StudioPageShell } from "../components/studio";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -723,135 +724,140 @@ export default function TranscriptionListPage() {
               </Typography>
             </Box>
           ) : (
-            <List disablePadding>
-              {filteredTranscriptions.map((item, index) => {
-                const endpointLabel = getEndpointLabel(item, t);
-                return (
-                  <Box
-                    key={item.id}
-                    sx={{
-                      "@media (prefers-reduced-motion: no-preference)": {
-                        animation: "malsori-fade-up 280ms ease-out both",
-                        animationDelay: `${Math.min(index, 12) * 25}ms`,
-                        willChange: "transform, opacity",
-                      },
-                    }}
-                  >
-                    <ListItem
-                      secondaryAction={
-                        <Stack direction="row" spacing={1}>
-                          {item.downloadStatus === "not_downloaded" || item.downloadStatus === "downloading" ? (
-                            <IconButton
-                              edge="end"
-                              onClick={() => void handleDownload(item)}
-                              disabled={!syncManager || item.downloadStatus === "downloading"}
-                              aria-label={t("download")}
-                            >
-                              {item.downloadStatus === "downloading" ? (
-                                <CircularProgress size={20} />
-                              ) : (
-                                <CloudDownloadIcon color="primary" />
-                              )}
-                            </IconButton>
-                          ) : (
-                            <IconButton
-                              edge="end"
-                              onClick={() => void handleToggleSync(item)}
-                              color={item.isCloudSynced ? "primary" : "default"}
-                              aria-label={
-                                item.isCloudSynced ? t("disableCloudSync") : t("enableCloudSync")
-                              }
-                            >
-                              {item.isCloudSynced ? <CloudIcon /> : <CloudOffIcon />}
-                            </IconButton>
-                          )}
-                          <IconButton
-                            edge="end"
-                            onClick={() => handleDeleteRequest(item)}
-                            aria-label={t("delete")}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Stack>
-                      }
-                      disablePadding
+            <List disablePadding component={motion.ul} layout>
+              <AnimatePresence mode="popLayout">
+                {filteredTranscriptions.map((item, index) => {
+                  const endpointLabel = getEndpointLabel(item, t);
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 30,
+                        mass: 0.8,
+                      }}
                     >
-                      <ListItemButton
-                        component={RouterLink}
-                        to={`/transcriptions/${item.id}`}
-                        state={{ fromList: true }}
-                        sx={{ py: 1.5 }}
+                      <ListItem
+                        secondaryAction={
+                          <Stack direction="row" spacing={1}>
+                            {item.downloadStatus === "not_downloaded" || item.downloadStatus === "downloading" ? (
+                              <IconButton
+                                edge="end"
+                                onClick={() => void handleDownload(item)}
+                                disabled={!syncManager || item.downloadStatus === "downloading"}
+                                aria-label={t("download")}
+                              >
+                                {item.downloadStatus === "downloading" ? (
+                                  <CircularProgress size={20} />
+                                ) : (
+                                  <CloudDownloadIcon color="primary" />
+                                )}
+                              </IconButton>
+                            ) : (
+                              <IconButton
+                                edge="end"
+                                onClick={() => void handleToggleSync(item)}
+                                color={item.isCloudSynced ? "primary" : "default"}
+                                aria-label={
+                                  item.isCloudSynced ? t("disableCloudSync") : t("enableCloudSync")
+                                }
+                              >
+                                {item.isCloudSynced ? <CloudIcon /> : <CloudOffIcon />}
+                              </IconButton>
+                            )}
+                            <IconButton
+                              edge="end"
+                              onClick={() => handleDeleteRequest(item)}
+                              aria-label={t("delete")}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Stack>
+                        }
+                        disablePadding
                       >
-                        <ListItemAvatar>{getKindAvatar(item.kind)}</ListItemAvatar>
-                        <ListItemText
-                          primary={
-                            <Stack direction="row" spacing={2} alignItems="center">
-                              <Typography variant="subtitle1" fontWeight={600}>
-                                {item.title}
-                              </Typography>
-                              {getStatusChip(item, t)}
-                            </Stack>
-                          }
-                          secondary={
-                            <Stack spacing={0.5} mt={1}>
-                              <Typography variant="body2" color="text.secondary">
-                                {t("type")}: {t(KIND_LABEL[item.kind])}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {t("creationTime")}: {formatDateTimeLabel(item.createdAt)}
-                              </Typography>
-                              {item.modelName ? (
+                        <ListItemButton
+                          component={RouterLink}
+                          to={`/transcriptions/${item.id}`}
+                          state={{ fromList: true }}
+                          sx={{ py: 1.5 }}
+                        >
+                          <ListItemAvatar>{getKindAvatar(item.kind)}</ListItemAvatar>
+                          <ListItemText
+                            primary={
+                              <Stack direction="row" spacing={2} alignItems="center">
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                  {item.title}
+                                </Typography>
+                                {getStatusChip(item, t)}
+                              </Stack>
+                            }
+                            secondary={
+                              <Stack spacing={0.5} mt={1}>
                                 <Typography variant="body2" color="text.secondary">
-                                  {t("model")}: {item.modelName}
+                                  {t("type")}: {t(KIND_LABEL[item.kind])}
                                 </Typography>
-                              ) : null}
-                              {endpointLabel ? (
                                 <Typography variant="body2" color="text.secondary">
-                                  {t("endpoint")}: {endpointLabel}
+                                  {t("creationTime")}: {formatDateTimeLabel(item.createdAt)}
                                 </Typography>
-                              ) : null}
-                              {item.isCloudSynced || item.downloadStatus ? (
-                                <Typography variant="body2" color="text.secondary">
-                                  {t("cloudSync")}:{" "}
-                                  {item.isCloudSynced
-                                    ? t("enabled")
-                                    : t("disabled")}
-                                  {item.downloadStatus
-                                    ? ` · ${getDownloadStatusLabel(item.downloadStatus, t)}`
-                                    : ""}
-                                </Typography>
-                              ) : null}
-                              {item.lastSyncedAt ? (
-                                <Typography variant="body2" color="text.secondary">
-                                  {t("lastSyncedAt")}:{" "}
-                                  {formatDateTimeLabel(item.lastSyncedAt)}
-                                </Typography>
-                              ) : null}
-                              {item.nextSyncAttemptAt ? (
-                                <Typography variant="body2" color="text.secondary">
-                                  {t("syncRetryAt")}:{" "}
-                                  {formatDateTimeLabel(item.nextSyncAttemptAt)}
-                                </Typography>
-                              ) : null}
-                              {item.syncErrorMessage ? (
-                                <Typography variant="body2" sx={{ color: "warning.main" }}>
-                                  {t("syncError")}: {item.syncErrorMessage}
-                                </Typography>
-                              ) : null}
-                              {item.errorMessage ? (
-                                <Typography variant="body2" color="error">
-                                  {t("error")}: {item.errorMessage}
-                                </Typography>
-                              ) : null}
-                            </Stack>
-                          }
-                        />
-                      </ListItemButton>
-                    </ListItem>
-                    {index !== filteredTranscriptions.length - 1 && <Divider component="li" />}
-                  </Box>
-                );
-              })}
+                                {item.modelName ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {t("model")}: {item.modelName}
+                                  </Typography>
+                                ) : null}
+                                {endpointLabel ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {t("endpoint")}: {endpointLabel}
+                                  </Typography>
+                                ) : null}
+                                {item.isCloudSynced || item.downloadStatus ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {t("cloudSync")}:{" "}
+                                    {item.isCloudSynced
+                                      ? t("enabled")
+                                      : t("disabled")}
+                                    {item.downloadStatus
+                                      ? ` · ${getDownloadStatusLabel(item.downloadStatus, t)}`
+                                      : ""}
+                                  </Typography>
+                                ) : null}
+                                {item.lastSyncedAt ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {t("lastSyncedAt")}:{" "}
+                                    {formatDateTimeLabel(item.lastSyncedAt)}
+                                  </Typography>
+                                ) : null}
+                                {item.nextSyncAttemptAt ? (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {t("syncRetryAt")}:{" "}
+                                    {formatDateTimeLabel(item.nextSyncAttemptAt)}
+                                  </Typography>
+                                ) : null}
+                                {item.syncErrorMessage ? (
+                                  <Typography variant="body2" sx={{ color: "warning.main" }}>
+                                    {t("syncError")}: {item.syncErrorMessage}
+                                  </Typography>
+                                ) : null}
+                                {item.errorMessage ? (
+                                  <Typography variant="body2" color="error">
+                                    {t("error")}: {item.errorMessage}
+                                  </Typography>
+                                ) : null}
+                              </Stack>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                      {index !== filteredTranscriptions.length - 1 && <Divider component="li" />}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </List>
           )}
         </CardContent>

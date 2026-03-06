@@ -14,7 +14,7 @@ Make the UI feel intentional and "product-grade" (less default-MUI), while impro
 ### P0
 
 - [x] Transcription list empty state: stop referencing a "+ button" when the UI is actually FAB icons; show 2 explicit CTAs that match the actions (Upload file, Start live session).
-- [x] Mobile ergonomics: prevent FABs from covering filters/content; adjust layout/padding and/or consolidate actions (e.g., SpeedDial or bottom action bar).
+- [x] (Superseded by V3 sticky strip) Mobile ergonomics: prevent FABs from covering filters/content; adjust layout/padding and/or consolidate actions (e.g., SpeedDial or bottom action bar).
 
 ### P1
 

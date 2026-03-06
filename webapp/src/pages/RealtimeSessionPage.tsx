@@ -8,21 +8,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
-  FormControlLabel,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Fab,
-  List,
-  ListItemButton,
-  ListItemText,
-  LinearProgress,
   Stack,
-  Switch,
-  TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -47,18 +33,7 @@ import {
 } from "../services/audio/recorderManager";
 import type { LocalWordTiming, PresetConfig } from "../data/app-db";
 import { DEFAULT_STREAMING_PRESETS } from "../data/defaultPresets";
-import TranscriptionConfigQuickOptions from "../components/TranscriptionConfigQuickOptions";
-import BackendEndpointReadonlyCard from "../components/BackendEndpointReadonlyCard";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
-import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
-import PauseRoundedIcon from "@mui/icons-material/PauseRounded";
-import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import StopCircleIcon from "@mui/icons-material/StopCircle";
-import MicNoneRoundedIcon from "@mui/icons-material/MicNoneRounded";
-import VideocamRoundedIcon from "@mui/icons-material/VideocamRounded";
-import VideocamOffRoundedIcon from "@mui/icons-material/VideocamOffRounded";
-import CameraswitchRoundedIcon from "@mui/icons-material/CameraswitchRounded";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
 import {
@@ -80,7 +55,11 @@ import {
   reduceRealtimeConnectionUxState,
   type RealtimeLatencyLevel,
 } from "./realtimeConnectionUx";
-import { StatusChipSet } from "../components/studio";
+import { motion, AnimatePresence } from "framer-motion";
+import RealtimeToolbar from "../components/realtime/RealtimeToolbar";
+import RealtimeStatusBanner from "../components/realtime/RealtimeStatusBanner";
+import RealtimeTranscript from "../components/realtime/RealtimeTranscript";
+import RealtimeSettingsDialog from "../components/realtime/RealtimeSettingsDialog";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -141,49 +120,6 @@ const DEFAULT_RUNTIME_SETTINGS: RuntimeSettingsState = {
   acousticScale: "",
 };
 
-const RUNTIME_SETTING_FIELDS: Array<{
-  key: RuntimeSettingKey;
-  label: string;
-  placeholder?: string;
-  helperText: string;
-  step?: string;
-}> = [
-    {
-      key: "maxUtterDuration",
-      label: "runtimeSettingMaxUtterDurationLabel",
-      placeholder: "runtimeSettingMaxUtterDurationPlaceholder",
-      helperText: "runtimeSettingMaxUtterDurationHelper",
-      step: "1",
-    },
-    {
-      key: "noiseThreshold",
-      label: "runtimeSettingNoiseThresholdLabel",
-      placeholder: "runtimeSettingNoiseThresholdPlaceholder",
-      helperText: "runtimeSettingNoiseThresholdHelper",
-      step: "0.01",
-    },
-    {
-      key: "epdTime",
-      label: "runtimeSettingEpdTimeLabel",
-      placeholder: "runtimeSettingEpdTimePlaceholder",
-      helperText: "runtimeSettingEpdTimeHelper",
-      step: "0.1",
-    },
-    {
-      key: "activeThreshold",
-      label: "runtimeSettingActiveThresholdLabel",
-      placeholder: "runtimeSettingActiveThresholdPlaceholder",
-      helperText: "runtimeSettingActiveThresholdHelper",
-      step: "0.01",
-    },
-    {
-      key: "acousticScale",
-      label: "runtimeSettingAcousticScaleLabel",
-      placeholder: "runtimeSettingAcousticScalePlaceholder",
-      helperText: "runtimeSettingAcousticScaleHelper",
-      step: "0.01",
-    },
-  ];
 
 type NormalizedRealtimeSegmentPayload = {
   text: string;
@@ -438,8 +374,7 @@ export default function RealtimeSessionPage() {
   const [storagePermissionState, setStoragePermissionState] = useState<BrowserPermissionState>(
     storagePermissionSupported ? "unknown" : "granted"
   );
-  const [requestingMicrophonePermission, setRequestingMicrophonePermission] = useState(false);
-  const [requestingStoragePermission, setRequestingStoragePermission] = useState(false);
+
   const defaultStreamingPreset = useMemo<PresetConfig | undefined>(
     () => {
       const presets = streamingPresets ?? [];
@@ -510,40 +445,30 @@ export default function RealtimeSessionPage() {
   }, [enqueueSnackbar, storagePermissionSupported, t]);
 
   const handleRetryMicrophonePermission = useCallback(async () => {
-    setRequestingMicrophonePermission(true);
-    try {
-      const granted = await requestMicrophonePermission();
-      const nextState = granted ? "granted" : await checkMicrophonePermission();
-      setMicrophonePermissionState(nextState);
-      enqueueSnackbar(
-        granted
-          ? t("microphonePermissionHasBeenGranted")
-          : t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
-        { variant: granted ? "success" : "warning" }
-      );
-    } finally {
-      setRequestingMicrophonePermission(false);
-    }
+    const granted = await requestMicrophonePermission();
+    const nextState = granted ? "granted" : await checkMicrophonePermission();
+    setMicrophonePermissionState(nextState);
+    enqueueSnackbar(
+      granted
+        ? t("microphonePermissionHasBeenGranted")
+        : t("unableToRequestMicrophonePermissionPleaseCheckYourBrowserSettings"),
+      { variant: granted ? "success" : "warning" }
+    );
   }, [enqueueSnackbar, t]);
 
   const handleRetryStoragePermission = useCallback(async () => {
     if (!storagePermissionSupported) {
       return;
     }
-    setRequestingStoragePermission(true);
-    try {
-      const granted = await requestPersistentStoragePermission();
-      const nextState = granted ? "granted" : await checkPersistentStoragePermission();
-      setStoragePermissionState(nextState);
-      enqueueSnackbar(
-        granted
-          ? t("storagePermissionsGranted")
-          : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
-        { variant: granted ? "success" : "warning" }
-      );
-    } finally {
-      setRequestingStoragePermission(false);
-    }
+    const granted = await requestPersistentStoragePermission();
+    const nextState = granted ? "granted" : await checkPersistentStoragePermission();
+    setStoragePermissionState(nextState);
+    enqueueSnackbar(
+      granted
+        ? t("storagePermissionsGranted")
+        : t("unableToRequestStoragePermissionPleaseCheckYourBrowserSettings"),
+      { variant: granted ? "success" : "warning" }
+    );
   }, [enqueueSnackbar, storagePermissionSupported, t]);
 
   const [sessionState, setSessionState] = useState<SessionState>("idle");
@@ -558,6 +483,7 @@ export default function RealtimeSessionPage() {
   const [partialText, setPartialText] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [latencyStaleMs, setLatencyStaleMs] = useState<number | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
@@ -654,21 +580,21 @@ export default function RealtimeSessionPage() {
           : "default";
   const latencyValueLabel =
     lastLatencyMs !== null
-      ? `${Math.round(lastLatencyMs)}ms`
+      ? `${Math.round(lastLatencyMs)} ms`
       : latencyStaleMs !== null
-        ? `${Math.round(latencyStaleMs / 1000)}s`
+        ? `${Math.round(latencyStaleMs / 1000)} s`
         : "--";
-  const showConnectionBanner = sessionActive && connectionUxState.phase !== "normal";
   const sessionStateLabel = t(SESSION_STATE_LABEL_KEY[sessionState]);
   const latencyLevelLabel = t(LATENCY_LEVEL_LABEL_KEY[latencyLevel]);
   const connectionBannerMessage =
-    connectionUxState.phase === "failed"
+    connectionEventMessage ??
+    (connectionUxState.phase === "failed"
       ? t("realtimeReconnectFailedDetail")
       : connectionUxState.reconnectAttempt > 0
         ? t("attemptingToReconnectToStreaming", {
-            values: { attempt: connectionUxState.reconnectAttempt },
-          })
-        : t("aStreamingErrorOccurredTheConnectionIsBeingRestored");
+          values: { attempt: connectionUxState.reconnectAttempt },
+        })
+        : t("aStreamingErrorOccurredTheConnectionIsBeingRestored"));
 
   useEffect(() => {
     setFloatingActionsVisible(!sessionActive);
@@ -726,6 +652,7 @@ export default function RealtimeSessionPage() {
       console.error("Failed to stop recorder", error);
     } finally {
       recorderRef.current = null;
+      setAudioLevel(0);
     }
     return true;
   }, []);
@@ -1053,6 +980,7 @@ export default function RealtimeSessionPage() {
     setConnectionEventMessage(null);
     setRetryingConnection(false);
     setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
+    setAudioLevel(0);
     setSessionState("idle");
   };
 
@@ -1188,7 +1116,7 @@ export default function RealtimeSessionPage() {
       }
 
       const segment: RealtimeSegment = {
-        id: `${Date.now()}-${segmentsRef.current.length}`,
+        id: `${Date.now()} -${segmentsRef.current.length} `,
         text: normalized.text,
         rawText: normalized.rawText,
         startMs,
@@ -1363,6 +1291,7 @@ export default function RealtimeSessionPage() {
         targetSampleRate: sampleRate,
         chunkMillis: 800,
         onChunk: handleAudioChunk,
+        onLevel: setAudioLevel,
         onError: (error) => {
           console.error(t("recordingError"), error);
           setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
@@ -1381,6 +1310,9 @@ export default function RealtimeSessionPage() {
           void finalizeSession(finalizeReasonRef.current === "aborted");
         },
       });
+      if (recorder.recorderState !== "recording") {
+        throw new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+      }
     } catch (error) {
       console.error(t("failedToStartRecording"), error);
       setErrorMessage(
@@ -1388,6 +1320,7 @@ export default function RealtimeSessionPage() {
       );
       enqueueSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
       stopSession(true);
+      throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
     }
   };
 
@@ -1507,6 +1440,7 @@ export default function RealtimeSessionPage() {
     if (!stopRecorder() && aborted) {
       void finalizeSession(true);
     }
+    setAudioLevel(0);
   };
 
   stopSessionRef.current = stopSession;
@@ -1581,18 +1515,6 @@ export default function RealtimeSessionPage() {
       longPressTimerRef.current = null;
       stopSession(false);
     }, 3000);
-  };
-
-  const handleMainButtonPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (sessionState !== "recording") return;
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      return;
-    }
-    startLongPressDetection();
-  };
-
-  const clearMainButtonPointerState = () => {
-    cancelLongPressDetection();
   };
 
   const handleMainButtonClick = () => {
@@ -1678,7 +1600,7 @@ export default function RealtimeSessionPage() {
 
     try {
       const record = await createLocalTranscription({
-        title: `${t("realTimeTranscription")} ${formatLocalizedDateTime(new Date(), locale)}`,
+        title: `${t("realTimeTranscription")} ${formatLocalizedDateTime(new Date(), locale)} `,
         kind: "realtime",
         status: "processing",
         metadata: {
@@ -1729,7 +1651,9 @@ export default function RealtimeSessionPage() {
     setSessionState("countdown");
     setRuntimeSettingsOpen(false);
 
-    void prepareSession(decoderConfig);
+    void prepareSession(decoderConfig).catch((error) => {
+      console.error("Failed to prepare streaming session", error);
+    });
 
     clearCountdown();
     countdownTimerRef.current = window.setInterval(() => {
@@ -1786,93 +1710,17 @@ export default function RealtimeSessionPage() {
     return base;
   }, [segments, partialText]);
 
-  const formatTimeRange = (segment: RealtimeSegment) => {
-    const start = (segment.startMs / 1000).toFixed(1);
-    const end = (segment.endMs / 1000).toFixed(1);
-    return `${start}s ~ ${end}s`;
+  const handleMainButtonPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (sessionState !== "recording") return;
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    startLongPressDetection();
   };
 
-  const mainButtonDisabled =
-    sessionState === "countdown" ||
-    sessionState === "saving" ||
-    sessionState === "stopping" ||
-    retryingConnection;
-  const mainButtonLabel = (() => {
-    switch (sessionState) {
-      case "idle":
-        return t("startSession");
-      case "recording":
-        return t("pause");
-      case "paused":
-        return connectionUxState.phase === "failed" ? t("retryConnection") : t("resumption");
-      case "saving":
-        return t("saving");
-      case "stopping":
-        return t("stopping");
-      case "connecting":
-        return t("connecting");
-      case "countdown":
-        return t("readyToStartS", {
-          values: { seconds: Math.max(countdown, 0) },
-        });
-      default:
-        return t("sessionControl");
-    }
-  })();
-  const mainButtonIcon = (() => {
-    switch (sessionState) {
-      case "idle":
-        return <MicNoneRoundedIcon />;
-      case "recording":
-        return <PauseRoundedIcon />;
-      case "paused":
-        return retryingConnection ? (
-          <CircularProgress size={24} color="inherit" thickness={5} />
-        ) : (
-          <PlayArrowRoundedIcon />
-        );
-      case "connecting":
-      case "countdown":
-        return <HourglassBottomIcon />;
-      case "saving":
-      case "stopping":
-        return <CircularProgress size={24} color="inherit" thickness={5} />;
-      default:
-        return <MicNoneRoundedIcon />;
-    }
-  })();
-  const mainButtonColor: "primary" | "secondary" | "success" =
-    sessionState === "recording" || (sessionState === "paused" && connectionUxState.phase !== "failed")
-      ? "secondary"
-      : sessionState === "saving" || sessionState === "stopping"
-        ? "success"
-        : "primary";
-  const mainButtonTooltip = (() => {
-    if (sessionState === "recording") {
-      return t("tapToPausePressAndHoldFor3SecondsToEndTheSession");
-    }
-    if (sessionState === "paused") {
-      if (connectionUxState.phase === "failed") {
-        return t("retryConnectionToResumeSession");
-      }
-      return t("tapToResumeTranscription");
-    }
-    if (sessionState === "connecting") {
-      return t("sessionEnds");
-    }
-    if (sessionState === "idle") {
-      return t("realTimeTranscriptionBeginsAfterA3SecondCountdown");
-    }
-    if (sessionState === "saving" || sessionState === "stopping") {
-      return t("savingResults");
-    }
-    return t("preparingForSession");
-  })();
-  const showStopFab =
-    sessionState === "paused" ||
-    sessionState === "recording" ||
-    sessionState === "connecting" ||
-    sessionState === "countdown";
+  const clearMainButtonPointerState = () => {
+    cancelLongPressDetection();
+  };
 
   const handleStopFabClick = () => {
     const shouldAbort =
@@ -1896,15 +1744,8 @@ export default function RealtimeSessionPage() {
   };
 
   const showVideoSection = cameraEnabled || cameraLoading;
-  const showMicrophonePermissionRecovery = !sessionActive && microphonePermissionState !== "granted";
-  const showStoragePermissionRecovery =
-    !sessionActive &&
-    storagePermissionSupported &&
-    storagePermissionState !== "granted";
-  const microphonePermissionSeverity =
-    microphonePermissionState === "denied" ? "error" : "warning";
-  const storagePermissionSeverity =
-    storagePermissionState === "denied" ? "error" : "warning";
+  const switchCameraLabel =
+    cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera");
 
   return (
     <>
@@ -1933,7 +1774,7 @@ export default function RealtimeSessionPage() {
               : undefined,
           }}
         >
-          {/* Fixed Video Section */}
+          {/* Video Section */}
           {showVideoSection && (
             <Box
               sx={{
@@ -1956,6 +1797,16 @@ export default function RealtimeSessionPage() {
                 <CardHeader
                   title={t("sessionVideoCapture")}
                   subheader={t("recordVideoAlongsideRealTimeTranscription")}
+                  action={
+                    <Button
+                      size="small"
+                      onClick={handleSwitchCamera}
+                      disabled={!cameraEnabled || cameraLoading}
+                      aria-label={switchCameraLabel}
+                    >
+                      {switchCameraLabel}
+                    </Button>
+                  }
                 />
                 <Collapse in={showVideoSection} unmountOnExit>
                   <CardContent>
@@ -1979,26 +1830,26 @@ export default function RealtimeSessionPage() {
                           "@media (orientation: landscape)": {
                             maxWidth: "100%",
                             maxHeight: "100vh",
-                            marginLeft: 0,
-                            marginRight: "auto",
                           },
                         }}
                       >
-                        <Box
-                          sx={{
-                            position: "absolute",
-                            inset: 0,
-                            display: cameraEnabled ? "none" : "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "text.secondary",
-                            textAlign: "center",
-                            p: 2,
-                            backgroundColor: (theme) => theme.palette.action.hover,
-                          }}
-                        >
-                          <Typography variant="body2">{t("cameraPreview")}</Typography>
-                        </Box>
+                        {!cameraEnabled && (
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "text.secondary",
+                              textAlign: "center",
+                              p: 2,
+                              backgroundColor: (theme) => alpha(theme.palette.action.hover, 0.8),
+                            }}
+                          >
+                            <Typography variant="body2">{t("cameraPreview")}</Typography>
+                          </Box>
+                        )}
                         <Box
                           component="video"
                           ref={cameraPreviewRef}
@@ -2052,7 +1903,7 @@ export default function RealtimeSessionPage() {
             </Box>
           )}
 
-          {/* Scrollable Transcript Section */}
+          {/* Transcription Content Section */}
           <Box
             sx={{
               flex: "1 1 auto",
@@ -2061,701 +1912,123 @@ export default function RealtimeSessionPage() {
               display: "flex",
               flexDirection: "column",
               gap: 2,
-              // Add padding at bottom for floating buttons + safe area
               pb: {
-                xs: "calc(188px + env(safe-area-inset-bottom))",
-                sm: "calc(124px + env(safe-area-inset-bottom))",
+                xs: "calc(220px + env(safe-area-inset-bottom))",
+                sm: "calc(180px + env(safe-area-inset-bottom))",
               },
               minHeight: 0,
               "@media (orientation: landscape)": showVideoSection
-                ? {
-                  pr: 2,
-                  pl: 1,
-                }
+                ? { pr: 2, pl: 1 }
                 : undefined,
             }}
           >
-            <Card sx={{ minHeight: "100%" }}>
-              <CardHeader
-                title={
-                  <Typography component="h1" variant={sessionActive ? "h6" : "h5"}>
-                    {t("realTimeTranscription")}
-                  </Typography>
-                }
-                subheader={
-                  sessionActive
-                    ? undefined
-                    : t("startRecordingAfterA3SecondCountdownAndCheckThePartialFinalResultsInRealTime")
-                }
-                sx={sessionActive ? { pb: 1 } : undefined}
-              />
-              {sessionState !== "idle" && <LinearProgress />}
-              <CardContent>
-                <Stack spacing={2}>
-                  {!apiBaseUrl.trim() && (
-                    <Alert severity="warning">
-                      {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
-                    </Alert>
-                  )}
-                  <Card
-                    variant="outlined"
-                    sx={{
-                      position: "relative",
-                      overflow: "hidden",
-                      borderColor:
-                        connectionUxState.phase === "failed"
-                          ? "error.main"
-                          : connectionUxState.phase === "reconnecting"
-                          ? "warning.main"
-                          : "divider",
-                      backgroundImage: (theme) =>
-                        connectionUxState.phase === "failed"
-                          ? `linear-gradient(145deg, ${alpha(theme.palette.error.main, 0.16)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
-                          : connectionUxState.phase === "reconnecting"
-                            ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.17)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
-                            : `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`,
-                      transition: "border-color 200ms ease, background-color 200ms ease",
-                      "@media (prefers-reduced-motion: reduce)": {
-                        transition: "none",
-                      },
-                      "&::before": {
-                        content: '""',
-                        position: "absolute",
-                        inset: 0,
-                        pointerEvents: "none",
-                        opacity: connectionUxState.phase === "normal" ? 0.4 : 0.2,
-                        backgroundImage: (theme) =>
-                          `linear-gradient(90deg, ${alpha(theme.palette.common.white, 0.35)} 0%, ${alpha(theme.palette.common.white, 0)} 40%)`,
-                      },
-                    }}
-                  >
-                    <CardContent sx={{ position: "relative", "&:last-child": { pb: 2 } }}>
-                      <Stack spacing={1.5}>
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={1.25}
-                          justifyContent="space-between"
-                          alignItems={{ xs: "flex-start", md: "center" }}
-                        >
-                          <Stack spacing={0.25}>
-                            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.75 }}>
-                              {t("realTimeTranscription")}
-                            </Typography>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Box
-                                sx={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: "50%",
-                                  flexShrink: 0,
-                                  bgcolor:
-                                    connectionUxState.phase === "failed"
-                                      ? "error.main"
-                                      : connectionUxState.phase === "reconnecting"
-                                        ? "warning.main"
-                                        : "success.main",
-                                  boxShadow: (theme) =>
-                                    `0 0 0 4px ${
-                                      connectionUxState.phase === "failed"
-                                        ? alpha(theme.palette.error.main, 0.2)
-                                        : connectionUxState.phase === "reconnecting"
-                                          ? alpha(theme.palette.warning.main, 0.2)
-                                          : alpha(theme.palette.success.main, 0.2)
-                                    }`,
-                                }}
-                              />
-                              <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
-                                {sessionStateLabel}
-                              </Typography>
-                            </Stack>
-                          </Stack>
-                          <StatusChipSet
-                            items={[
-                              {
-                                key: "session-status",
-                                label: `${t("status")}: ${sessionStateLabel}`,
-                                color: "primary",
-                              },
-                              {
-                                key: "session-latency",
-                                label: `${t("realtimeLatency")}: ${latencyLevelLabel} · ${latencyValueLabel}`,
-                                color: latencyChipColor,
-                              },
-                              ...(sessionState === "countdown"
-                                ? [
-                                    {
-                                      key: "session-countdown",
-                                      label: t("readyToStartS", {
-                                        values: { seconds: Math.max(countdown, 0) },
-                                      }),
-                                      color: "secondary" as const,
-                                    },
-                                  ]
-                                : []),
-                            ]}
-                          />
-                        </Stack>
-                        <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                          <Box
-                            sx={{
-                              flex: 1,
-                              px: 1.25,
-                              py: 1,
-                              borderRadius: 2,
-                              border: "1px solid",
-                              borderColor: (theme) => alpha(theme.palette.text.primary, 0.12),
-                              bgcolor: (theme) => alpha(theme.palette.common.white, 0.55),
-                            }}
-                          >
-                            <Typography variant="caption" color="text.secondary">
-                              {t("currentlySelectedStreamingSetting", {
-                                values: {
-                                  name:
-                                    activeStreamingPreset?.name ??
-                                    defaultStreamingPreset?.name ??
-                                    t("defaultSettings"),
-                                },
-                              })}
-                            </Typography>
-                            {activeStreamingPreset?.description ? (
-                              <Typography variant="caption" color="text.secondary" display="block">
-                                {activeStreamingPreset.description}
-                              </Typography>
-                            ) : null}
-                          </Box>
-                          <Box
-                            sx={{
-                              flex: 1,
-                              px: 1.25,
-                              py: 1,
-                              borderRadius: 2,
-                              border: "1px solid",
-                              borderColor: (theme) => alpha(theme.palette.text.primary, 0.12),
-                              bgcolor: (theme) => alpha(theme.palette.common.white, 0.55),
-                            }}
-                          >
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              {t("automaticTemporaryStorageCycleSeconds", {
-                                values: { seconds: realtimeAutoSaveSeconds },
-                              })}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {t("realtimeLatency")}: {latencyLevelLabel} · {latencyValueLabel}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                        {showConnectionBanner ? (
-                          <Stack
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1}
-                            justifyContent="space-between"
-                            alignItems={{ xs: "flex-start", sm: "center" }}
-                          >
-                            <Typography variant="body2">{connectionBannerMessage}</Typography>
-                            <Stack direction="row" spacing={1}>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                color="primary"
-                                onClick={() => void handleRetryConnection()}
-                                disabled={retryingConnection}
-                              >
-                                {retryingConnection ? t("retryingConnection") : t("retryConnection")}
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="inherit"
-                                onClick={() => stopSession(true)}
-                                disabled={retryingConnection}
-                              >
-                                {t("abortSession")}
-                              </Button>
-                            </Stack>
-                          </Stack>
-                        ) : null}
-                        {connectionEventMessage ? (
-                          <Typography variant="caption" color="text.secondary">
-                            {connectionEventMessage}
-                          </Typography>
-                        ) : null}
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                  {showMicrophonePermissionRecovery ? (
-                    <Alert
-                      severity={microphonePermissionSeverity}
-                      action={(
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => void handleRetryMicrophonePermission()}
-                            disabled={requestingMicrophonePermission}
-                          >
-                            {requestingMicrophonePermission ? t("requesting") : t("reRequestPermission")}
-                          </Button>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => navigate("/settings")}
-                          >
-                            {t("browserPermissions")}
-                          </Button>
-                        </Stack>
-                      )}
-                    >
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {t("microphonePermission")}
-                        </Typography>
-                        <Typography variant="body2">
-                          {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {t("openBrowserSiteSettingsAndAllowPermissionThenRetry", {
-                            values: { permission: t("microphonePermission") },
-                          })}
-                        </Typography>
-                      </Stack>
-                    </Alert>
-                  ) : null}
-                  {showStoragePermissionRecovery ? (
-                    <Alert
-                      severity={storagePermissionSeverity}
-                      action={(
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => void handleRetryStoragePermission()}
-                            disabled={requestingStoragePermission}
-                          >
-                            {requestingStoragePermission ? t("requesting") : t("reRequestPermission")}
-                          </Button>
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => navigate("/settings")}
-                          >
-                            {t("browserPermissions")}
-                          </Button>
-                        </Stack>
-                      )}
-                    >
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {t("storagePermissions")}
-                        </Typography>
-                        <Typography variant="body2">
-                          {t("thisPermissionIsRequiredForRealTimeSessionRecording")}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {t("openBrowserSiteSettingsAndAllowPermissionThenRetry", {
-                            values: { permission: t("storagePermissions") },
-                          })}
-                        </Typography>
-                      </Stack>
-                    </Alert>
-                  ) : null}
-                  {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-                  <Divider />
-                  <Stack spacing={0.5}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={noteMode}
-                          onChange={(event) => setNoteMode(event.target.checked)}
-                        />
-                      }
-                      label={t("noteMode")}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      {t("noteModeHelper")}
-                    </Typography>
-                  </Stack>
-                  {noteMode ? (
-                    <TextField
-                      multiline
-                      minRows={6}
-                      fullWidth
-                      label={t("noteModeTextAreaLabel")}
-                      placeholder={t("noteModePlaceholder")}
-                      value={noteModeText}
-                      InputProps={{ readOnly: true }}
-                    />
-                  ) : (
-                    <>
-                      {segments.length === 0 && sessionState === "idle" && (
-                        <Typography variant="body1" color="text.secondary">
-                          {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
-                        </Typography>
-                      )}
-                      {segments.length > 0 && (
-                        <Stack spacing={1.5}>
-                          {segments.map((segment) => (
-                            <Card key={segment.id} variant="outlined">
-                              <CardContent>
-                                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                                  <Chip label={formatTimeRange(segment)} color="success" size="small" />
-                                </Stack>
-                                <Typography variant="body1">{segment.text}</Typography>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </Stack>
-                      )}
-                      {partialText && (
-                        <Card variant="outlined" sx={{ borderColor: "secondary.light" }}>
-                          <CardContent>
-                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                              <Chip label={t("realTimeRecognition")} color="secondary" size="small" />
-                            </Stack>
-                            <Typography variant="body1" color="secondary.main">
-                              {partialText}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </>
-                  )}
-                  <Box ref={transcriptEndRef} sx={{ height: 1 }} />
-                </Stack>
-              </CardContent>
-            </Card>
+            <RealtimeStatusBanner
+              sessionState={sessionState}
+              sessionStateLabel={sessionStateLabel}
+              connectionUxState={connectionUxState}
+              latencyLevelLabel={latencyLevelLabel}
+              latencyValueLabel={latencyValueLabel}
+              latencyChipColor={latencyChipColor}
+              countdown={countdown}
+              connectionBannerMessage={connectionBannerMessage}
+              microphonePermissionState={microphonePermissionState}
+              storagePermissionState={storagePermissionState}
+              storagePermissionSupported={storagePermissionSupported}
+              onRetryMicrophonePermission={() => void handleRetryMicrophonePermission()}
+              onRetryStoragePermission={() => void handleRetryStoragePermission()}
+              onManualRetryConnection={() => void handleRetryConnection()}
+            />
+
+            {(errorMessage || !apiBaseUrl.trim()) && (
+              <Stack spacing={2}>
+                {!apiBaseUrl.trim() && (
+                  <Alert severity="warning">
+                    {t("pleaseEnterThePythonApiBaseUrlOnTheSettingsPage")}
+                  </Alert>
+                )}
+                {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+              </Stack>
+            )}
+
+            <RealtimeTranscript
+              segments={segments}
+              partialText={partialText}
+              noteMode={noteMode}
+              onNoteModeChange={setNoteMode}
+              noteModeText={noteModeText}
+              sessionState={sessionState}
+            />
           </Box>
         </Box>
       </Box>
 
-      {/* Floating Settings Button */}
-      {!sessionActive && (
-        <Box
-          sx={{
-            position: "fixed",
-            bottom: "calc(16px + env(safe-area-inset-bottom))",
-            left: { xs: 16, sm: 32 },
-            zIndex: (theme) => theme.zIndex.modal + 1,
-          }}
-        >
-          <Tooltip
-            title={runtimeSettingsOpen ? t("closeSettings") : t("openRealTimeTranscriptionSettings")}
-            placement="right"
-          >
-            <Fab
-              size="small"
-              color={runtimeSettingsOpen ? "secondary" : "default"}
-              onClick={() => {
-                runtimeSettingsFabRef.current?.blur();
-                setRuntimeSettingsOpen((prev) => !prev);
-              }}
-              aria-label={runtimeSettingsOpen ? t("closeStreamingSettings") : t("openStreamingSettings")}
-              ref={runtimeSettingsFabRef}
-            >
-              <SettingsRoundedIcon />
-            </Fab>
-          </Tooltip>
-        </Box>
-      )}
+      {/* Toolbar and Settings */}
+      <RealtimeToolbar
+        sessionState={sessionState}
+        retryingConnection={retryingConnection}
+        onMainAction={handleMainButtonClick}
+        onStopAction={handleStopFabClick}
+        onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
+        cameraSupported={cameraSupported}
+        cameraEnabled={cameraEnabled}
+        onToggleCamera={handleToggleCamera}
+        audioLevel={audioLevel}
+        mainButtonPointerDown={handleMainButtonPointerDown}
+        clearPointerState={clearMainButtonPointerState}
+      />
 
-      {/* Floating Main Controls */}
-      <Box
-        sx={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: "calc(16px + env(safe-area-inset-bottom))",
-          display: "flex",
-          justifyContent: "center",
-          zIndex: (theme) =>
-            sessionState === "countdown"
-              ? theme.zIndex.modal + 3
-              : theme.zIndex.modal + 1,
-          pointerEvents: "none",
-        }}
-      >
-        <Box
-          sx={{
-            pointerEvents: "auto",
-            px: { xs: 1.25, sm: 1.5 },
-            py: 1,
-            maxWidth: "calc(100vw - 20px)",
-            borderRadius: 999,
-            border: "1px solid",
-            borderColor: (theme) => alpha(theme.palette.text.primary, 0.16),
-            bgcolor: (theme) => alpha(theme.palette.background.paper, 0.88),
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 18px 40px rgba(0,0,0,0.2)",
-          }}
-        >
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center">
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <Tooltip title={mainButtonTooltip}>
-                <span>
-                  <Fab
-                    variant="extended"
-                    color={mainButtonColor}
-                    size="large"
-                    disabled={mainButtonDisabled}
-                    onClick={handleMainButtonClick}
-                    onPointerDown={handleMainButtonPointerDown}
-                    onPointerUp={clearMainButtonPointerState}
-                    onPointerLeave={clearMainButtonPointerState}
-                    onPointerCancel={clearMainButtonPointerState}
-                    aria-label={mainButtonLabel}
-                    sx={{
-                      px: { xs: 4, sm: 6 },
-                      minWidth: { xs: 220, sm: 280 },
-                      fontWeight: 700,
-                      fontSize: { xs: "1rem", sm: "1.05rem" },
-                      boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
-                    }}
-                  >
-                    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {mainButtonIcon}
-                      <Box component="span" sx={{ lineHeight: 1 }}>
-                        {mainButtonLabel}
-                      </Box>
-                    </Box>
-                  </Fab>
-                </span>
-              </Tooltip>
-              {showStopFab && (
-                <Tooltip title={t("sessionEnds")}>
-                  <Fab
-                    color="error"
-                    aria-label={t("sessionEnds")}
-                    onClick={handleStopFabClick}
-                    sx={{
-                      boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
-                    }}
-                  >
-                    <StopCircleIcon />
-                  </Fab>
-                </Tooltip>
-              )}
-            </Stack>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
-                <span>
-                  <Fab
-                    color={cameraEnabled ? "secondary" : "default"}
-                    size="medium"
-                    onClick={handleToggleCamera}
-                    disabled={cameraLoading || !cameraSupported}
-                    aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
-                    sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
-                  >
-                    {cameraEnabled ? <VideocamOffRoundedIcon /> : <VideocamRoundedIcon />}
-                  </Fab>
-                </span>
-              </Tooltip>
-              <Tooltip
-                title={
-                  cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")
-                }
-              >
-                <span>
-                  <Fab
-                    color="default"
-                    size="medium"
-                    onClick={handleSwitchCamera}
-                    disabled={!cameraEnabled || cameraLoading}
-                    aria-label={cameraFacingMode === "user" ? t("switchToRearCamera") : t("switchToFrontCamera")}
-                    sx={{ boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
-                  >
-                    <CameraswitchRoundedIcon />
-                  </Fab>
-                </span>
-              </Tooltip>
-            </Stack>
-          </Stack>
-        </Box>
-      </Box>
-
-      {/* Countdown Overlay */}
-      {sessionState === "countdown" && countdown > 0 ? (
-        <Box
-          sx={{
-            position: "fixed",
-            inset: 0,
-            bgcolor: "rgba(0, 0, 0, 0.6)",
-            zIndex: (theme) => theme.zIndex.modal + 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "common.white",
-            textAlign: "center",
-          }}
-        >
-          <Typography
-            component="div"
-            sx={{
-              fontSize: {
-                xs: "26vw",
-                sm: "22vw",
-                md: "18vw",
-              },
-              fontWeight: 700,
-              lineHeight: 1,
-              textShadow: "0 8px 24px rgba(0,0,0,0.45)",
-            }}
-            aria-live="assertive"
-          >
-            {countdown}
-          </Typography>
-        </Box>
-      ) : null}
-
-      {/* Settings Dialog */}
-      <Dialog
+      <RealtimeSettingsDialog
         open={runtimeSettingsOpen}
         onClose={() => setRuntimeSettingsOpen(false)}
-        fullWidth
-        maxWidth="md"
-        slotProps={{
-          root: {
-            container: portalContainer ?? undefined,
-            disableRestoreFocus: true,
-          },
-        }}
-      >
-        <DialogTitle>{t("streamTranscriptionSettings")}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={3}>
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                {t("streamingTranscriptionPresets")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {t("youCanInstantlySelectSettingsToUseInYourLiveSessionOrFineTuneThemInJson")}
-              </Typography>
-              {!streamingPresets?.length ? (
-                <Alert severity="info" variant="outlined">
-                  {t("pleaseAddStreamingPresetsInSettingsManageTranscriptionSettings")}
-                </Alert>
-              ) : (
-                <List
-                  dense
-                  disablePadding
-                  sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    borderRadius: 2,
-                    overflow: "hidden",
-                  }}
-                >
-                  {streamingPresets.map((preset) => (
-                    <ListItemButton
-                      key={preset.id}
-                      selected={activeStreamingPreset?.id === preset.id}
-                      onClick={() => setSelectedPresetId(preset.id)}
-                    >
-                      <ListItemText
-                        primary={preset.name}
-                        secondary={preset.description || undefined}
-                        primaryTypographyProps={{
-                          fontWeight: activeStreamingPreset?.id === preset.id ? 700 : 500,
-                        }}
-                      />
-                    </ListItemButton>
-                  ))}
-                </List>
-              )}
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                {t("youCanAddEditPresetsOnTheSettingsPage")}
-              </Typography>
-            </Box>
-            <TranscriptionConfigQuickOptions
-              type="streaming"
-              configJson={streamingRequestJson}
-              onChange={setStreamingRequestJson}
-              collapsible
-            />
-            <Box>
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => setStreamingJsonEditorOpen((prev) => !prev)}
+        streamingPresets={streamingPresets}
+        activeStreamingPreset={activeStreamingPreset}
+        onSelectPreset={setSelectedPresetId}
+        streamingRequestJson={streamingRequestJson}
+        setStreamingRequestJson={setStreamingRequestJson}
+        jsonEditorOpen={streamingJsonEditorOpen}
+        setJsonEditorOpen={setStreamingJsonEditorOpen}
+        streamConfigOpen={runtimeStreamConfigOpen}
+        setStreamConfigOpen={setRuntimeStreamConfigOpen}
+        runtimeSettings={runtimeSettings}
+        onRuntimeSettingChange={handleRuntimeSettingChange}
+        portalContainer={portalContainer}
+      />
+
+      {/* Countdown Overlay */}
+      <AnimatePresence>
+        {sessionState === "countdown" && countdown > 0 && (
+          <Box
+            sx={{
+              position: "fixed",
+              inset: 0,
+              bgcolor: "rgba(0, 0, 0, 0.75)",
+              zIndex: (theme) => theme.zIndex.modal + 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "common.white",
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              key={countdown}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <Typography
+                sx={{
+                  fontSize: { xs: "35vw", md: "20vw" },
+                  fontWeight: 900,
+                  lineHeight: 1,
+                }}
               >
-                {streamingJsonEditorOpen ? t("hideJson") : t("editJsonDirectly")}
-              </Button>
-              <Collapse in={streamingJsonEditorOpen} sx={{ mt: 1 }}>
-                <TextField
-                  multiline
-                  minRows={10}
-                  fullWidth
-                  label={t("runtimeRequestConfig")}
-                  value={streamingRequestJson}
-                  onChange={(event) => setStreamingRequestJson(event.target.value)}
-                  helperText={t("editTheEntireJsonDirectlyToImmediatelyReflectTheOptionsYouNeed")}
-                  InputProps={{
-                    sx: { fontFamily: "Menlo, Consolas, monospace" },
-                  }}
-                />
-              </Collapse>
-            </Box>
-            <BackendEndpointReadonlyCard />
-            <Box>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom sx={{ mb: 0 }}>
-                    {t("runtimeStreamConfigWebsocketTitle")}
-                  </Typography>
-                  {!runtimeStreamConfigOpen && (
-                    <Typography variant="body2" color="text.secondary">
-                      {t("youCanAlsoPassGrpcRuntimestreamconfigValuesToWebsocketSessions")}
-                    </Typography>
-                  )}
-                </Box>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => setRuntimeStreamConfigOpen((prev) => !prev)}
-                >
-                  {runtimeStreamConfigOpen ? t("hideSettings") : t("viewSettings")}
-                </Button>
-              </Stack>
-              <Collapse in={runtimeStreamConfigOpen} sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {t("runtimeStreamConfigWebsocketHelper")}
-                </Typography>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      lg: "repeat(auto-fit, minmax(160px, 1fr))",
-                    },
-                    gap: 2,
-                  }}
-                >
-                  {RUNTIME_SETTING_FIELDS.map((field) => (
-                    <TextField
-                      key={field.key}
-                      type="number"
-                      label={t(field.label)}
-                      fullWidth
-                      value={runtimeSettings[field.key]}
-                      onChange={(event) => handleRuntimeSettingChange(field.key, event.target.value)}
-                      placeholder={field.placeholder ? t(field.placeholder) : undefined}
-                      helperText={field.helperText ? t(field.helperText) : undefined}
-                      inputProps={{ step: field.step ?? "0.1" }}
-                    />
-                  ))}
-                </Box>
-              </Collapse>
-            </Box>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRuntimeSettingsOpen(false)}>{t("close")}</Button>
-        </DialogActions>
-      </Dialog>
+                {countdown}
+              </Typography>
+            </motion.div>
+          </Box>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -10,6 +10,7 @@ export interface RecorderChunkInfo {
 
 export interface RecorderCallbacks {
   onChunk?: (chunk: ArrayBuffer, info: RecorderChunkInfo) => void;
+  onLevel?: (level: number) => void;
   onError?: (error: Error) => void;
   onStop?: () => void;
 }
@@ -55,6 +56,10 @@ export class RecorderManager {
     return this.state;
   }
 
+  getStream() {
+    return this.mediaStream;
+  }
+
   async start(options: RecorderStartOptions = {}) {
     if (this.state === "recording" || this.state === "preparing") {
       return;
@@ -64,6 +69,7 @@ export class RecorderManager {
       this.state = "preparing";
       this.callbacks = {
         onChunk: options.onChunk,
+        onLevel: options.onLevel,
         onError: options.onError,
         onStop: options.onStop,
       };
@@ -91,6 +97,18 @@ export class RecorderManager {
         }
         try {
           const inputBuffer = event.inputBuffer.getChannelData(0);
+
+          // Calculate level (RMS)
+          let sumSquares = 0;
+          for (let i = 0; i < inputBuffer.length; i++) {
+            sumSquares += inputBuffer[i] * inputBuffer[i];
+          }
+          const rms = Math.sqrt(sumSquares / inputBuffer.length);
+          // Simple peak detection/scaling for 0 to 1 range
+          // Multiply by 4-5 to make typical speech more visible
+          const level = Math.min(1, rms * 5);
+          this.callbacks.onLevel?.(level);
+
           if (!this.resampler) {
             return;
           }

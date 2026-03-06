@@ -10,7 +10,7 @@ export interface LocalTranscription {
   title: string;
   kind: LocalTranscriptionKind;
   status: "pending" | "processing" | "completed" | "failed";
-  processingStage?: "recording" | "finalizing";
+  processingStage?: "idle" | "connecting" | "recording" | "paused" | "finalizing" | "saving";
   createdAt: string;
   updatedAt: string;
   remoteId?: string;

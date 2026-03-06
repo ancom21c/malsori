@@ -569,6 +569,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Copied to clipboard.",
     ja: "クリップボードにコピーしました。",
   },
+  checkJsonSyntax: {
+    ko: "JSON 문법을 확인해 주세요.",
+    en: "Please check the JSON syntax.",
+    ja: "JSON 構文を確認してください。",
+  },
+  detailedSettingsJson: {
+    ko: "상세 설정 JSON",
+    en: "Detailed settings JSON",
+    ja: "詳細設定 JSON",
+  },
   requestConfigJson: {
     ko: "RequestConfig (JSON)",
     en: "RequestConfig (JSON)",

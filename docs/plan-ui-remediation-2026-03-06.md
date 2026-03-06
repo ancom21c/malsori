@@ -1,0 +1,89 @@
+# UI Remediation + Studio Console Alignment Plan (2026-03-06)
+
+## Goal
+
+현재 워킹트리에서 식별된 `P0~P2` 결함을 출하 가능 상태로 복구하고, 동시에 `Studio Console` 디자인 방향을 문서상 canonical contract로 재정의한다.
+
+## Inputs
+
+현재 기준 핵심 문제는 다음 다섯 축으로 정리된다.
+
+1. releasability 회귀: `lint/build/i18n` 실패
+2. realtime correctness 회귀: 종료 후 라우팅, 기본 config fallback, 오디오 meter wiring 불안정
+3. mobile IA 충돌: 전역 하단 액션과 route별 sticky action이 중복될 수 있음
+4. accessibility/motion drift: icon button label, reduced motion, dark mode browser chrome 정합성 부족
+5. spec/design drift: 현재 dark Studio Console 구현과 기존 문서 범위가 어긋남
+
+## Canonical Decisions
+
+### 1. Release Gate Contract
+
+- 배포 전 최소 게이트는 `npm --prefix webapp run lint`, `npm --prefix webapp run build`, `npm --prefix webapp run i18n:check`, `npm --prefix webapp run test -- AppRouter`이다.
+- 위 게이트를 통과하지 못하면 Studio Console 관련 문서의 stage 상태를 `verified`로 간주하지 않는다.
+- 임시 산출물(`*.tmp`)은 `src/` 아래에 남기지 않는다.
+
+### 2. Realtime Functional Contract
+
+- 실시간 세션 시작 전 config precedence는 다음 순서를 따른다.
+  - 직접 편집한 JSON
+  - 현재 선택 preset JSON
+  - default preset JSON
+  - 문서화된 known-good fallback preset JSON
+- 위 값 중 유효한 JSON이 하나도 없으면 세션 시작을 차단하고 복구 가능한 오류를 보여준다.
+- recorder 준비 절차는 `await` 가능한 단일 준비 함수로 통합하고, 이 함수가 stream과 meter source를 모두 반환한다.
+- 오디오 시각화 source of truth는 하나만 둔다. realtime 화면은 recorder level feed를 canonical meter로 사용한다.
+- 세션 저장 완료 후 상세 페이지 이동은 라우터 contract(`/transcriptions/:id`)를 반드시 따른다.
+
+### 3. Mobile Action Ownership Contract
+
+- 모바일 하단의 primary action owner는 route당 하나만 허용한다.
+- `/` 목록 화면: page-level sticky strip가 owner
+- `/realtime` 화면: transport dock가 owner
+- `/settings`, `/transcriptions/:id`: 기본적으로 전역 액션 비노출, 필요한 경우 페이지 내부 CTA만 사용
+- `MainLayout`의 전역 하단 액션은 owner가 없는 route에서만 활성화한다.
+
+### 4. Accessibility + Motion Contract
+
+- icon-only control은 모두 명시적 `aria-label`을 가진다.
+- `prefers-reduced-motion` 환경에서는 item-level spring animation과 smooth auto-scroll을 끈다.
+- dark theme를 유지하는 경우 문서/브라우저 chrome 정합성을 위해 `color-scheme: dark`를 선언한다.
+- 신규 UI 카피는 `i18n:check`를 통과해야 merge 가능하다.
+
+### 5. Visual Direction Contract
+
+- 방향성은 `Dark Studio Console`을 유지하되, ornament보다 작업성을 우선한다.
+- 시각 계층은 세 단계만 둔다.
+  - Shell: 저채도 배경 + 매우 약한 분위기 레이어
+  - Work Surface: 실질 입력/목록/트랜스크립트가 올라가는 solid/translucent panel
+  - Status Accent: 상태 변화, CTA, active meter
+- form/editing 영역에는 과한 glass/shadow를 줄이고 대비와 가독성을 우선한다.
+- motion은 page-entry 1개 + state transition 1개 수준으로 제한하고, 리스트/세그먼트 전체에 상시 적용하지 않는다.
+
+### 6. Documentation Contract
+
+- `docs/plan-ui-remediation-2026-03-06.md`를 이번 remediation cycle의 상위 설계 문서로 둔다.
+- 구현 추적은 `docs/todo/2026-03-06-ui-remediation-loop/` 아래의 task 문서로 관리한다.
+- 기존 Studio Console 문서는 이 remediation cycle 완료 후 canonical version만 남기고 나머지는 execution/evidence 성격으로 정리한다.
+
+## Work Breakdown
+
+| ID | Priority | Theme | Primary outcome |
+|---|---|---|---|
+| T501 | P0 | Release gate recovery | lint/build/i18n/test green + temp artifact 정리 |
+| T502 | P0 | Realtime correctness recovery | 세션 시작/종료/오디오 meter/기본 config deterministic |
+| T503 | P1 | Mobile action ownership | route별 CTA owner 단일화 |
+| T504 | P1 | A11y/motion/localization guardrails | reduced motion/aria/dark chrome 정합성 확보 |
+| T505 | P1 | Spec/doc realignment | 현재 승인된 UI 구조를 문서상 canonical로 재정의 |
+| T506 | P2 | Visual refinement v4 | dark Studio Console을 더 차분하고 작업 친화적으로 재정의 |
+
+## Definition of Done
+
+- P0 완료 후 현재 branch가 배포 게이트를 통과한다.
+- P1 완료 후 스펙/구현 간 명시적 모순이 사라진다.
+- P2 완료 후 디자인 방향이 문서화되고, 이후 화면 작업이 동일 token/IA contract를 재사용할 수 있다.
+
+## Self Review
+
+- [x] 결함 수정과 디자인 방향이 같은 contract 안에서 충돌 없이 정리되었다.
+- [x] 구현 우선순위가 release blocker -> functional regression -> IA/a11y -> visual polish 순으로 배치되었다.
+- [x] 각 축이 측정 가능한 수용 기준으로 환원되었다.
