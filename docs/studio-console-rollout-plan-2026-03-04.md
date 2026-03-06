@@ -1,10 +1,14 @@
 # Studio Console Rollout Plan (2026-03-04)
 
+> Status: historical execution log. Current canonical spec lives in `docs/plan-ui-remediation-2026-03-06.md`, and current implementation status lives in `docs/todo/2026-03-06-ui-remediation-loop/README.md`.
+
 ## Goal
 
 `/`, `/realtime`, `/settings`, `/transcriptions/:id`까지 Studio Console 시각 언어를 확장하되, 기능 동선/접근성/성능 회귀 없이 단계적으로 배포한다.
 
 ## Execution Status
+
+이 섹션의 완료/검증 표현은 "당시 명시된 명령이 통과했다"는 의미로만 읽는다. 현재 truth source로 사용하지 않는다.
 
 - 2026-03-03: `S0 (List)` 1차 반영 완료
   - 파일: `webapp/src/pages/TranscriptionListPage.tsx`
@@ -40,7 +44,7 @@ Reuse baseline tokens and patterns from:
 - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-desktop.svg`
 - `docs/ui-proposed/2026-03-03-studio-console-v3/studio-console-v3-mobile.svg`
 
-`docs/plan-studio-console-v3.md`를 scope canonical 문서로 사용하고, 본 문서는 stage 실행/검증 기록 전용으로 유지한다.
+`docs/plan-ui-remediation-2026-03-06.md`를 current canonical 문서로 사용하고, 본 문서는 historical stage 실행/검증 기록 전용으로 유지한다.
 
 Shared components to normalize first:
 

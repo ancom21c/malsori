@@ -1,5 +1,7 @@
 # P1 UI Refresh (Webapp)
 
+> Status: historical archive. Current canonical Studio Console contract lives in `docs/plan-ui-remediation-2026-03-06.md`.
+
 ## Goal
 
 Make the UI feel intentional and "product-grade" (less default-MUI), while improving first-run clarity on the core flows (upload, live session, history).

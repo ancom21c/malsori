@@ -37,9 +37,9 @@
 
 ### 수용 기준 (AC)
 
-- [ ] canonical/execution/evidence 문서 역할이 명시적으로 분리됨
-- [ ] realtime 구조 변경(전용 component family, recovery 위치, audio meter contract)이 문서화됨
-- [ ] `verified` 상태 표현이 실제 검증 명령과 모순되지 않음
+- [x] canonical/execution/evidence 문서 역할이 명시적으로 분리됨
+- [x] realtime 구조 변경(전용 component family, recovery 위치, audio meter contract)이 문서화됨
+- [x] `verified` 상태 표현이 실제 검증 명령과 모순되지 않음
 
 ## Plan (Review 대상)
 
@@ -62,19 +62,19 @@
 
 ## Implementation Log
 
-- [ ] 문서 역할 충돌 인벤토리 작성
-- [ ] canonical/execution/evidence 문서 재정의
-- [ ] realtime 구조 변경 문서 반영
-- [ ] 링크/용어 정합성 점검
+- [x] 문서 역할 충돌 인벤토리 작성
+- [x] canonical/execution/evidence 문서 재정의
+- [x] realtime 구조 변경 문서 반영
+- [x] 링크/용어 정합성 점검
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 문서만 읽고도 구현 우선순위와 수용 기준을 이해할 수 있는지 확인
-- [ ] 기존 evidence/history를 깨지 않는지 확인
-- [ ] 문서 간 중복 진술이 다시 늘어나지 않았는지 확인
+- [x] 문서만 읽고도 구현 우선순위와 수용 기준을 이해할 수 있는지 확인
+- [x] 기존 evidence/history를 깨지 않는지 확인
+- [x] 문서 간 중복 진술이 다시 늘어나지 않았는지 확인
 
 ## Verify
 
-- [ ] `node scripts/check-todo-board-consistency.mjs`
-- [ ] 문서 diff self-review
-- [ ] 관련 문서 교차 링크 점검
+- [x] `node scripts/check-todo-board-consistency.mjs`
+- [x] 문서 diff self-review
+- [x] 관련 문서 교차 링크 점검

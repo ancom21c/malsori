@@ -30,14 +30,17 @@
   - default preset JSON
   - 문서화된 known-good fallback preset JSON
 - 위 값 중 유효한 JSON이 하나도 없으면 세션 시작을 차단하고 복구 가능한 오류를 보여준다.
-- recorder 준비 절차는 `await` 가능한 단일 준비 함수로 통합하고, 이 함수가 stream과 meter source를 모두 반환한다.
+- session 준비는 `prepareSession()` 단일 진입점으로 유지한다.
+- countdown UX와 session 준비는 병렬 진행할 수 있지만, caller는 recorder/socket callback이 오기 전까지 외부 stream 상태를 직접 읽지 않는다.
 - 오디오 시각화 source of truth는 하나만 둔다. realtime 화면은 recorder level feed를 canonical meter로 사용한다.
 - 세션 저장 완료 후 상세 페이지 이동은 라우터 contract(`/transcriptions/:id`)를 반드시 따른다.
+- realtime 전용 component family(`RealtimeStatusBanner`, `RealtimeToolbar`, `RealtimeTranscript`, `RealtimeSettingsDialog`)는 허용하되, shared token/IA/mobile ownership contract를 따라야 한다.
+- 권한 복구는 HUD primary 영역에서 다루고, transport dock와 겹치지 않도록 snackbar는 상단 anchor를 사용한다.
 
 ### 3. Mobile Action Ownership Contract
 
 - 모바일 하단의 primary action owner는 route당 하나만 허용한다.
-- `/` 목록 화면: page-level sticky strip가 owner
+- `/` 목록 화면: empty state에서는 page-level sticky strip가 owner, 그 외에는 global fallback action 사용
 - `/realtime` 화면: transport dock가 owner
 - `/settings`, `/transcriptions/:id`: 기본적으로 전역 액션 비노출, 필요한 경우 페이지 내부 CTA만 사용
 - `MainLayout`의 전역 하단 액션은 owner가 없는 route에서만 활성화한다.
@@ -61,9 +64,23 @@
 
 ### 6. Documentation Contract
 
-- `docs/plan-ui-remediation-2026-03-06.md`를 이번 remediation cycle의 상위 설계 문서로 둔다.
-- 구현 추적은 `docs/todo/2026-03-06-ui-remediation-loop/` 아래의 task 문서로 관리한다.
-- 기존 Studio Console 문서는 이 remediation cycle 완료 후 canonical version만 남기고 나머지는 execution/evidence 성격으로 정리한다.
+- 현재 canonical spec은 `docs/plan-ui-remediation-2026-03-06.md` 하나만 사용한다.
+- 구현 추적과 상태 관리는 `docs/todo/2026-03-06-ui-remediation-loop/` 아래의 task 문서와 board로 관리한다.
+- `docs/studio-console-rollout-plan-2026-03-04.md`는 execution history 전용 문서다.
+- `docs/plan-studio-console-v3.md`는 concept/IA baseline 문서다.
+- `docs/plan-p1-ui-refresh.md`는 pre-remediation archive 문서다.
+- `verified`, `Done` 같은 상태 표현은 각 문서에 적힌 검증 명령이 실제로 통과했을 때만 사용한다.
+
+## Documentation Roles
+
+| Document | Role | Status rule |
+|---|---|---|
+| `docs/plan-ui-remediation-2026-03-06.md` | current canonical spec | 현재 코드와 승인된 contract만 유지 |
+| `docs/todo/2026-03-06-ui-remediation-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
+| `docs/todo/2026-03-06-ui-remediation-loop/T*.md` | task-level spec/review/verify log | 각 task의 evidence와 검증 명령 연결 |
+| `docs/studio-console-rollout-plan-2026-03-04.md` | historical rollout execution log | 당시 실행/검증 기록만 보존, canonical truth로 사용하지 않음 |
+| `docs/plan-studio-console-v3.md` | concept + IA baseline | 현재 구현과 다르면 remediation plan이 우선 |
+| `docs/plan-p1-ui-refresh.md` | historical archive | 배경 맥락만 제공, current contract 아님 |
 
 ## Work Breakdown
 

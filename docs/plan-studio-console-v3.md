@@ -1,5 +1,7 @@
 # Studio Console v3 Plan (2026-03-03)
 
+> Status: concept/IA baseline. Current canonical Studio Console contract lives in `docs/plan-ui-remediation-2026-03-06.md`.
+
 ## Scope
 
 Target screens:
@@ -43,9 +45,9 @@ Typography:
 
 ### Realtime
 
-- Tier 1: connection HUD (status/latency/action) + session state.
+- Tier 1: connection HUD (status/latency/action) + permission recovery + session state.
 - Tier 2 primary: transcript stream and controls.
-- Tier 2 secondary: permission recovery and camera panel.
+- Tier 2 secondary: camera panel and supporting context.
 
 ### Settings
 
@@ -91,7 +93,8 @@ Risk notes:
 
 ## Canonical Spec/Evidence Rule
 
-- This document is the canonical scope for Studio Console v3.
+- Canonical current spec is `docs/plan-ui-remediation-2026-03-06.md`.
+- This document remains the v3 concept/IA baseline and historical design reference.
 - Rollout execution details live in `docs/studio-console-rollout-plan-2026-03-04.md`.
 - Evidence naming/storage follows `docs/ui-proposed/2026-03-03-studio-console-v3/evidence-template.md`.
 
