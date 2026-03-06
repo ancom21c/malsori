@@ -24,6 +24,15 @@ type RequestPayload = {
 
 const SOURCE_FILE_CHUNK_SIZE = 2 * 1024 * 1024;
 
+function resolveUnknownUpstreamStatusMessage(
+  rawStatus: string | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  return t("unknownUpstreamStatusReceived", {
+    values: { status: rawStatus ?? "unknown" },
+  });
+}
+
 export function useRequestFileTranscription() {
   const apiClient = useRtzrApiClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -105,10 +114,27 @@ export function useRequestFileTranscription() {
           file: payload.file,
         });
 
+        if (response.status === "failed") {
+          const message =
+            response.statusReason === "unknown_upstream_status"
+              ? resolveUnknownUpstreamStatusMessage(response.rawStatus, t)
+              : t("transcriptionRequestFailedTryAgain");
+          await updateLocalTranscription(localRecord.id, {
+            remoteId: response.transcribeId,
+            status: "failed",
+            upstreamStatusRaw: response.rawStatus,
+            upstreamStatusReason: response.statusReason,
+            errorMessage: message,
+          });
+          enqueueSnackbar(message, { variant: "error" });
+          throw new Error(message);
+        }
+
         await updateLocalTranscription(localRecord.id, {
           remoteId: response.transcribeId,
-          status:
-            response.status === "completed" ? "completed" : "processing",
+          status: response.status === "completed" ? "completed" : "processing",
+          upstreamStatusRaw: response.rawStatus,
+          upstreamStatusReason: response.statusReason,
           errorMessage: undefined,
         });
 

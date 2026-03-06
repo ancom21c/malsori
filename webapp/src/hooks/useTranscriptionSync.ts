@@ -15,6 +15,15 @@ function coerceMilliseconds(value: number | undefined): number | undefined {
   return undefined;
 }
 
+function resolveUnknownUpstreamStatusMessage(
+  rawStatus: string | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  return t("unknownUpstreamStatusReceived", {
+    values: { status: rawStatus ?? "unknown" },
+  });
+}
+
 const IDLE_POLL_INTERVAL_MS = 15000;
 const ACTIVE_POLL_INTERVAL_MS = 5000;
 
@@ -66,9 +75,13 @@ export function useTranscriptionSync() {
               status,
               transcriptText: result.text,
               remoteAudioUrl: result.audioUrl ?? item.remoteAudioUrl,
+              upstreamStatusRaw: result.rawStatus,
+              upstreamStatusReason: result.statusReason,
               errorMessage:
                 result.status === "failed"
-                  ? result.error ?? t("warriorFailure")
+                  ? result.statusReason === "unknown_upstream_status"
+                    ? resolveUnknownUpstreamStatusMessage(result.rawStatus, t)
+                    : result.error ?? t("warriorFailure")
                   : undefined,
             });
             const hasSegmentsPayload = Array.isArray(result.segments);

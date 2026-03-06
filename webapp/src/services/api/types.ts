@@ -15,11 +15,15 @@ export interface FileTranscriptionResponse {
   transcribeId: string;
   status: TranscriptionStatus;
   createdAt: string;
+  rawStatus?: string;
+  statusReason?: "unknown_upstream_status";
 }
 
 export interface FileTranscriptionResult {
   transcribeId: string;
   status: TranscriptionStatus;
+  rawStatus?: string;
+  statusReason?: "unknown_upstream_status";
   text?: string;
   audioUrl?: string;
   segments?: FileTranscriptionSegment[];

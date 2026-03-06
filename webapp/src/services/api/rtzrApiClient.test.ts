@@ -35,6 +35,24 @@ describe("RtzrApiClient.getFileTranscriptionStatus", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("promotes unknown upstream status to failed and preserves the raw value", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        id: "job-unknown",
+        status: "archived_by_vendor",
+        text: "partial text",
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/", () => "/internal");
+    const result = await client.getFileTranscriptionStatus("job-unknown");
+
+    expect(result.status).toBe("failed");
+    expect(result.rawStatus).toBe("archived_by_vendor");
+    expect(result.statusReason).toBe("unknown_upstream_status");
+  });
+
   it("normalizes speaker id/label fields from diverse segment shapes", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({
@@ -64,6 +82,31 @@ describe("RtzrApiClient.getFileTranscriptionStatus", () => {
     expect(segment?.startMs).toBe(120);
     expect(segment?.endMs).toBe(200);
     expect(segment?.text).toBe("안녕하세요");
+  });
+});
+
+describe("RtzrApiClient.requestFileTranscription", () => {
+  it("preserves raw status detail when the submit response returns an unknown status", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        transcribe_id: "job-submit",
+        status: "queued_on_partner_side",
+        created_at: "2026-03-06T00:00:00.000Z",
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/", () => "/internal");
+    const file = new File(["hello"], "hello.wav", { type: "audio/wav" });
+    const result = await client.requestFileTranscription({
+      file,
+      configJson: "{}",
+      title: "hello",
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.rawStatus).toBe("queued_on_partner_side");
+    expect(result.statusReason).toBe("unknown_upstream_status");
   });
 });
 

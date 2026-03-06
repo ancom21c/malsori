@@ -63,6 +63,20 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 type Translator = (key: string, options?: TranslateOptions) => string;
 
 function getStatusChip(transcription: LocalTranscription, t: Translator) {
+  if (
+    transcription.status === "failed" &&
+    transcription.upstreamStatusReason === "unknown_upstream_status"
+  ) {
+    return (
+      <Chip
+        label={t("unknownUpstreamStatus")}
+        color="error"
+        size="small"
+        icon={<ErrorOutlineIcon />}
+      />
+    );
+  }
+
   if (transcription.status === "processing" && transcription.kind === "realtime") {
     if (transcription.processingStage === "finalizing") {
       return (

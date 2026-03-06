@@ -30,6 +30,8 @@ export interface LocalTranscription {
   backendEndpointSource?: "preset" | "server-default" | "unknown";
   backendDeployment?: BackendEndpointDeployment;
   backendApiBaseUrl?: string;
+  upstreamStatusRaw?: string;
+  upstreamStatusReason?: "unknown_upstream_status";
   realtimeBufferedAudioMs?: number;
   realtimeDroppedAudioMs?: number;
   realtimeReplayedAudioMs?: number;

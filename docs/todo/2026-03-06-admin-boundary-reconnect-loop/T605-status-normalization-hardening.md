@@ -61,19 +61,32 @@
 
 ## Implementation Log
 
-- [ ] status normalization inventory 작성
-- [ ] unknown/raw status contract 반영
-- [ ] list/detail/status copy 조정
-- [ ] regression test 추가
+- [x] status normalization inventory 작성
+- [x] unknown/raw status contract 반영
+- [x] list/detail/status copy 조정
+- [x] regression test 추가
+
+### 구현 메모
+
+- client normalization을 `failed + rawStatus + statusReason` 계약으로 바꿨다.
+- local transcription metadata에 `upstreamStatusRaw`, `upstreamStatusReason`를 저장한다.
+- list/detail 화면에 unknown upstream status surfacing을 추가했다.
+- request submit response와 polling response 둘 다 regression test로 고정했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] unknown status가 processing으로 fallback되지 않는지 확인
-- [ ] raw detail이 디버깅 가능한 형태로 남는지 확인
-- [ ] known status chip/filters가 회귀하지 않는지 확인
+- [x] unknown status가 processing으로 fallback되지 않는지 확인
+- [x] raw detail이 디버깅 가능한 형태로 남는지 확인
+- [x] known status chip/filters가 회귀하지 않는지 확인
+
+## Self Review (Implementation)
+
+- [x] unknown status를 `processing`으로 숨기지 않고 terminal failure로 승격해 polling stuck 상태를 끊었다.
+- [x] request submit 응답이 이미 unknown/failure일 때 success snackbar를 띄우던 문제도 함께 정리했다.
+- [x] raw upstream status는 detail chip과 local metadata 양쪽에 남겨 디버깅 경로를 확보했다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] status normalization regression test 실행
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- rtzrApiClient`

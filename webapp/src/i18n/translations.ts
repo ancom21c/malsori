@@ -3064,6 +3064,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "An unknown error occurred. Please try again.",
     ja: "不明なエラーが発生しました。しばらくしてから再試行してください。",
   },
+  unknownUpstreamStatus: {
+    ko: "알 수 없는 업스트림 상태",
+    en: "Unknown upstream status",
+    ja: "不明なアップストリーム状態",
+  },
+  unknownUpstreamStatusReceived: {
+    ko: "업스트림 서버가 예상하지 못한 상태를 반환했습니다: {{status}}",
+    en: "The upstream server returned an unexpected status: {{status}}",
+    ja: "アップストリーム サーバーが想定外の状態を返しました: {{status}}",
+  },
+  upstreamStatus: {
+    ko: "업스트림 상태",
+    en: "Upstream status",
+    ja: "アップストリーム状態",
+  },
   backendAdminDisabled: {
     ko: "백엔드 관리자 기능이 비활성화되어 있습니다.",
     en: "Backend admin is disabled.",

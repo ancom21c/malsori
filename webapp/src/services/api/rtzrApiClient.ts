@@ -78,6 +78,12 @@ const TRANSCRIPTION_STATUSES: TranscriptionStatus[] = [
   "failed",
 ];
 
+type NormalizedTranscriptionStatus = {
+  status: TranscriptionStatus;
+  rawStatus?: string;
+  statusReason?: "unknown_upstream_status";
+};
+
 function coerceFiniteNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -182,11 +188,21 @@ function normalizeSegmentPayload(segment: RawSegmentEntry): FileTranscriptionSeg
   } satisfies FileTranscriptionSegment;
 }
 
-function normalizeStatus(value: unknown): TranscriptionStatus {
-  if (TRANSCRIPTION_STATUSES.includes(value as TranscriptionStatus)) {
-    return value as TranscriptionStatus;
+function normalizeStatus(value: unknown): NormalizedTranscriptionStatus {
+  const rawStatus =
+    typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  const normalized = rawStatus?.toLowerCase();
+  if (normalized && TRANSCRIPTION_STATUSES.includes(normalized as TranscriptionStatus)) {
+    return {
+      status: normalized as TranscriptionStatus,
+      rawStatus,
+    };
   }
-  return "processing";
+  return {
+    status: "failed",
+    rawStatus,
+    statusReason: "unknown_upstream_status",
+  };
 }
 
 export class RtzrApiClient {
@@ -346,9 +362,13 @@ export class RtzrApiClient {
       throw new Error(tStatic("responseIsMissingTranscribeId"));
     }
 
+    const normalizedStatus = normalizeStatus(data.status);
+
     return {
       transcribeId,
-      status: normalizeStatus(data.status),
+      status: normalizedStatus.status,
+      rawStatus: normalizedStatus.rawStatus,
+      statusReason: normalizedStatus.statusReason,
       createdAt: data.created_at ?? new Date().toISOString(),
     };
   }
@@ -368,9 +388,13 @@ export class RtzrApiClient {
 
     const data = (await (await this.ensureOk(response)).json()) as RawTranscriptionStatusResponse;
 
+    const normalizedStatus = normalizeStatus(data.status);
+
     return {
       transcribeId: data.id ?? transcribeId,
-      status: normalizeStatus(data.status),
+      status: normalizedStatus.status,
+      rawStatus: normalizedStatus.rawStatus,
+      statusReason: normalizedStatus.statusReason,
       text: data.text,
       audioUrl: data.audio_url,
       error: data.error,

@@ -1674,6 +1674,10 @@ export default function TranscriptionDetailPage() {
       : detailCopy.mediaPending;
   const mediaStatusColor: "success" | "warning" | "default" =
     audioReady ? "success" : audioLoading || videoLoading ? "warning" : "default";
+  const detailStatusLabel =
+    transcription.upstreamStatusReason === "unknown_upstream_status"
+      ? t("unknownUpstreamStatus")
+      : transcription.status;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1857,8 +1861,16 @@ export default function TranscriptionDetailPage() {
                   items={[
                     {
                       key: "detail-status",
-                      label: `${detailCopy.status}: ${transcription.status}`,
+                      label: `${detailCopy.status}: ${detailStatusLabel}`,
                     },
+                    ...(transcription.upstreamStatusRaw
+                      ? [
+                          {
+                            key: "detail-upstream-status",
+                            label: `${t("upstreamStatus")}: ${transcription.upstreamStatusRaw}`,
+                          },
+                        ]
+                      : []),
                     {
                       key: "detail-segments",
                       label: `${detailCopy.segments}: ${segmentStats.segmentCount}`,
