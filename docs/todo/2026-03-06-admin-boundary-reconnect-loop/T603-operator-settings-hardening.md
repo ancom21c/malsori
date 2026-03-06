@@ -65,19 +65,32 @@
 
 ## Implementation Log
 
-- [ ] fetch trigger inventory 작성
-- [ ] safe default / manual refresh 로직 반영
-- [ ] operator boundary card/copy 반영
-- [ ] settings interaction smoke note 작성
+- [x] fetch trigger inventory 작성
+- [x] safe default / manual refresh 로직 반영
+- [x] operator boundary card/copy 반영
+- [x] settings interaction smoke note 작성
+
+### 구현 메모
+
+- backend 탭을 숨기지 않고 항상 노출하되, 내부망/operator 조건을 먼저 설명하는 boundary card를 추가했다.
+- health 기반 operator availability 조회는 `handleRefreshBackendAvailability()`로 분리하고 page entry / explicit refresh에만 연결했다.
+- admin state 조회는 `handleRefreshBackendState()` button click에서만 실행되도록 분리했다.
+- admin token helper를 "메모리만 사용 / 로컬 미저장" 기준으로 강화했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] token 입력 중 네트워크 요청이 재발하지 않는지 확인
-- [ ] disabled/operator-unavailable 상태가 misleading 하지 않은지 확인
-- [ ] internal-only wording이 실제 routing/host contract와 맞는지 확인
+- [x] token 입력 중 네트워크 요청이 재발하지 않는지 확인
+- [x] disabled/operator-unavailable 상태가 misleading 하지 않은지 확인
+- [x] internal-only wording이 실제 routing/host contract와 맞는지 확인
+
+## Self Review (Implementation)
+
+- [x] `backendAdminToken`은 더 이상 effect dependency에 포함되지 않으며, server state fetch는 button onClick 경로에만 남겼다.
+- [x] backend section은 항상 보이지만, operator availability가 false일 때는 explanation alert만 먼저 노출되도록 정리했다.
+- [x] T601의 `adminApiBaseUrl` 분리 계약을 UX wording과 disabled logic에 그대로 맞췄다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] settings operator manual smoke note 작성
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] settings operator smoke note 작성

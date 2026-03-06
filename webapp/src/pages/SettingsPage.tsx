@@ -259,13 +259,7 @@ export default function SettingsPage() {
     permissions: permissionsSectionRef,
     backend: backendSectionRef,
   };
-  const visibleSections = useMemo(
-    () =>
-      SETTINGS_SECTIONS.filter(
-        (section) => section.id !== "backend" || backendAdminEnabled
-      ),
-    [backendAdminEnabled]
-  );
+  const visibleSections = SETTINGS_SECTIONS;
   const selectedBackendPreset = useMemo(() => {
     if (!selectedBackendPresetId) return null;
     return backendPresets.find((preset) => preset.id === selectedBackendPresetId) ?? null;
@@ -323,13 +317,13 @@ export default function SettingsPage() {
     void refreshPermissionStatus();
   }, [refreshPermissionStatus]);
 
-  const handleRefreshBackendState = useCallback(async () => {
+  const handleRefreshBackendAvailability = useCallback(async () => {
     if (!apiBaseUrl.trim()) {
       setBackendState(null);
       setBackendStateError(null);
       setBackendStateLastSuccessAt(null);
       setBackendAdminEnabled(false);
-      return;
+      return false;
     }
     const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
     if (!normalizedAdminApiBaseUrl) {
@@ -337,6 +331,58 @@ export default function SettingsPage() {
       setBackendStateError(null);
       setBackendStateLastSuccessAt(null);
       setBackendAdminEnabled(false);
+      return false;
+    }
+    setBackendStateLoading(true);
+    setBackendStateError(null);
+    try {
+      const health = await apiClient.getHealthStatus();
+      const adminEnabled = health.backendAdminEnabled ?? false;
+      setBackendAdminEnabled(adminEnabled);
+      if (!adminEnabled) {
+        setBackendState(null);
+        setBackendStateLastSuccessAt(null);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      setBackendStateError(
+        error instanceof Error ? error.message : t("failedToLoadBackendState")
+      );
+      setBackendState(null);
+      setBackendStateLastSuccessAt(null);
+      setBackendAdminEnabled(false);
+      return false;
+    } finally {
+      setBackendStateLoading(false);
+    }
+  }, [adminApiBaseUrl, apiBaseUrl, apiClient, t]);
+
+  useEffect(() => {
+    void handleRefreshBackendAvailability();
+  }, [handleRefreshBackendAvailability]);
+
+  const handleRefreshBackendState = useCallback(async () => {
+    if (!apiBaseUrl.trim()) {
+      setBackendState(null);
+      setBackendStateLastSuccessAt(null);
+      setBackendAdminEnabled(false);
+      setBackendStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
+      return;
+    }
+    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    if (!normalizedAdminApiBaseUrl) {
+      setBackendState(null);
+      setBackendStateLastSuccessAt(null);
+      setBackendAdminEnabled(false);
+      setBackendStateError(t("internalAdminApiBaseUrlRequired"));
+      return;
+    }
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      setBackendState(null);
+      setBackendStateLastSuccessAt(null);
+      setBackendStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
     setBackendStateLoading(true);
@@ -347,14 +393,8 @@ export default function SettingsPage() {
       setBackendAdminEnabled(adminEnabled);
       if (!adminEnabled) {
         setBackendState(null);
-        setBackendStateLastSuccessAt(new Date().toISOString());
-        return;
-      }
-      const adminToken = backendAdminToken.trim();
-      if (!adminToken) {
-        setBackendState(null);
         setBackendStateLastSuccessAt(null);
-        setBackendStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+        setBackendStateError(t("operatorSettingsUnavailableFromServer"));
         return;
       }
       const state = await apiClient.getBackendEndpointState({ adminToken });
@@ -368,10 +408,6 @@ export default function SettingsPage() {
       setBackendStateLoading(false);
     }
   }, [adminApiBaseUrl, apiBaseUrl, apiClient, backendAdminToken, t]);
-
-  useEffect(() => {
-    void handleRefreshBackendState();
-  }, [handleRefreshBackendState]);
 
   useEffect(() => {
     if (visibleSections.some((section) => section.id === activeSection)) {
@@ -418,16 +454,27 @@ export default function SettingsPage() {
       ? DEFAULT_FILE_PRESETS[0]?.configJson ?? "{}"
       : DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}";
   }, [presetType]);
+  const apiConfigured = Boolean(apiBaseUrl.trim());
+  const adminApiConfigured = Boolean(adminApiBaseUrl.trim());
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
   const backendStatusUnavailable = Boolean(backendStateError) && !backendState;
+  const backendAdminTokenPresent = backendAdminToken.trim().length > 0;
+  const backendOperatorAvailable = adminApiConfigured && backendAdminEnabled;
+  const backendOperatorBlockedMessage = !apiConfigured
+    ? t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")
+    : !adminApiConfigured
+      ? t("internalAdminApiBaseUrlRequired")
+      : !backendAdminEnabled
+        ? t("operatorSettingsUnavailableFromServer")
+        : !backendAdminTokenPresent
+          ? t("enterAdminTokenBeforeCheckingServerSettings")
+          : null;
   const selectedPresetName = useMemo(() => {
     if (!selectedPresetId) {
       return presets.find((preset) => preset.isDefault)?.name;
     }
     return presets.find((preset) => preset.id === selectedPresetId)?.name;
   }, [presets, selectedPresetId]);
-  const apiConfigured = Boolean(apiBaseUrl.trim());
-  const adminApiConfigured = Boolean(adminApiBaseUrl.trim());
   const permissionReadyCount = useMemo(() => {
     const microphoneReady = permissionStatus.microphone === "granted" ? 1 : 0;
     const storageReady =
@@ -436,15 +483,18 @@ export default function SettingsPage() {
   }, [permissionStatus.microphone, permissionStatus.storage, storagePermissionSupported]);
   const permissionTotalCount = storagePermissionSupported ? 2 : 1;
   const backendSummary = useMemo(() => {
+    if (!adminApiConfigured) {
+      return t("internalAdminApiBaseUrlNotConfigured");
+    }
     if (!backendAdminEnabled) {
-      return t("internalOnly");
+      return `${t("internalOnly")} · ${t("requestRequired")}`;
     }
     if (!backendState) {
       return t("pendingStatus");
     }
     return `${backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")} · ${backendState.source === "override" ? t("custom") : t("serverDefault")
       }`;
-  }, [backendAdminEnabled, backendState, t]);
+  }, [adminApiConfigured, backendAdminEnabled, backendState, t]);
 
   useEffect(() => {
     setSelectedPresetId(null);
@@ -1604,464 +1654,519 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {backendAdminEnabled ? (
-            <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
-              <CardHeader
-                title={t("backendSettings")}
-                subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
-              />
-              <CardContent>
-                <Stack spacing={3}>
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
-                    }}
-                  >
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
-                      <Chip
-                        size="small"
-                        color={backendState?.source === "override" ? "primary" : "default"}
-                        label={backendState?.source === "override" ? t("custom") : t("serverDefault")}
-                      />
-                      <Chip
-                        size="small"
-                        color={backendState?.verifySsl === false ? "warning" : "success"}
-                        label={backendState?.verifySsl === false ? t("ignoreSsl") : t("sslVerification")}
-                      />
-                      <Typography variant="caption" color="text.secondary">
-                        {t("requiredWhenCheckingOrApplyingServerSettings")}
-                      </Typography>
-                    </Stack>
-                  </Box>
-                  <Alert severity="info" variant="outlined">
-                    <Typography variant="body2">
-                      {t("requiredWhenCheckingOrApplyingServerSettings")}
-                    </Typography>
-                  </Alert>
-                  <Stack spacing={2}>
-                    <TextField
-                      label={t("backendAdminToken")}
-                      type="password"
-                      value={backendAdminToken}
-                      onChange={(event) => setBackendAdminToken(event.target.value)}
-                      placeholder="X-Malsori-Admin-Token"
-                      helperText={t("requiredWhenCheckingOrApplyingServerSettings")}
-                    />
+          <Card ref={backendSectionRef} sx={{ scrollMarginTop: (theme) => theme.spacing(11) }}>
+            <CardHeader
+              title={t("backendSettings")}
+              subheader={t("managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt")}
+            />
+            <CardContent>
+              <Stack spacing={3}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
+                  }}
+                >
+                  <Stack spacing={1.5}>
                     <Stack
                       direction={{ xs: "column", sm: "row" }}
                       spacing={1}
+                      justifyContent="space-between"
                       alignItems={{ xs: "flex-start", sm: "center" }}
                     >
+                      <StatusChipSet
+                        items={[
+                          { key: "operator-boundary", label: t("internalOnly") },
+                          {
+                            key: "operator-availability",
+                            label: backendAdminEnabled ? t("enabled") : t("disabled"),
+                            color: backendAdminEnabled ? "success" : "default",
+                          },
+                          {
+                            key: "operator-token",
+                            label: backendAdminTokenPresent ? t("enabled") : t("requestRequired"),
+                            color: backendAdminTokenPresent ? "success" : "warning",
+                          },
+                        ]}
+                      />
                       <Button
-                        variant="outlined"
-                        onClick={() => void handleRefreshBackendState()}
-                        disabled={
-                          backendStateLoading ||
-                          !adminApiBaseUrl.trim() ||
-                          !backendAdminToken.trim()
-                        }
-                      >
-                        {backendStateLoading ? t("checking") : t("refreshServerStatus")}
-                      </Button>
-                      <Button
+                        size="small"
                         variant="text"
-                        color="secondary"
-                        onClick={() => void handleResetBackendEndpoint()}
-                        disabled={
-                          backendStateLoading ||
-                          !adminApiBaseUrl.trim() ||
-                          backendStatusUnavailable ||
-                          !backendAdminToken.trim()
-                        }
+                        onClick={() => void handleRefreshBackendAvailability()}
+                        disabled={backendStateLoading || !apiConfigured || !adminApiConfigured}
                       >
-                        {t("returnToServerDefault")}
+                        {backendStateLoading ? t("checking") : t("refreshOperatorAccess")}
                       </Button>
                     </Stack>
-                    {backendStateError && (
-                      <Alert
-                        severity="error"
-                        action={(
-                          <Button
-                            size="small"
-                            color="inherit"
-                            onClick={() => void handleRefreshBackendState()}
-                            disabled={
-                              backendStateLoading ||
-                              !adminApiBaseUrl.trim() ||
-                              !backendAdminToken.trim()
-                            }
-                          >
-                            {backendStateLoading ? t("checking") : t("refreshServerStatus")}
-                          </Button>
-                        )}
-                      >
-                        <Stack spacing={0.5}>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            {t("failedToLoadBackendState")}
-                          </Typography>
-                          <Typography variant="body2">{backendStateError}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {backendState
-                              ? t("showingLastKnownServerSettings")
-                              : t("pleaseCheckInternalAdminApiBaseUrlAndRetryServerStatus")}
-                          </Typography>
-                          {backendStateLastSuccessAt ? (
-                            <Typography variant="caption" color="text.secondary">
-                              {t("lastSuccessfulCheckAt", {
-                                values: {
-                                  time: formatLocalizedDateTime(
-                                    backendStateLastSuccessAt,
-                                    locale
-                                  ),
-                                },
-                              })}
-                            </Typography>
-                          ) : null}
-                        </Stack>
-                      </Alert>
-                    )}
-                    {backendState && (
-                      <Alert severity="info" variant="outlined">
-                        <Stack spacing={1}>
-                          <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap">
-                            <Chip
-                              label={
-                                backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")
-                              }
-                              size="small"
-                            />
-                            <Chip
-                              label={
-                                backendState.source === "override" ? t("custom") : t("serverDefault")
-                              }
-                              size="small"
-                              color={backendState.source === "override" ? "primary" : "default"}
-                            />
-                            <Chip
-                              label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
-                              size="small"
-                              color={backendState.verifySsl ? "success" : "warning"}
-                            />
-                            <Chip
-                              label={
-                                backendState.authEnabled
-                                  ? t("useClientCredentials")
-                                  : t("credentialsNotUsed")
-                              }
-                              size="small"
-                              color={backendState.authEnabled ? "success" : "default"}
-                            />
-                          </Stack>
-                          <Typography variant="body2">
-                            {t("apiBaseUrl")}: {backendState.apiBaseUrl}
-                          </Typography>
-                          {backendStateLastSuccessAt ? (
-                            <Typography variant="caption" color="text.secondary">
-                              {t("lastSuccessfulCheckAt", {
-                                values: {
-                                  time: formatLocalizedDateTime(
-                                    backendStateLastSuccessAt,
-                                    locale
-                                  ),
-                                },
-                              })}
-                            </Typography>
-                          ) : null}
-                        </Stack>
-                      </Alert>
-                    )}
-                  </Stack>
-                  <Divider />
-                  <Stack spacing={1}>
-                    <Typography variant="subtitle1">{t("backendApiEndpointPresets")}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t("theRtzrOnPremEndpointAndCredentialsThatThePythonApiWillInteractWithCanBeSavedAsPresetsAndAppliedWhenNeeded")}
+                    <Stack spacing={0.35}>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("internalAdminApiBaseUrl")}: {adminApiConfigured ? adminApiBaseUrl : t("notConfigured")}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("backendSettings")}: {backendAdminEnabled ? t("enabled") : t("disabled")}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("backendAdminToken")}: {backendAdminTokenPresent ? t("enabled") : t("requestRequired")}
+                      </Typography>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("operatorSettingsBoundaryHelper")}
                     </Typography>
                   </Stack>
-                  <Stack
-                    direction={{ xs: "column", lg: "row" }}
-                    spacing={2}
-                    alignItems="stretch"
+                </Box>
+
+                <TextField
+                  label={t("backendAdminToken")}
+                  type="password"
+                  value={backendAdminToken}
+                  onChange={(event) => setBackendAdminToken(event.target.value)}
+                  placeholder="X-Malsori-Admin-Token"
+                  helperText={t("backendAdminTokenHelperDetailed")}
+                />
+
+                {!backendOperatorAvailable && (
+                  <Alert
+                    severity={backendStateError ? "error" : "warning"}
+                    action={(
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => void handleRefreshBackendAvailability()}
+                        disabled={backendStateLoading || !apiConfigured || !adminApiConfigured}
+                      >
+                        {backendStateLoading ? t("checking") : t("refreshOperatorAccess")}
+                      </Button>
+                    )}
                   >
-                    <Box
-                      sx={{
-                        flex: { xs: "1 1 auto", lg: "0 0 320px" },
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 2,
-                        p: 2,
-                        minHeight: 0,
-                      }}
-                    >
-                      <Stack spacing={1}>
-                        <List
-                          dense
-                          disablePadding
-                          sx={{
-                            border: 1,
-                            borderColor: "divider",
-                            borderRadius: 2,
-                            overflow: "hidden",
-                            minHeight: 200,
-                          }}
+                    <Stack spacing={0.5}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {t("backendSettings")}
+                      </Typography>
+                      <Typography variant="body2">
+                        {backendStateError ?? backendOperatorBlockedMessage ?? t("operatorSettingsUnavailableFromServer")}
+                      </Typography>
+                    </Stack>
+                  </Alert>
+                )}
+
+                {backendOperatorAvailable ? (
+                  <>
+                    <Stack spacing={2}>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                      >
+                        <Button
+                          variant="outlined"
+                          onClick={() => void handleRefreshBackendState()}
+                          disabled={
+                            backendStateLoading ||
+                            !adminApiConfigured ||
+                            !backendAdminTokenPresent
+                          }
                         >
-                          {backendPresets.length === 0 ? (
-                            <Box sx={{ p: 2 }}>
-                              <Typography variant="body2" color="text.secondary">
-                                {t("thereAreNoRegisteredPresets")}
-                              </Typography>
-                              <Typography variant="caption" color="text.disabled">
-                                {t("pleaseAddANewPreset")}
-                              </Typography>
-                            </Box>
-                          ) : (
-                            backendPresets.map((preset) => (
-                              <ListItemButton
-                                key={preset.id}
-                                selected={preset.id === selectedBackendPresetId}
-                                onClick={() => handleBackendPresetSelect(preset)}
-                              >
-                                <ListItemText
-                                  primary={preset.name}
-                                  secondary={
-                                    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                                      <Chip
-                                        label={preset.deployment === "cloud" ? t("rtzrApi") : t("onPrem")}
-                                        size="small"
-                                      />
-                                      {preset.isDefault && (
-                                        <Chip label={t("basic")} size="small" color="default" />
-                                      )}
-                                      {activeBackendPresetId === preset.id && (
-                                        <Chip label={t("applyingToServer2")} size="small" color="success" />
-                                      )}
-                                    </Stack>
-                                  }
-                                  secondaryTypographyProps={{ component: "div" }}
-                                />
-                              </ListItemButton>
-                            ))
-                          )}
-                        </List>
-                        <Stack spacing={1}>
-                          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                            <Button variant="outlined" onClick={handleNewBackendPreset} fullWidth>
-                              {t("newPreset")}
-                            </Button>
+                          {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                        </Button>
+                        <Button
+                          variant="text"
+                          color="secondary"
+                          onClick={() => void handleResetBackendEndpoint()}
+                          disabled={
+                            backendStateLoading ||
+                            !adminApiConfigured ||
+                            backendStatusUnavailable ||
+                            !backendAdminTokenPresent
+                          }
+                        >
+                          {t("returnToServerDefault")}
+                        </Button>
+                      </Stack>
+                      {backendStateError && (
+                        <Alert
+                          severity="error"
+                          action={(
                             <Button
-                              variant="outlined"
-                              onClick={handleBackendPresetExport}
-                              fullWidth
-                              disabled={!selectedBackendPreset}
-                            >
-                              {t("jsonExport")}
-                            </Button>
-                          </Stack>
-                          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                            <Button
-                              variant="outlined"
-                              onClick={handleBackendPresetImportRequest}
-                              fullWidth
-                            >
-                              {t("loadJson")}
-                            </Button>
-                            <Button
-                              variant="outlined"
-                              color="success"
-                              onClick={() => void handleApplyBackendPreset()}
-                              fullWidth
+                              size="small"
+                              color="inherit"
+                              onClick={() => void handleRefreshBackendState()}
                               disabled={
-                                !selectedBackendPreset ||
                                 backendStateLoading ||
-                                backendStatusUnavailable ||
-                                !backendAdminToken.trim()
+                                !adminApiConfigured ||
+                                !backendAdminTokenPresent
                               }
                             >
-                              {t("applyToServer")}
+                              {backendStateLoading ? t("checking") : t("refreshServerStatus")}
+                            </Button>
+                          )}
+                        >
+                          <Stack spacing={0.5}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {t("failedToLoadBackendState")}
+                            </Typography>
+                            <Typography variant="body2">{backendStateError}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {backendState
+                                ? t("showingLastKnownServerSettings")
+                                : t("pleaseCheckInternalAdminApiBaseUrlAndRetryServerStatus")}
+                            </Typography>
+                            {backendStateLastSuccessAt ? (
+                              <Typography variant="caption" color="text.secondary">
+                                {t("lastSuccessfulCheckAt", {
+                                  values: {
+                                    time: formatLocalizedDateTime(
+                                      backendStateLastSuccessAt,
+                                      locale
+                                    ),
+                                  },
+                                })}
+                              </Typography>
+                            ) : null}
+                          </Stack>
+                        </Alert>
+                      )}
+                      {backendState && (
+                        <Alert severity="info" variant="outlined">
+                          <Stack spacing={1}>
+                            <Typography variant="subtitle2">{t("currentServerApplicationSettings")}</Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                              <Chip
+                                label={
+                                  backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")
+                                }
+                                size="small"
+                              />
+                              <Chip
+                                label={
+                                  backendState.source === "override" ? t("custom") : t("serverDefault")
+                                }
+                                size="small"
+                                color={backendState.source === "override" ? "primary" : "default"}
+                              />
+                              <Chip
+                                label={backendState.verifySsl ? t("sslVerification") : t("ignoreSsl")}
+                                size="small"
+                                color={backendState.verifySsl ? "success" : "warning"}
+                              />
+                              <Chip
+                                label={
+                                  backendState.authEnabled
+                                    ? t("useClientCredentials")
+                                    : t("credentialsNotUsed")
+                                }
+                                size="small"
+                                color={backendState.authEnabled ? "success" : "default"}
+                              />
+                            </Stack>
+                            <Typography variant="body2">
+                              {t("apiBaseUrl")}: {backendState.apiBaseUrl}
+                            </Typography>
+                            {backendStateLastSuccessAt ? (
+                              <Typography variant="caption" color="text.secondary">
+                                {t("lastSuccessfulCheckAt", {
+                                  values: {
+                                    time: formatLocalizedDateTime(
+                                      backendStateLastSuccessAt,
+                                      locale
+                                    ),
+                                  },
+                                })}
+                              </Typography>
+                            ) : null}
+                          </Stack>
+                        </Alert>
+                      )}
+                    </Stack>
+                    <Divider />
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle1">{t("backendApiEndpointPresets")}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {t("theRtzrOnPremEndpointAndCredentialsThatThePythonApiWillInteractWithCanBeSavedAsPresetsAndAppliedWhenNeeded")}
+                      </Typography>
+                    </Stack>
+                    <Stack
+                      direction={{ xs: "column", lg: "row" }}
+                      spacing={2}
+                      alignItems="stretch"
+                    >
+                      <Box
+                        sx={{
+                          flex: { xs: "1 1 auto", lg: "0 0 320px" },
+                          border: 1,
+                          borderColor: "divider",
+                          borderRadius: 2,
+                          p: 2,
+                          minHeight: 0,
+                        }}
+                      >
+                        <Stack spacing={1}>
+                          <List
+                            dense
+                            disablePadding
+                            sx={{
+                              border: 1,
+                              borderColor: "divider",
+                              borderRadius: 2,
+                              overflow: "hidden",
+                              minHeight: 200,
+                            }}
+                          >
+                            {backendPresets.length === 0 ? (
+                              <Box sx={{ p: 2 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("thereAreNoRegisteredPresets")}
+                                </Typography>
+                                <Typography variant="caption" color="text.disabled">
+                                  {t("pleaseAddANewPreset")}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              backendPresets.map((preset) => (
+                                <ListItemButton
+                                  key={preset.id}
+                                  selected={preset.id === selectedBackendPresetId}
+                                  onClick={() => handleBackendPresetSelect(preset)}
+                                >
+                                  <ListItemText
+                                    primary={preset.name}
+                                    secondary={
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                                        <Chip
+                                          label={preset.deployment === "cloud" ? t("rtzrApi") : t("onPrem")}
+                                          size="small"
+                                        />
+                                        {preset.isDefault && (
+                                          <Chip label={t("basic")} size="small" color="default" />
+                                        )}
+                                        {activeBackendPresetId === preset.id && (
+                                          <Chip label={t("applyingToServer2")} size="small" color="success" />
+                                        )}
+                                      </Stack>
+                                    }
+                                    secondaryTypographyProps={{ component: "div" }}
+                                  />
+                                </ListItemButton>
+                              ))
+                            )}
+                          </List>
+                          <Stack spacing={1}>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                              <Button variant="outlined" onClick={handleNewBackendPreset} fullWidth>
+                                {t("newPreset")}
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                onClick={handleBackendPresetExport}
+                                fullWidth
+                                disabled={!selectedBackendPreset}
+                              >
+                                {t("jsonExport")}
+                              </Button>
+                            </Stack>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                              <Button
+                                variant="outlined"
+                                onClick={handleBackendPresetImportRequest}
+                                fullWidth
+                              >
+                                {t("loadJson")}
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                color="success"
+                                onClick={() => void handleApplyBackendPreset()}
+                                fullWidth
+                                disabled={
+                                  !selectedBackendPreset ||
+                                  backendStateLoading ||
+                                  backendStatusUnavailable ||
+                                  !backendAdminTokenPresent
+                                }
+                              >
+                                {t("applyToServer")}
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        </Stack>
+                      </Box>
+                      <Box
+                        sx={{
+                          flex: 1,
+                          border: 1,
+                          borderColor: "divider",
+                          borderRadius: 2,
+                          p: 2,
+                          bgcolor: "background.paper",
+                        }}
+                      >
+                        <Stack spacing={2}>
+                          <TextField
+                            label={t("presetName")}
+                            value={backendPresetForm.name}
+                            onChange={(event) =>
+                              setBackendPresetForm((prev) => ({ ...prev, name: event.target.value }))
+                            }
+                          />
+                          <TextField
+                            label={t("explanation")}
+                            value={backendPresetForm.description}
+                            onChange={(event) =>
+                              setBackendPresetForm((prev) => ({
+                                ...prev,
+                                description: event.target.value,
+                              }))
+                            }
+                            placeholder={t("pleaseLeaveAnEndpointNote")}
+                          />
+                          <FormControl component="fieldset">
+                            <FormLabel>{t("endpointType")}</FormLabel>
+                            <ToggleButtonGroup
+                              exclusive
+                              value={backendPresetForm.deployment}
+                              onChange={(_, value) => {
+                                if (!value) return;
+                                setBackendPresetForm((prev) => ({ ...prev, deployment: value }));
+                              }}
+                              size="small"
+                              sx={{ mt: 1 }}
+                            >
+                              <ToggleButton value="cloud" sx={{ textTransform: "none" }}>
+                                {t("rtzrApi")}
+                              </ToggleButton>
+                              <ToggleButton value="onprem" sx={{ textTransform: "none" }}>
+                                {t("onPrem")}
+                              </ToggleButton>
+                            </ToggleButtonGroup>
+                          </FormControl>
+                          <TextField
+                            label={t("apiBaseUrl")}
+                            value={backendPresetForm.apiBaseUrl}
+                            onChange={(event) =>
+                              setBackendPresetForm((prev) => ({
+                                ...prev,
+                                apiBaseUrl: event.target.value,
+                              }))
+                            }
+                            placeholder="https://openapi.vito.ai"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={backendPresetForm.verifySsl}
+                                onChange={(event) =>
+                                  setBackendPresetForm((prev) => ({
+                                    ...prev,
+                                    verifySsl: event.target.checked,
+                                  }))
+                                }
+                              />
+                            }
+                            label={t("sslCertificateVerification")}
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={backendPresetForm.isDefault}
+                                onChange={(event) =>
+                                  setBackendPresetForm((prev) => ({
+                                    ...prev,
+                                    isDefault: event.target.checked,
+                                  }))
+                                }
+                              />
+                            }
+                            label={t("setAsDefaultPreset")}
+                          />
+                          {backendPresetForm.deployment === "cloud" && (
+                            <Stack spacing={1.5}>
+                              <Stack spacing={0.5}>
+                                <TextField
+                                  label={t("clientId")}
+                                  type="password"
+                                  value={backendPresetForm.clientIdInput}
+                                  onChange={(event) =>
+                                    setBackendPresetForm((prev) => ({
+                                      ...prev,
+                                      clientIdInput: event.target.value,
+                                    }))
+                                  }
+                                  placeholder={t("requiredForCloudDeployment")}
+                                  helperText={
+                                    backendPresetForm.storedClientId
+                                      ? t("thereIsASavedClientIdEnteringANewValueWillOverwriteIt")
+                                      : t("requiredForRtzrCloudDeployments")
+                                  }
+                                />
+                                {backendPresetForm.storedClientId && (
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    onClick={() => handleBackendCredentialClear("storedClientId")}
+                                    sx={{ alignSelf: "flex-end" }}
+                                  >
+                                    {t("clearSavedClientId")}
+                                  </Button>
+                                )}
+                              </Stack>
+                              <Stack spacing={0.5}>
+                                <TextField
+                                  label={t("clientSecret")}
+                                  type="password"
+                                  value={backendPresetForm.clientSecretInput}
+                                  onChange={(event) =>
+                                    setBackendPresetForm((prev) => ({
+                                      ...prev,
+                                      clientSecretInput: event.target.value,
+                                    }))
+                                  }
+                                  helperText={
+                                    backendPresetForm.storedClientSecret
+                                      ? t("thereIsASavedClientSecretEnteringANewValueWillOverwriteIt")
+                                      : t("requiredForRtzrCloudDeployments")
+                                  }
+                                />
+                                {backendPresetForm.storedClientSecret && (
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    onClick={() => handleBackendCredentialClear("storedClientSecret")}
+                                    sx={{ alignSelf: "flex-end" }}
+                                  >
+                                    {t("clearSavedClientSecret")}
+                                  </Button>
+                                )}
+                              </Stack>
+                            </Stack>
+                          )}
+                          <Stack
+                            direction={{ xs: "column", md: "row" }}
+                            spacing={1}
+                            alignItems="stretch"
+                          >
+                            <Button variant="contained" onClick={() => void handleBackendPresetSave()} fullWidth>
+                              {t("savePreset")}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              onClick={() => void handleBackendPresetDelete()}
+                              disabled={!backendPresetForm.id}
+                              fullWidth
+                            >
+                              {t("deletePreset")}
                             </Button>
                           </Stack>
                         </Stack>
-                      </Stack>
-                    </Box>
-                    <Box
-                      sx={{
-                        flex: 1,
-                        border: 1,
-                        borderColor: "divider",
-                        borderRadius: 2,
-                        p: 2,
-                        bgcolor: "background.paper",
-                      }}
-                    >
-                      <Stack spacing={2}>
-                        <TextField
-                          label={t("presetName")}
-                          value={backendPresetForm.name}
-                          onChange={(event) =>
-                            setBackendPresetForm((prev) => ({ ...prev, name: event.target.value }))
-                          }
-                        />
-                        <TextField
-                          label={t("explanation")}
-                          value={backendPresetForm.description}
-                          onChange={(event) =>
-                            setBackendPresetForm((prev) => ({
-                              ...prev,
-                              description: event.target.value,
-                            }))
-                          }
-                          placeholder={t("pleaseLeaveAnEndpointNote")}
-                        />
-                        <FormControl component="fieldset">
-                          <FormLabel>{t("endpointType")}</FormLabel>
-                          <ToggleButtonGroup
-                            exclusive
-                            value={backendPresetForm.deployment}
-                            onChange={(_, value) => {
-                              if (!value) return;
-                              setBackendPresetForm((prev) => ({ ...prev, deployment: value }));
-                            }}
-                            size="small"
-                            sx={{ mt: 1 }}
-                          >
-                            <ToggleButton value="cloud" sx={{ textTransform: "none" }}>
-                              {t("rtzrApi")}
-                            </ToggleButton>
-                            <ToggleButton value="onprem" sx={{ textTransform: "none" }}>
-                              {t("onPrem")}
-                            </ToggleButton>
-                          </ToggleButtonGroup>
-                        </FormControl>
-                        <TextField
-                          label={t("apiBaseUrl")}
-                          value={backendPresetForm.apiBaseUrl}
-                          onChange={(event) =>
-                            setBackendPresetForm((prev) => ({
-                              ...prev,
-                              apiBaseUrl: event.target.value,
-                            }))
-                          }
-                          placeholder="https://openapi.vito.ai"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={backendPresetForm.verifySsl}
-                              onChange={(event) =>
-                                setBackendPresetForm((prev) => ({
-                                  ...prev,
-                                  verifySsl: event.target.checked,
-                                }))
-                              }
-                            />
-                          }
-                          label={t("sslCertificateVerification")}
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={backendPresetForm.isDefault}
-                              onChange={(event) =>
-                                setBackendPresetForm((prev) => ({
-                                  ...prev,
-                                  isDefault: event.target.checked,
-                                }))
-                              }
-                            />
-                          }
-                          label={t("setAsDefaultPreset")}
-                        />
-                        {backendPresetForm.deployment === "cloud" && (
-                          <Stack spacing={1.5}>
-                            <Stack spacing={0.5}>
-                              <TextField
-                                label={t("clientId")}
-                                type="password"
-                                value={backendPresetForm.clientIdInput}
-                                onChange={(event) =>
-                                  setBackendPresetForm((prev) => ({
-                                    ...prev,
-                                    clientIdInput: event.target.value,
-                                  }))
-                                }
-                                placeholder={t("requiredForCloudDeployment")}
-                                helperText={
-                                  backendPresetForm.storedClientId
-                                    ? t("thereIsASavedClientIdEnteringANewValueWillOverwriteIt")
-                                    : t("requiredForRtzrCloudDeployments")
-                                }
-                              />
-                              {backendPresetForm.storedClientId && (
-                                <Button
-                                  variant="text"
-                                  size="small"
-                                  onClick={() => handleBackendCredentialClear("storedClientId")}
-                                  sx={{ alignSelf: "flex-end" }}
-                                >
-                                  {t("clearSavedClientId")}
-                                </Button>
-                              )}
-                            </Stack>
-                            <Stack spacing={0.5}>
-                              <TextField
-                                label={t("clientSecret")}
-                                type="password"
-                                value={backendPresetForm.clientSecretInput}
-                                onChange={(event) =>
-                                  setBackendPresetForm((prev) => ({
-                                    ...prev,
-                                    clientSecretInput: event.target.value,
-                                  }))
-                                }
-                                helperText={
-                                  backendPresetForm.storedClientSecret
-                                    ? t("thereIsASavedClientSecretEnteringANewValueWillOverwriteIt")
-                                    : t("requiredForRtzrCloudDeployments")
-                                }
-                              />
-                              {backendPresetForm.storedClientSecret && (
-                                <Button
-                                  variant="text"
-                                  size="small"
-                                  onClick={() => handleBackendCredentialClear("storedClientSecret")}
-                                  sx={{ alignSelf: "flex-end" }}
-                                >
-                                  {t("clearSavedClientSecret")}
-                                </Button>
-                              )}
-                            </Stack>
-                          </Stack>
-                        )}
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={1}
-                          alignItems="stretch"
-                        >
-                          <Button variant="contained" onClick={() => void handleBackendPresetSave()} fullWidth>
-                            {t("savePreset")}
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            onClick={() => void handleBackendPresetDelete()}
-                            disabled={!backendPresetForm.id}
-                            fullWidth
-                          >
-                            {t("deletePreset")}
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-          ) : null}
+                      </Box>
+                    </Stack>
+                  </>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
         </Box>
       </StudioPageShell>
       <ConfirmDialog

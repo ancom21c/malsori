@@ -324,6 +324,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Backend admin token",
     ja: "バックエンド管理者トークン",
   },
+  backendAdminTokenHelperDetailed: {
+    ko: "내부 관리자 요청 시에만 사용하며 현재 페이지 메모리에만 유지됩니다. 로컬에 저장되지 않습니다.",
+    en: "Used only for internal admin requests and kept only in this page's memory. It is not saved locally.",
+    ja: "内部管理リクエスト時のみ使用され、このページのメモリにのみ保持されます。ローカルには保存されません。",
+  },
   backendPresetsHaveBeenExported: {
     ko: "백엔드 프리셋을 내보냈습니다.",
     en: "Backend presets have been exported.",
@@ -398,6 +403,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "서버 설정을 적용하려면 관리자 토큰을 입력하세요.",
     en: "Enter an admin token before applying server settings.",
     ja: "サーバー設定を適用する前に管理者トークンを入力してください。",
+  },
+  operatorSettingsUnavailableFromServer: {
+    ko: "이 서버에서는 내부 운영자 설정이 비활성화되어 있습니다. 내부망 상태를 확인한 뒤 운영자 접근 상태를 다시 새로고침하세요.",
+    en: "Internal operator settings are unavailable on this server. Check the internal network path, then refresh operator access.",
+    ja: "このサーバーでは内部オペレーター設定を利用できません。内部ネットワーク経路を確認してから、オペレーターアクセスを更新してください。",
   },
   clientId: {
     ko: "Client ID",
@@ -1608,6 +1618,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "서버 상태 새로고침",
     en: "Refresh server status",
     ja: "サーバーのステータスを更新する",
+  },
+  refreshOperatorAccess: {
+    ko: "운영자 접근 새로고침",
+    en: "Refresh operator access",
+    ja: "オペレーターアクセスを更新",
   },
   refreshStatus: {
     ko: "상태 새로고침",
@@ -2903,6 +2918,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "설정 콘솔 개요",
     en: "Settings Console Overview",
     ja: "設定コンソール概要",
+  },
+  operatorSettingsBoundaryHelper: {
+    ko: "이 영역은 내부 관리자 URL과 관리자 토큰이 필요하며, 조회는 버튼을 눌렀을 때만 실행됩니다.",
+    en: "This area requires the internal admin URL and an admin token, and checks run only when you press a button.",
+    ja: "この領域では内部管理 URL と管理者トークンが必要で、確認はボタンを押したときにのみ実行されます。",
   },
   permissionsReadyCount: {
     ko: "권한 {{ready}}/{{total}}",
