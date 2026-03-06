@@ -48,6 +48,11 @@ type TranscriptionMetadataPatch = Partial<
     | "backendEndpointSource"
     | "backendDeployment"
     | "backendApiBaseUrl"
+    | "realtimeBufferedAudioMs"
+    | "realtimeDroppedAudioMs"
+    | "realtimeReplayedAudioMs"
+    | "realtimeDroppedAudioRatio"
+    | "realtimeQualityState"
   >
 >;
 

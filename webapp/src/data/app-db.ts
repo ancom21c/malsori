@@ -30,6 +30,11 @@ export interface LocalTranscription {
   backendEndpointSource?: "preset" | "server-default" | "unknown";
   backendDeployment?: BackendEndpointDeployment;
   backendApiBaseUrl?: string;
+  realtimeBufferedAudioMs?: number;
+  realtimeDroppedAudioMs?: number;
+  realtimeReplayedAudioMs?: number;
+  realtimeDroppedAudioRatio?: number;
+  realtimeQualityState?: "normal" | "degraded";
   searchTitle?: string;
   searchTranscript?: string;
   isCloudSynced?: boolean;

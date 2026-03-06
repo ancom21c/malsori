@@ -26,7 +26,11 @@ import {
   appendVideoChunk,
   deleteTranscription,
 } from "../services/data/transcriptionRepository";
-import { RtzrStreamingClient } from "../services/api/rtzrStreamingClient";
+import {
+  EMPTY_STREAMING_BUFFER_METRICS,
+  RtzrStreamingClient,
+  type StreamingBufferMetrics,
+} from "../services/api/rtzrStreamingClient";
 import {
   RecorderManager,
   type RecorderChunkInfo,
@@ -125,6 +129,29 @@ const DEFAULT_RUNTIME_SETTINGS: RuntimeSettingsState = {
   acousticScale: "",
 };
 
+function areStreamingBufferMetricsEqual(
+  left: StreamingBufferMetrics,
+  right: StreamingBufferMetrics
+): boolean {
+  return (
+    left.bufferedAudioMs === right.bufferedAudioMs &&
+    left.replayedBufferedAudioMs === right.replayedBufferedAudioMs &&
+    left.droppedBufferedAudioMs === right.droppedBufferedAudioMs &&
+    left.attemptedBufferedAudioMs === right.attemptedBufferedAudioMs &&
+    left.droppedBufferedAudioRatio === right.droppedBufferedAudioRatio &&
+    left.degraded === right.degraded
+  );
+}
+
+function buildRealtimeQualityPatch(metrics: StreamingBufferMetrics) {
+  return {
+    realtimeBufferedAudioMs: metrics.bufferedAudioMs,
+    realtimeDroppedAudioMs: metrics.droppedBufferedAudioMs,
+    realtimeReplayedAudioMs: metrics.replayedBufferedAudioMs,
+    realtimeDroppedAudioRatio: Number(metrics.droppedBufferedAudioRatio.toFixed(4)),
+    realtimeQualityState: metrics.degraded ? ("degraded" as const) : ("normal" as const),
+  };
+}
 
 type NormalizedRealtimeSegmentPayload = {
   text: string;
@@ -488,6 +515,9 @@ export default function RealtimeSessionPage() {
     DEFAULT_REALTIME_CONNECTION_UX_STATE
   );
   const [connectionEventMessage, setConnectionEventMessage] = useState<string | null>(null);
+  const [streamingBufferMetrics, setStreamingBufferMetrics] = useState<StreamingBufferMetrics>({
+    ...EMPTY_STREAMING_BUFFER_METRICS,
+  });
   const [retryingConnection, setRetryingConnection] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [segments, setSegments] = useState<RealtimeSegment[]>([]);
@@ -566,10 +596,14 @@ export default function RealtimeSessionPage() {
   const lastAudioSentAtRef = useRef<number | null>(null);
   const lastResultAtRef = useRef<number | null>(null);
   const connectionUxStateRef = useRef(connectionUxState);
+  const streamingBufferMetricsRef = useRef<StreamingBufferMetrics>({
+    ...EMPTY_STREAMING_BUFFER_METRICS,
+  });
   const suppressRecorderOnStopRef = useRef(false);
 
   sessionStateRef.current = sessionState;
   connectionUxStateRef.current = connectionUxState;
+  streamingBufferMetricsRef.current = streamingBufferMetrics;
 
   const sessionActive =
     sessionState === "recording" ||
@@ -650,6 +684,22 @@ export default function RealtimeSessionPage() {
       stopSafetyTimerRef.current = null;
     }
   };
+
+  const resetStreamingBufferMetrics = useCallback(() => {
+    const next = { ...EMPTY_STREAMING_BUFFER_METRICS };
+    streamingBufferMetricsRef.current = next;
+    setStreamingBufferMetrics(next);
+  }, []);
+
+  const handleStreamingBufferMetricsChange = useCallback((next: StreamingBufferMetrics) => {
+    streamingBufferMetricsRef.current = next;
+    setStreamingBufferMetrics((prev) => {
+      if (areStreamingBufferMetricsEqual(prev, next)) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const stopRecorder = useCallback(() => {
     const recorder = recorderRef.current;
@@ -990,6 +1040,7 @@ export default function RealtimeSessionPage() {
     setConnectionEventMessage(null);
     setRetryingConnection(false);
     setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
+    resetStreamingBufferMetrics();
     setAudioLevel(0);
     setSessionState("idle");
   };
@@ -1001,8 +1052,10 @@ export default function RealtimeSessionPage() {
       const id = transcriptionIdRef.current;
       if (!id) return;
       const duration = sessionStartRef.current ? Date.now() - sessionStartRef.current : undefined;
+      const reconnectMetrics = streamingBufferMetricsRef.current;
       void updateLocalTranscription(id, {
         durationMs: duration,
+        ...buildRealtimeQualityPatch(reconnectMetrics),
       });
     }, intervalMs);
   };
@@ -1028,7 +1081,7 @@ export default function RealtimeSessionPage() {
     }).catch((error) => console.error(t("failedToSaveAudioChunk"), error));
 
     lastAudioSentAtRef.current = Date.now();
-    streamingClientRef.current?.sendAudioChunk(buffer);
+    streamingClientRef.current?.sendAudioChunk(buffer, { durationMs: info.durationMs });
   };
 
   const persistSegments = async () => {
@@ -1213,12 +1266,50 @@ export default function RealtimeSessionPage() {
   const prepareSession = async (decoderConfig: Record<string, unknown>) => {
     sessionConnectedRef.current = false;
     connectionReadyRef.current = false;
+    resetStreamingBufferMetrics();
 
     const recorder = new RecorderManager();
     recorderRef.current = recorder;
     const client = new RtzrStreamingClient();
     streamingClientRef.current = client;
     const sampleRate = extractSampleRateFromConfig(decoderConfig);
+
+    try {
+      await recorder.start({
+        targetSampleRate: sampleRate,
+        chunkMillis: 800,
+        onChunk: handleAudioChunk,
+        onLevel: setAudioLevel,
+        onError: (error) => {
+          console.error(t("recordingError"), error);
+          setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
+          enqueueRealtimeSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
+          stopSession(true);
+        },
+        onStop: () => {
+          if (suppressRecorderOnStopRef.current) {
+            suppressRecorderOnStopRef.current = false;
+            return;
+          }
+          if (sessionStateRef.current === "stopping") {
+            // Wait for socket close or safety timer
+            return;
+          }
+          void finalizeSession(finalizeReasonRef.current === "aborted");
+        },
+      });
+      if (recorder.recorderState !== "recording") {
+        throw new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+      }
+    } catch (error) {
+      console.error(t("failedToStartRecording"), error);
+      setErrorMessage(
+        error instanceof Error ? error.message : t("yourMicrophoneDeviceCannotBeUsed")
+      );
+      enqueueRealtimeSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
+      stopSession(true);
+      throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+    }
 
     client.connect({
       baseUrl: apiBaseUrl,
@@ -1230,6 +1321,7 @@ export default function RealtimeSessionPage() {
       },
       onMessage: handleStreamingMessage,
       onError: handleStreamingError,
+      onBufferMetrics: handleStreamingBufferMetricsChange,
       onReconnectAttempt: (attempt) => {
         setConnectionUxState((prev) =>
           reduceRealtimeConnectionUxState(prev, { type: "reconnect-attempt", attempt })
@@ -1295,43 +1387,6 @@ export default function RealtimeSessionPage() {
         );
       },
     });
-
-    try {
-      await recorder.start({
-        targetSampleRate: sampleRate,
-        chunkMillis: 800,
-        onChunk: handleAudioChunk,
-        onLevel: setAudioLevel,
-        onError: (error) => {
-          console.error(t("recordingError"), error);
-          setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
-          enqueueRealtimeSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
-          stopSession(true);
-        },
-        onStop: () => {
-          if (suppressRecorderOnStopRef.current) {
-            suppressRecorderOnStopRef.current = false;
-            return;
-          }
-          if (sessionStateRef.current === "stopping") {
-            // Wait for socket close or safety timer
-            return;
-          }
-          void finalizeSession(finalizeReasonRef.current === "aborted");
-        },
-      });
-      if (recorder.recorderState !== "recording") {
-        throw new Error(t("yourMicrophoneDeviceCannotBeUsed"));
-      }
-    } catch (error) {
-      console.error(t("failedToStartRecording"), error);
-      setErrorMessage(
-        error instanceof Error ? error.message : t("yourMicrophoneDeviceCannotBeUsed")
-      );
-      enqueueRealtimeSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
-      stopSession(true);
-      throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
-    }
   };
 
   const finalizeSession = async (aborted: boolean) => {
@@ -1350,6 +1405,7 @@ export default function RealtimeSessionPage() {
     }
 
     const duration = sessionStartRef.current ? Date.now() - sessionStartRef.current : undefined;
+    const reconnectMetrics = streamingBufferMetricsRef.current;
 
     try {
       if (id && shouldDiscard) {
@@ -1373,6 +1429,7 @@ export default function RealtimeSessionPage() {
           processingStage: undefined,
           transcriptText,
           durationMs: duration,
+          ...buildRealtimeQualityPatch(reconnectMetrics),
           errorMessage: aborted ? errorMessage ?? t("theSessionHasBeenAborted") : undefined,
         });
       }
@@ -1623,6 +1680,7 @@ export default function RealtimeSessionPage() {
           backendEndpointSource: backendSnapshot.source,
           backendDeployment: backendSnapshot.deployment,
           backendApiBaseUrl: backendSnapshot.apiBaseUrl,
+          ...buildRealtimeQualityPatch(EMPTY_STREAMING_BUFFER_METRICS),
         },
       });
       transcriptionIdRef.current = record.id;
@@ -1928,6 +1986,7 @@ export default function RealtimeSessionPage() {
               sessionState={sessionState}
               sessionStateLabel={sessionStateLabel}
               connectionUxState={connectionUxState}
+              streamingBufferMetrics={streamingBufferMetrics}
               latencyLevelLabel={latencyLevelLabel}
               latencyValueLabel={latencyValueLabel}
               latencyChipColor={latencyChipColor}

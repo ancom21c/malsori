@@ -15,13 +15,15 @@ import StorageIcon from "@mui/icons-material/Storage";
 import { alpha } from "@mui/material/styles";
 import { useI18n } from "../../i18n";
 import type { RealtimeConnectionUxState } from "../../pages/realtimeConnectionUx";
+import type { StreamingBufferMetrics } from "../../services/api/rtzrStreamingClient";
 import type { BrowserPermissionState } from "../../services/permissions";
-import { StatusChipSet } from "../studio";
+import { StatusChipSet, type StatusChipItem } from "../studio";
 
 interface RealtimeStatusBannerProps {
   sessionState: string;
   sessionStateLabel: string;
   connectionUxState: RealtimeConnectionUxState;
+  streamingBufferMetrics: StreamingBufferMetrics;
   latencyLevelLabel: string;
   latencyValueLabel: string;
   latencyChipColor: "default" | "success" | "warning" | "error";
@@ -41,6 +43,7 @@ export default function RealtimeStatusBanner({
   sessionState,
   sessionStateLabel,
   connectionUxState,
+  streamingBufferMetrics,
   latencyLevelLabel,
   latencyValueLabel,
   latencyChipColor,
@@ -59,6 +62,36 @@ export default function RealtimeStatusBanner({
 
   const showConnectionBanner =
     sessionState !== "idle" && connectionUxState.phase !== "normal";
+  const bufferedSeconds = Math.max(1, Math.ceil(streamingBufferMetrics.bufferedAudioMs / 1000));
+  const statusChipItems: StatusChipItem[] = [];
+
+  if (sessionState === "countdown") {
+    statusChipItems.push({
+      key: "session-countdown",
+      label: t("readyToStartS", {
+        values: { seconds: Math.max(countdown, 0) },
+      }),
+      color: "secondary" as const,
+    });
+  }
+
+  if (streamingBufferMetrics.bufferedAudioMs > 0) {
+    statusChipItems.push({
+      key: "streaming-buffering",
+      label: t("bufferingAudioS", {
+        values: { seconds: bufferedSeconds },
+      }),
+      color: "warning" as const,
+    });
+  }
+
+  if (streamingBufferMetrics.degraded) {
+    statusChipItems.push({
+      key: "streaming-degraded",
+      label: t("sessionQualityDegraded"),
+      color: "error" as const,
+    });
+  }
 
   return (
     <Stack spacing={2}>
@@ -78,12 +111,16 @@ export default function RealtimeStatusBanner({
               ? "error.main"
               : connectionUxState.phase === "reconnecting"
                 ? "warning.main"
+                : streamingBufferMetrics.degraded
+                  ? "warning.main"
                 : "divider",
           backgroundImage: (theme) =>
             connectionUxState.phase === "failed"
               ? `linear-gradient(145deg, ${alpha(theme.palette.error.main, 0.16)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
               : connectionUxState.phase === "reconnecting"
                 ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.17)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
+                : streamingBufferMetrics.degraded
+                  ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`
                 : `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`,
           transition: "border-color 200ms ease, background-color 200ms ease",
         }}
@@ -161,19 +198,7 @@ export default function RealtimeStatusBanner({
                 </Stack>
 
                 <StatusChipSet
-                  items={
-                    sessionState === "countdown"
-                      ? [
-                          {
-                            key: "session-countdown",
-                            label: t("readyToStartS", {
-                              values: { seconds: Math.max(countdown, 0) },
-                            }),
-                            color: "secondary" as const,
-                          },
-                        ]
-                      : []
-                  }
+                  items={statusChipItems}
                 />
               </Stack>
             </Stack>
@@ -255,6 +280,34 @@ export default function RealtimeStatusBanner({
           }}
         >
           {connectionBannerMessage}
+        </Alert>
+      )}
+
+      {streamingBufferMetrics.bufferedAudioMs > 0 && (
+        <Alert
+          severity="info"
+          sx={{
+            borderRadius: 3,
+            border: "1px solid",
+            borderColor: (theme) => alpha(theme.palette.info.main, 0.2),
+          }}
+        >
+          {t("bufferedAudioWillReplayWhenConnectionReturns", {
+            values: { seconds: bufferedSeconds },
+          })}
+        </Alert>
+      )}
+
+      {streamingBufferMetrics.degraded && (
+        <Alert
+          severity="warning"
+          sx={{
+            borderRadius: 3,
+            border: "1px solid",
+            borderColor: (theme) => alpha(theme.palette.warning.main, 0.2),
+          }}
+        >
+          {t("someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete")}
         </Alert>
       )}
     </Stack>

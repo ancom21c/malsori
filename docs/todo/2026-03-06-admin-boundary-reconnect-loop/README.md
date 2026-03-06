@@ -19,7 +19,7 @@ public/internal 운영 경계, realtime reconnect 복원력, operator UX, Studio
 | ID | 우선순위 | 작업 | Spec | Plan Review | Implement | Impl Review | Verify | 문서 |
 |---|---|---|---|---|---|---|---|---|
 | T601 | P0 | Public/Internal API boundary split + default base 정리 | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T601-public-internal-api-boundary.md` |
-| T602 | P0 | Realtime reconnect resilience + degraded signaling | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T602-realtime-reconnect-resilience.md` |
+| T602 | P0 | Realtime reconnect resilience + degraded signaling | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T602-realtime-reconnect-resilience.md` |
 | T603 | P1 | Operator settings safe default / manual intent / boundary UX | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T603-operator-settings-hardening.md` |
 | T604 | P1 | Realtime media capture source-of-truth hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T604-realtime-media-capture-hardening.md` |
 | T605 | P1 | Status normalization and failure surfacing hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T605-status-normalization-hardening.md` |

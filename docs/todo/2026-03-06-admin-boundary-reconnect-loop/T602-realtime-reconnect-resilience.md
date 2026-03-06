@@ -72,21 +72,36 @@
 
 ## Implementation Log
 
-- [ ] realtime session sequence inventory 작성
-- [ ] recorder-first `prepareSession()` 반영
-- [ ] duration-budget buffer / replay 구현
-- [ ] degraded state 계산 및 UI/metadata 연결
-- [ ] reconnect tests / notes 추가
+- [x] realtime session sequence inventory 작성
+- [x] recorder-first `prepareSession()` 반영
+- [x] duration-budget buffer / replay 구현
+- [x] degraded state 계산 및 UI/metadata 연결
+- [x] reconnect tests / notes 추가
+
+### 구현 메모
+
+- `RtzrStreamingClient`를 chunk-count queue에서 `duration-budget + metrics callback` 구조로 변경했다.
+- `prepareSession()`은 recorder start 성공 후 socket connect를 시작하도록 재배선했다.
+- reconnect drop/replay 정보는 local transcription metadata(`realtime*`)에 저장되도록 연결했다.
+- HUD에는 buffering/degraded chip과 helper alert를 추가했다.
+- `rtzrStreamingClient` 테스트에 replay FIFO, budget drop, disconnect drop 케이스를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] reconnect 성공 후 chunk ordering이 FIFO로 유지되는지 확인
-- [ ] budget 초과 시 silent data loss가 아니라 degraded signal이 남는지 확인
-- [ ] finalize/discard 경로가 empty session을 남기지 않는지 확인
+- [x] reconnect 성공 후 chunk ordering이 FIFO로 유지되는지 확인
+- [x] budget 초과 시 silent data loss가 아니라 degraded signal이 남는지 확인
+- [x] finalize/discard 경로가 empty session을 남기지 않는지 확인
+
+## Self Review (Implementation)
+
+- [x] finalize 직전 disconnect에서 마지막 drop metric이 stale ref에 묻히는 문제를 한 번 잡았고, callback에서 ref를 즉시 갱신하도록 보정했다.
+- [x] reconnect tolerance는 option으로 override 가능하지만 기본값도 reconnect backoff + handshake budget에 맞춰 계산되도록 유지했다.
+- [x] camera/audio source 이중 획득 문제는 건드리지 않고 transport correctness에만 범위를 제한했다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] `npm --prefix webapp run test -- RealtimeSessionPage realtimeSessionModel`
-- [ ] reconnect/drop manual smoke note 작성
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- rtzrStreamingClient realtimeSessionModel`
+- [x] `npm --prefix webapp run test -- AppRouter`
+- [x] reconnect/drop smoke note 작성

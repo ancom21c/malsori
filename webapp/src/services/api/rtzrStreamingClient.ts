@@ -10,20 +10,65 @@ export interface StreamingSessionOptions {
   handshakeTimeoutMs?: number;
   reconnectAttempts?: number;
   reconnectBackoffMs?: number;
+  maxBufferedAudioMs?: number;
+  degradedDropMsThreshold?: number;
+  degradedDropRatioThreshold?: number;
   onMessage: (message: MessageEvent) => void;
   onError?: (event: Event) => void;
   onClose?: (event: CloseEvent) => void;
   onOpen?: () => void;
   onReconnectAttempt?: (attempt: number) => void;
+  onBufferMetrics?: (metrics: StreamingBufferMetrics) => void;
   onPermanentFailure?: (event: CloseEvent | Event) => void;
+}
+
+export interface StreamingBufferMetrics {
+  bufferedAudioMs: number;
+  replayedBufferedAudioMs: number;
+  droppedBufferedAudioMs: number;
+  attemptedBufferedAudioMs: number;
+  droppedBufferedAudioRatio: number;
+  degraded: boolean;
 }
 
 const DEFAULT_KEEP_ALIVE_MS = 20_000;
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 3_000;
 const DEFAULT_RECONNECT_ATTEMPTS = 3;
 const DEFAULT_RECONNECT_BACKOFF_MS = 1_500;
-const MAX_PENDING_CHUNKS = 24;
+const MAX_BUFFERED_AUDIO_MS_CAP = 20_000;
+const DEFAULT_DEGRADED_DROP_MS = 2_000;
+const DEFAULT_DEGRADED_DROP_RATIO = 0.1;
 const HANDSHAKE_TIMEOUT_REASON = "STREAM_ACK_TIMEOUT";
+
+type PendingAudioChunk = {
+  buffer: ArrayBuffer;
+  durationMs: number;
+  createdAt: number;
+};
+
+export const EMPTY_STREAMING_BUFFER_METRICS: StreamingBufferMetrics = {
+  bufferedAudioMs: 0,
+  replayedBufferedAudioMs: 0,
+  droppedBufferedAudioMs: 0,
+  attemptedBufferedAudioMs: 0,
+  droppedBufferedAudioRatio: 0,
+  degraded: false,
+};
+
+export function calculateDefaultBufferedAudioBudgetMs(input?: {
+  reconnectAttempts?: number;
+  reconnectBackoffMs?: number;
+  handshakeTimeoutMs?: number;
+}): number {
+  const reconnectAttempts = Math.max(0, input?.reconnectAttempts ?? DEFAULT_RECONNECT_ATTEMPTS);
+  const reconnectBackoffMs = Math.max(0, input?.reconnectBackoffMs ?? DEFAULT_RECONNECT_BACKOFF_MS);
+  const handshakeTimeoutMs = Math.max(0, input?.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS);
+  let budgetMs = handshakeTimeoutMs;
+  for (let attempt = 1; attempt <= reconnectAttempts; attempt += 1) {
+    budgetMs += reconnectBackoffMs * attempt;
+  }
+  return Math.min(MAX_BUFFERED_AUDIO_MS_CAP, Math.max(handshakeTimeoutMs, budgetMs));
+}
 
 /**
  * Resilient WebSocket client for the RTZR streaming API.
@@ -38,12 +83,16 @@ export class RtzrStreamingClient {
     handshakeTimeoutMs: number;
     reconnectAttempts: number;
     reconnectBackoffMs: number;
+    maxBufferedAudioMs: number;
+    degradedDropMsThreshold: number;
+    degradedDropRatioThreshold: number;
   }) | null = null;
   private shouldReconnect = false;
   private reconnectAttempt = 0;
   private reconnectTimer: number | null = null;
   private keepAliveTimer: number | null = null;
-  private pendingChunks: ArrayBuffer[] = [];
+  private pendingChunks: PendingAudioChunk[] = [];
+  private bufferMetrics: StreamingBufferMetrics = { ...EMPTY_STREAMING_BUFFER_METRICS };
   private handshakeComplete = false;
   private handshakeTimer: number | null = null;
 
@@ -59,17 +108,29 @@ export class RtzrStreamingClient {
       handshakeTimeoutMs: options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS,
       reconnectAttempts: options.reconnectAttempts ?? DEFAULT_RECONNECT_ATTEMPTS,
       reconnectBackoffMs: options.reconnectBackoffMs ?? DEFAULT_RECONNECT_BACKOFF_MS,
+      maxBufferedAudioMs:
+        options.maxBufferedAudioMs ??
+        calculateDefaultBufferedAudioBudgetMs({
+          reconnectAttempts: options.reconnectAttempts,
+          reconnectBackoffMs: options.reconnectBackoffMs,
+          handshakeTimeoutMs: options.handshakeTimeoutMs,
+        }),
+      degradedDropMsThreshold: options.degradedDropMsThreshold ?? DEFAULT_DEGRADED_DROP_MS,
+      degradedDropRatioThreshold:
+        options.degradedDropRatioThreshold ?? DEFAULT_DEGRADED_DROP_RATIO,
     };
     this.shouldReconnect = true;
     this.reconnectAttempt = 0;
     this.pendingChunks = [];
+    this.bufferMetrics = { ...EMPTY_STREAMING_BUFFER_METRICS };
     this.handshakeComplete = false;
     this.clearHandshakeTimer();
     this.state = "connecting";
+    this.emitBufferMetrics();
     this.openSocket();
   }
 
-  sendAudioChunk(chunk: ArrayBuffer | ArrayBufferView) {
+  sendAudioChunk(chunk: ArrayBuffer | ArrayBufferView, input?: { durationMs?: number }) {
     const buffer = this.prepareAudioBuffer(chunk);
     if (!buffer) return;
     if (this.socket && this.state === "open" && this.handshakeComplete) {
@@ -77,7 +138,7 @@ export class RtzrStreamingClient {
       return;
     }
     if (this.shouldReconnect || (this.socket && !this.handshakeComplete)) {
-      this.enqueueChunk(buffer);
+      this.enqueueChunk(buffer, input?.durationMs);
     }
   }
 
@@ -90,9 +151,11 @@ export class RtzrStreamingClient {
 
   disconnect() {
     this.shouldReconnect = false;
+    this.markPendingChunksDropped();
     this.cleanupSocket();
     this.pendingChunks = [];
     this.state = "closed";
+    this.emitBufferMetrics();
   }
 
   private openSocket() {
@@ -356,12 +419,35 @@ export class RtzrStreamingClient {
     }, delay);
   }
 
-  private enqueueChunk(buffer: ArrayBuffer) {
-    if (this.pendingChunks.length >= MAX_PENDING_CHUNKS) {
-      // Drop the oldest chunk to keep memory in check.
-      this.pendingChunks.shift();
+  private enqueueChunk(buffer: ArrayBuffer, durationMs?: number) {
+    const normalizedDurationMs =
+      typeof durationMs === "number" && Number.isFinite(durationMs)
+        ? Math.max(0, Math.round(durationMs))
+        : 0;
+
+    this.pendingChunks.push({
+      buffer: buffer.slice(0),
+      durationMs: normalizedDurationMs,
+      createdAt: Date.now(),
+    });
+    this.bufferMetrics.bufferedAudioMs += normalizedDurationMs;
+    this.bufferMetrics.attemptedBufferedAudioMs += normalizedDurationMs;
+
+    const maxBufferedAudioMs = this.options?.maxBufferedAudioMs ?? MAX_BUFFERED_AUDIO_MS_CAP;
+    while (this.bufferMetrics.bufferedAudioMs > maxBufferedAudioMs && this.pendingChunks.length > 0) {
+      const dropped = this.pendingChunks.shift();
+      if (!dropped) {
+        break;
+      }
+      this.bufferMetrics.bufferedAudioMs = Math.max(
+        0,
+        this.bufferMetrics.bufferedAudioMs - dropped.durationMs
+      );
+      this.bufferMetrics.droppedBufferedAudioMs += dropped.durationMs;
     }
-    this.pendingChunks.push(buffer.slice(0));
+
+    this.refreshBufferHealth();
+    this.emitBufferMetrics();
   }
 
   private flushPendingChunks() {
@@ -369,9 +455,16 @@ export class RtzrStreamingClient {
     while (this.pendingChunks.length > 0) {
       const chunk = this.pendingChunks.shift();
       if (chunk) {
-        this.socket.send(chunk);
+        this.bufferMetrics.bufferedAudioMs = Math.max(
+          0,
+          this.bufferMetrics.bufferedAudioMs - chunk.durationMs
+        );
+        this.bufferMetrics.replayedBufferedAudioMs += chunk.durationMs;
+        this.socket.send(chunk.buffer);
       }
     }
+    this.refreshBufferHealth();
+    this.emitBufferMetrics();
   }
 
   private startKeepAlive() {
@@ -418,6 +511,44 @@ export class RtzrStreamingClient {
     this.clearHandshakeTimer();
     this.handshakeComplete = false;
     this.options?.onPermanentFailure?.(event);
+  }
+
+  private markPendingChunksDropped() {
+    if (this.pendingChunks.length === 0) {
+      return;
+    }
+    while (this.pendingChunks.length > 0) {
+      const chunk = this.pendingChunks.shift();
+      if (!chunk) {
+        break;
+      }
+      this.bufferMetrics.bufferedAudioMs = Math.max(
+        0,
+        this.bufferMetrics.bufferedAudioMs - chunk.durationMs
+      );
+      this.bufferMetrics.droppedBufferedAudioMs += chunk.durationMs;
+    }
+    this.refreshBufferHealth();
+  }
+
+  private refreshBufferHealth() {
+    const attemptedBufferedAudioMs = this.bufferMetrics.attemptedBufferedAudioMs;
+    const droppedBufferedAudioMs = this.bufferMetrics.droppedBufferedAudioMs;
+    const droppedBufferedAudioRatio =
+      attemptedBufferedAudioMs > 0 ? droppedBufferedAudioMs / attemptedBufferedAudioMs : 0;
+    this.bufferMetrics.droppedBufferedAudioRatio = droppedBufferedAudioRatio;
+
+    const degradedDropMsThreshold = this.options?.degradedDropMsThreshold ?? DEFAULT_DEGRADED_DROP_MS;
+    const degradedDropRatioThreshold =
+      this.options?.degradedDropRatioThreshold ?? DEFAULT_DEGRADED_DROP_RATIO;
+
+    this.bufferMetrics.degraded =
+      droppedBufferedAudioMs >= degradedDropMsThreshold ||
+      droppedBufferedAudioRatio >= degradedDropRatioThreshold;
+  }
+
+  private emitBufferMetrics() {
+    this.options?.onBufferMetrics?.({ ...this.bufferMetrics });
   }
 
   private prepareAudioBuffer(chunk: ArrayBuffer | ArrayBufferView): ArrayBuffer | null {

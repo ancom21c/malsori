@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RtzrStreamingClient } from "./rtzrStreamingClient";
+import {
+  EMPTY_STREAMING_BUFFER_METRICS,
+  RtzrStreamingClient,
+  calculateDefaultBufferedAudioBudgetMs,
+} from "./rtzrStreamingClient";
 
 type ClosePayload = { code?: number; reason?: string };
 
@@ -54,11 +58,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function toBytes(value: unknown): number[] {
+  if (!(value instanceof ArrayBuffer)) {
+    return [];
+  }
+  return Array.from(new Uint8Array(value));
+}
+
 describe("RtzrStreamingClient handshake", () => {
   it("calls onOpen only after ready ack and flushes buffered chunks", async () => {
     globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
     const onOpen = vi.fn();
     const onMessage = vi.fn();
+    const onBufferMetrics = vi.fn();
 
     const client = new RtzrStreamingClient();
     client.connect({
@@ -66,6 +78,7 @@ describe("RtzrStreamingClient handshake", () => {
       decoderConfig: {},
       onMessage,
       onOpen,
+      onBufferMetrics,
       handshakeTimeoutMs: 200,
     });
 
@@ -84,6 +97,10 @@ describe("RtzrStreamingClient handshake", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(ws.sent.length).toBe(2);
     expect(ws.sent[1] instanceof ArrayBuffer).toBe(true);
+    expect(onBufferMetrics).toHaveBeenLastCalledWith({
+      ...EMPTY_STREAMING_BUFFER_METRICS,
+      attemptedBufferedAudioMs: 0,
+    });
   });
 
   it("opens when first recognition payload arrives even without explicit ready ack", async () => {
@@ -112,6 +129,82 @@ describe("RtzrStreamingClient handshake", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(ws.sent.length).toBe(2);
     expect(ws.sent[1] instanceof ArrayBuffer).toBe(true);
+  });
+
+  it("keeps buffered audio within the duration budget and marks degraded when it drops audio", async () => {
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onMessage = vi.fn();
+    const onBufferMetrics = vi.fn();
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "ws://localhost:8000",
+      decoderConfig: {},
+      onMessage,
+      onBufferMetrics,
+      handshakeTimeoutMs: 200,
+      maxBufferedAudioMs: 1200,
+    });
+
+    const ws = MockWebSocket.instances[0];
+    ws.emitOpen();
+
+    client.sendAudioChunk(new Uint8Array([1]), { durationMs: 800 });
+    client.sendAudioChunk(new Uint8Array([2]), { durationMs: 800 });
+
+    expect(onBufferMetrics).toHaveBeenLastCalledWith({
+      bufferedAudioMs: 800,
+      replayedBufferedAudioMs: 0,
+      droppedBufferedAudioMs: 800,
+      attemptedBufferedAudioMs: 1600,
+      droppedBufferedAudioRatio: 0.5,
+      degraded: true,
+    });
+
+    ws.emitMessage(JSON.stringify({ type: "ready" }));
+    await Promise.resolve();
+
+    expect(ws.sent.length).toBe(2);
+    expect(toBytes(ws.sent[1])).toEqual([2]);
+    expect(onBufferMetrics).toHaveBeenLastCalledWith({
+      bufferedAudioMs: 0,
+      replayedBufferedAudioMs: 800,
+      droppedBufferedAudioMs: 800,
+      attemptedBufferedAudioMs: 1600,
+      droppedBufferedAudioRatio: 0.5,
+      degraded: true,
+    });
+  });
+
+  it("counts buffered audio as dropped when disconnecting before reconnect completes", () => {
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onMessage = vi.fn();
+    const onBufferMetrics = vi.fn();
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "ws://localhost:8000",
+      decoderConfig: {},
+      onMessage,
+      onBufferMetrics,
+      handshakeTimeoutMs: 200,
+      maxBufferedAudioMs: 3000,
+    });
+
+    const ws = MockWebSocket.instances[0];
+    ws.emitOpen();
+
+    client.sendAudioChunk(new Uint8Array([1, 2]), { durationMs: 1200 });
+    client.disconnect();
+
+    expect(onBufferMetrics).toHaveBeenLastCalledWith({
+      bufferedAudioMs: 0,
+      replayedBufferedAudioMs: 0,
+      droppedBufferedAudioMs: 1200,
+      attemptedBufferedAudioMs: 1200,
+      droppedBufferedAudioRatio: 1,
+      degraded: true,
+    });
   });
 
   it("fails with STREAM_ACK_TIMEOUT when ack is not received", () => {
@@ -148,5 +241,25 @@ describe("RtzrStreamingClient handshake", () => {
     second.emitOpen();
     vi.advanceTimersByTime(35);
     expect(onPermanentFailure).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("calculateDefaultBufferedAudioBudgetMs", () => {
+  it("matches reconnect tolerance with an upper cap", () => {
+    expect(
+      calculateDefaultBufferedAudioBudgetMs({
+        reconnectAttempts: 3,
+        reconnectBackoffMs: 1500,
+        handshakeTimeoutMs: 3000,
+      })
+    ).toBe(12000);
+
+    expect(
+      calculateDefaultBufferedAudioBudgetMs({
+        reconnectAttempts: 10,
+        reconnectBackoffMs: 3000,
+        handshakeTimeoutMs: 3000,
+      })
+    ).toBe(20000);
   });
 });

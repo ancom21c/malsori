@@ -1444,6 +1444,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Re-request permission",
     ja: "許可を再リクエストする",
   },
+  bufferingAudioS: {
+    ko: "오디오 버퍼링 {{seconds}}초",
+    en: "Buffering {{seconds}}s of audio",
+    ja: "音声を {{seconds}} 秒バッファリング中",
+  },
+  bufferedAudioWillReplayWhenConnectionReturns: {
+    ko: "연결이 복구되면 버퍼링된 오디오 {{seconds}}초를 순서대로 다시 전송합니다.",
+    en: "When the connection returns, the buffered {{seconds}} seconds of audio will replay in order.",
+    ja: "接続が戻ると、バッファされた {{seconds}} 秒の音声を順番どおり再送します。",
+  },
   readyToStartS: {
     ko: "시작 준비 ({{seconds}}s)",
     en: "Ready to start ({{seconds}}s)",
@@ -2363,6 +2373,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "스트리밍 연결이 복구되었습니다.",
     en: "Streaming connection has recovered.",
     ja: "ストリーミング接続が復旧しました。",
+  },
+  sessionQualityDegraded: {
+    ko: "품질 저하",
+    en: "Degraded",
+    ja: "品質低下",
+  },
+  someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete: {
+    ko: "일부 버퍼링된 오디오를 다시 보내지 못했습니다. 결과가 일부 누락될 수 있습니다.",
+    en: "Some buffered audio could not be replayed. Results may be incomplete.",
+    ja: "一部のバッファ済み音声を再送できませんでした。結果が一部欠落している可能性があります。",
   },
   yourStreamingSessionHasEnded: {
     ko: "스트리밍 세션이 종료되었습니다.",
