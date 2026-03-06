@@ -23,7 +23,7 @@
 | T503 | P1 | 모바일 action ownership/IA 정렬 | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-ui-remediation-loop/T503-mobile-action-ownership.md` |
 | T504 | P1 | 접근성/모션/다크모드 브라우저 정합성 보강 | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-ui-remediation-loop/T504-a11y-motion-darkmode-guardrails.md` |
 | T505 | P1 | Studio Console 스펙/문서 canonical 재정의 | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-ui-remediation-loop/T505-studio-console-spec-realignment.md` |
-| T506 | P2 | Dark Studio Console visual refinement v4 설계/적용 | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-ui-remediation-loop/T506-visual-refinement-v4.md` |
+| T506 | P2 | Dark Studio Console visual refinement v4 설계/적용 | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-ui-remediation-loop/T506-visual-refinement-v4.md` |
 
 ## 이번 사이클 우선순위
 

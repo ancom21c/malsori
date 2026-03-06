@@ -28,11 +28,23 @@ export function StudioPageShell({
         sx={{
           position: "relative",
           overflow: "hidden",
+          borderColor: (theme) => alpha(theme.palette.common.white, 0.08),
           backgroundImage: (theme) =>
-            `linear-gradient(165deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+            `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
               theme.palette.background.paper,
               0.98
-            )} 62%)`,
+            )} 38%, ${alpha(theme.palette.background.paper, 0.94)} 100%)`,
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            inset: "0 0 auto 0",
+            height: 2,
+            background: (theme) =>
+              `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.68)} 0%, ${alpha(
+                theme.palette.secondary.main,
+                0.18
+              )} 100%)`,
+          },
         }}
       >
         <CardContent sx={{ display: "grid", gap: 1.25 }}>
@@ -49,9 +61,10 @@ export function StudioPageShell({
                 variant="h4"
                 sx={{
                   fontSize: { xs: "1.6rem", sm: "2rem" },
-                  fontWeight: 750,
-                  letterSpacing: -0.4,
+                  fontWeight: 780,
+                  letterSpacing: -0.5,
                   lineHeight: 1.15,
+                  maxWidth: { xs: "12ch", md: "none" },
                 }}
               >
                 {title}
@@ -60,7 +73,7 @@ export function StudioPageShell({
                 <Typography
                   variant="body2"
                   color="text.secondary"
-                  sx={{ mt: 0.6, maxWidth: 860 }}
+                  sx={{ mt: 0.75, maxWidth: 720 }}
                 >
                   {description}
                 </Typography>
@@ -75,4 +88,3 @@ export function StudioPageShell({
     </Stack>
   );
 }
-

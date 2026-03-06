@@ -14,28 +14,32 @@ export function ContextCard({ title, value, tone = "neutral" }: ContextCardProps
     <Box
       sx={{
         flex: 1,
-        p: 1.25,
-        borderRadius: 2,
+        p: 1.5,
+        borderRadius: 2.5,
         border: "1px solid",
-        borderColor: "divider",
+        borderColor: (theme) => alpha(theme.palette.common.white, 0.08),
         bgcolor: (theme) => {
           if (tone === "primary") {
-            return alpha(theme.palette.primary.main, 0.06);
+            return alpha(theme.palette.primary.main, 0.08);
           }
           if (tone === "secondary") {
             return alpha(theme.palette.secondary.main, 0.08);
           }
-          return alpha(theme.palette.text.primary, 0.03);
+          return alpha(theme.palette.background.default, 0.54);
         },
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: "block", letterSpacing: "0.04em", textTransform: "uppercase" }}
+      >
         {title}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 650 }}>
+      <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 700 }}>
         {value}
       </Typography>
     </Box>
   );
 }
-

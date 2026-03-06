@@ -46,10 +46,10 @@
 
 ### 수용 기준 (AC)
 
-- [ ] 공통 visual token이 shell/work/status 3계층으로 문서화됨
-- [ ] form/workspace 가독성이 현 상태보다 개선되는 방향으로 설계됨
-- [ ] route별 primary/secondary emphasis 원칙이 명문화됨
-- [ ] motion/audio feedback이 과밀하지 않은 상태로 정리됨
+- [x] 공통 visual token이 shell/work/status 3계층으로 문서화됨
+- [x] form/workspace 가독성이 현 상태보다 개선되는 방향으로 설계됨
+- [x] route별 primary/secondary emphasis 원칙이 명문화됨
+- [x] motion/audio feedback이 과밀하지 않은 상태로 정리됨
 
 ## Plan (Review 대상)
 
@@ -72,20 +72,21 @@
 
 ## Implementation Log
 
-- [ ] visual noise inventory 작성
-- [ ] 3계층 token system 반영
-- [ ] route별 emphasis 조정
-- [ ] audio feedback component 정리
-- [ ] before/after evidence 정리
+- [x] visual noise inventory 작성
+- [x] 3계층 token system 반영
+- [x] route별 emphasis 조정
+- [x] audio feedback component 정리
+- [x] before/after evidence 정리
 
 ## Review Checklist (Implementation Review)
 
-- [ ] ornament 축소가 밋밋함으로 가지 않고 hierarchy 개선으로 이어졌는지 확인
-- [ ] dark mode contrast가 실제 입력/읽기 작업에 충분한지 확인
-- [ ] 모바일에서 시각 밀도가 과도하지 않은지 확인
+- [x] ornament 축소가 밋밋함으로 가지 않고 hierarchy 개선으로 이어졌는지 확인
+- [x] dark mode contrast가 실제 입력/읽기 작업에 충분한지 확인
+- [x] 모바일에서 시각 밀도가 과도하지 않은지 확인
 
 ## Verify
 
-- [ ] desktop/mobile before-after 비교
-- [ ] a11y quick notes 갱신
-- [ ] 사용자 동선 기준 spot-check (`/`, `/realtime`, `/settings`, `/transcriptions/:id`)
+- [x] mobile before-after 비교 (`T503/T504` evidence -> `T506` evidence)
+- [x] desktop after spot-check (`/`, `/realtime`, `/settings`, `/transcriptions/:id`)
+- [x] a11y quick notes 갱신: `docs/todo/2026-03-06-ui-remediation-loop/evidence/t506-visual-refinement/20260306/a11y-notes.md`
+- [x] 사용자 동선 기준 spot-check (`/`, `/realtime`, `/settings`, `/transcriptions/:id`)

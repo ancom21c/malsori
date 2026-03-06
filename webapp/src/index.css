@@ -2,14 +2,14 @@
 
 html {
   color-scheme: dark;
-  background-color: #0c1010;
+  background-color: #101415;
 }
 
 body {
   margin: 0;
   font-family: "IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif;
   min-height: 100vh;
-  background-color: #0c1010;
+  background-color: #101415;
   color: rgba(255, 255, 255, 0.9);
   background-attachment: fixed;
   position: relative;
@@ -36,32 +36,23 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 body::before {
   content: "";
   position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
+  inset: 0;
   z-index: -1;
   background:
-    radial-gradient(circle at 10% 20%, rgba(31, 111, 100, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(217, 130, 91, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(42, 201, 181, 0.05) 0%, transparent 60%),
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0px, rgba(0, 0, 0, 0.03) 1px, transparent 1px, transparent 2px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 2px;
-  animation: malsori-mesh-flow 30s ease-in-out infinite alternate;
+    radial-gradient(circle at 14% 0%, rgba(42, 201, 181, 0.12) 0%, transparent 42%),
+    radial-gradient(circle at 88% 16%, rgba(245, 163, 127, 0.08) 0%, transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 28%);
+  animation: malsori-shell-drift 42s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
-@keyframes malsori-mesh-flow {
+@keyframes malsori-shell-drift {
   0% {
-    transform: rotate(0deg) scale(1);
-  }
-
-  50% {
-    transform: rotate(5deg) scale(1.1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   100% {
-    transform: rotate(-5deg) scale(1);
+    transform: translate3d(0, -2%, 0) scale(1.03);
   }
 }
 
@@ -105,25 +96,24 @@ body::before {
 @media (max-width: 900px),
 (hover: none) and (pointer: coarse) {
   body {
-    background-color: #0c1010;
+    background-color: #101415;
   }
 
   body::before {
-    /* Simplify for mobile to save battery */
     background:
-      radial-gradient(circle at 12% 0%, rgba(31, 111, 100, 0.12) 0%, transparent 60%),
-      radial-gradient(circle at 88% 12%, rgba(217, 130, 91, 0.1) 0%, transparent 60%);
-    animation: malsori-mesh-flow-mobile 45s ease-in-out infinite alternate;
+      radial-gradient(circle at 10% 0%, rgba(42, 201, 181, 0.1) 0%, transparent 48%),
+      radial-gradient(circle at 90% 8%, rgba(245, 163, 127, 0.07) 0%, transparent 40%);
+    animation: malsori-shell-drift-mobile 50s ease-in-out infinite alternate;
   }
 }
 
-@keyframes malsori-mesh-flow-mobile {
+@keyframes malsori-shell-drift-mobile {
   0% {
-    transform: rotate(0deg) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   100% {
-    transform: rotate(3deg) scale(1.05);
+    transform: translate3d(0, -1.5%, 0) scale(1.02);
   }
 }
 
@@ -133,12 +123,12 @@ body::before {
   }
 
   body {
-    background-color: #0c1010;
+    background-color: #101415;
   }
 
   body::before {
     background:
-      radial-gradient(circle at 18% 0%, rgba(31, 111, 100, 0.1) 0%, transparent 60%);
+      radial-gradient(circle at 18% 0%, rgba(42, 201, 181, 0.08) 0%, transparent 50%);
     animation: none;
     transform: none;
   }

@@ -99,109 +99,125 @@ export default function RealtimeToolbar({
         bottom: 0,
         left: 0,
         right: 0,
-        p: 3,
+        px: 2,
+        pt: 2,
         pb: "calc(24px + env(safe-area-inset-bottom))",
-        background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.9)} 0%, transparent 100%)`,
-        backdropFilter: "blur(8px)",
+        background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 18%, ${alpha(theme.palette.background.default, 0.72)} 54%, transparent 100%)`,
         zIndex: 1000,
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 2,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: 600, px: 2 }}>
-        <AudioVisualizer level={audioLevel} active={isRecording || sessionState === "paused"} />
-      </Box>
-
-      <Stack direction="row" spacing={3} alignItems="center">
-        <Tooltip title={t("streamTranscriptionSettings")}>
-          <IconButton
-            onClick={onRuntimeSettingsOpen}
-            aria-label={t("streamTranscriptionSettings")}
-            sx={{
-              bgcolor: alpha(theme.palette.background.paper, 0.5),
-              backdropFilter: "blur(12px)",
-              border: "1px solid",
-              borderColor: alpha(theme.palette.text.primary, 0.1),
-            }}
-          >
-            <SettingsRoundedIcon />
-          </IconButton>
-        </Tooltip>
-
-        <Box sx={{ position: "relative" }}>
-          <Fab
-            color={mainButtonColor}
-            size="large"
-            disabled={mainButtonDisabled}
-            onClick={onMainAction}
-            onPointerDown={mainButtonPointerDown}
-            onPointerUp={clearPointerState}
-            onPointerLeave={clearPointerState}
-            onPointerCancel={clearPointerState}
-            aria-label={mainButtonLabel}
-            sx={{
-              width: 72,
-              height: 72,
-              boxShadow: (currentTheme) =>
-                `0 12px 32px ${alpha(currentTheme.palette[mainButtonColor].main, 0.4)}`,
-            }}
-          >
-            {mainButtonIcon}
-          </Fab>
-          {isRecording && (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: -6,
-                borderRadius: "50%",
-                border: "2px solid",
-                borderColor: theme.palette.secondary.main,
-                animation: "pulse 2s infinite",
-                "@keyframes pulse": {
-                  "0%": { transform: "scale(1)", opacity: 0.8 },
-                  "100%": { transform: "scale(1.2)", opacity: 0 },
-                },
-              }}
-            />
-          )}
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: 640,
+          borderRadius: 4,
+          px: 2,
+          py: 1.5,
+          backgroundColor: alpha(theme.palette.background.paper, 0.94),
+          border: "1px solid",
+          borderColor: alpha(theme.palette.common.white, 0.07),
+          boxShadow: "0 18px 36px rgba(0,0,0,0.32)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <Box sx={{ width: "100%", px: 0.5, pb: 1.25, mb: 1.5, borderBottom: "1px solid", borderColor: alpha(theme.palette.common.white, 0.06) }}>
+          <AudioVisualizer level={audioLevel} active={isRecording || sessionState === "paused"} />
         </Box>
 
-        {sessionActive && (
-          <Tooltip title={t("sessionEnds")}>
-            <Fab
-              color="error"
-              size="medium"
-              onClick={onStopAction}
-              aria-label={t("sessionEnds")}
-              sx={{
-                bgcolor: alpha(theme.palette.error.main, 0.85),
-              }}
-            >
-              <StopCircleIcon />
-            </Fab>
-          </Tooltip>
-        )}
-
-        {cameraSupported && (
-          <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+          <Tooltip title={t("streamTranscriptionSettings")}>
             <IconButton
-              onClick={onToggleCamera}
-              aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+              onClick={onRuntimeSettingsOpen}
+              aria-label={t("streamTranscriptionSettings")}
               sx={{
-                color: cameraEnabled ? theme.palette.primary.main : theme.palette.text.secondary,
-                bgcolor: alpha(theme.palette.background.paper, 0.5),
-                backdropFilter: "blur(12px)",
+                bgcolor: alpha(theme.palette.background.default, 0.84),
                 border: "1px solid",
-                borderColor: alpha(theme.palette.text.primary, 0.1),
+                borderColor: alpha(theme.palette.common.white, 0.08),
               }}
             >
-              {cameraEnabled ? <VideocamRoundedIcon /> : <VideocamOffRoundedIcon />}
+              <SettingsRoundedIcon />
             </IconButton>
           </Tooltip>
-        )}
-      </Stack>
+
+          <Box sx={{ position: "relative" }}>
+            <Fab
+              color={mainButtonColor}
+              size="large"
+              disabled={mainButtonDisabled}
+              onClick={onMainAction}
+              onPointerDown={mainButtonPointerDown}
+              onPointerUp={clearPointerState}
+              onPointerLeave={clearPointerState}
+              onPointerCancel={clearPointerState}
+              aria-label={mainButtonLabel}
+              sx={{
+                width: 72,
+                height: 72,
+                boxShadow: (currentTheme) =>
+                  `0 12px 24px ${alpha(currentTheme.palette[mainButtonColor].main, 0.22)}`,
+              }}
+            >
+              {mainButtonIcon}
+            </Fab>
+            {isRecording && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: -4,
+                  borderRadius: "50%",
+                  border: "1px solid",
+                  borderColor: alpha(theme.palette.secondary.main, 0.5),
+                  animation: "pulse 2s infinite",
+                  "@keyframes pulse": {
+                    "0%": { transform: "scale(1)", opacity: 0.6 },
+                    "100%": { transform: "scale(1.12)", opacity: 0 },
+                  },
+                  "@media (prefers-reduced-motion: reduce)": {
+                    animation: "none",
+                    opacity: 0.5,
+                  },
+                }}
+              />
+            )}
+          </Box>
+
+          {sessionActive && (
+            <Tooltip title={t("sessionEnds")}>
+              <Fab
+                color="error"
+                size="medium"
+                onClick={onStopAction}
+                aria-label={t("sessionEnds")}
+                sx={{
+                  bgcolor: alpha(theme.palette.error.main, 0.82),
+                  boxShadow: `0 10px 22px ${alpha(theme.palette.error.main, 0.2)}`,
+                }}
+              >
+                <StopCircleIcon />
+              </Fab>
+            </Tooltip>
+          )}
+
+          {cameraSupported && (
+            <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+              <IconButton
+                onClick={onToggleCamera}
+                aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                sx={{
+                  color: cameraEnabled ? theme.palette.primary.main : theme.palette.text.secondary,
+                  bgcolor: alpha(theme.palette.background.default, 0.84),
+                  border: "1px solid",
+                  borderColor: alpha(theme.palette.common.white, 0.08),
+                }}
+              >
+                {cameraEnabled ? <VideocamRoundedIcon /> : <VideocamOffRoundedIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
+      </Box>
     </Box>
   );
 }
