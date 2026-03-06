@@ -23,7 +23,7 @@ public/internal 운영 경계, realtime reconnect 복원력, operator UX, Studio
 | T603 | P1 | Operator settings safe default / manual intent / boundary UX | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T603-operator-settings-hardening.md` |
 | T604 | P1 | Realtime media capture source-of-truth hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T604-realtime-media-capture-hardening.md` |
 | T605 | P1 | Status normalization and failure surfacing hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T605-status-normalization-hardening.md` |
-| T606 | P2 | Studio Console boundary/copy/header polish | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T606-studio-console-boundary-polish.md` |
+| T606 | P2 | Studio Console boundary/copy/header polish | Done | Done | Done | Done | Done | `docs/todo/2026-03-06-admin-boundary-reconnect-loop/T606-studio-console-boundary-polish.md` |
 
 ## 이번 사이클 우선순위
 

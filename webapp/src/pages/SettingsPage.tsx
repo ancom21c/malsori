@@ -1666,8 +1666,20 @@ export default function SettingsPage() {
                     p: 1.5,
                     borderRadius: 2,
                     border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.03),
+                    borderColor: (theme) =>
+                      alpha(
+                        backendOperatorAvailable
+                          ? theme.palette.success.main
+                          : theme.palette.warning.main,
+                        0.35
+                      ),
+                    bgcolor: (theme) =>
+                      alpha(
+                        backendOperatorAvailable
+                          ? theme.palette.success.main
+                          : theme.palette.warning.main,
+                        0.08
+                      ),
                   }}
                 >
                   <Stack spacing={1.5}>
@@ -1679,7 +1691,11 @@ export default function SettingsPage() {
                     >
                       <StatusChipSet
                         items={[
-                          { key: "operator-boundary", label: t("internalOnly") },
+                          {
+                            key: "operator-boundary",
+                            label: t("internalOnly"),
+                            color: "warning",
+                          },
                           {
                             key: "operator-availability",
                             label: backendAdminEnabled ? t("enabled") : t("disabled"),

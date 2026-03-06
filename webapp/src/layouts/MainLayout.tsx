@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AppBar,
@@ -112,6 +112,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const currentLocaleFlagLabel = currentLocaleOption?.flagAriaLabel ?? currentLocaleLabel;
   useTranscriptionSync();
 
+  const handleInstallClick = useCallback(async () => {
+    const result = await requestInstall();
+    if (result === null) {
+      enqueueSnackbar(t("thisIsNotAnInstallableEnvironment"), { variant: "info" });
+      return;
+    }
+    if (result) {
+      enqueueSnackbar(
+        t("aRequestToInstallAnAppHasBeenSentPleaseCheckYourBrowserInstructions"),
+        {
+          variant: "success",
+        }
+      );
+    } else {
+      enqueueSnackbar(t("appInstallationHasBeenCancelled"), { variant: "info" });
+    }
+  }, [enqueueSnackbar, requestInstall, t]);
+
   const menuItems = useMemo(
     () => [
       {
@@ -150,8 +168,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
         path: "/help",
         icon: <HelpOutlineIcon fontSize="small" />,
       },
+      ...(canInstall
+        ? [
+            {
+              key: "install",
+              label: t("installApp"),
+              icon: <AddToHomeScreenIcon fontSize="small" />,
+              action: () => void handleInstallClick(),
+            },
+          ]
+        : []),
     ],
-    [openUploadDialog, t]
+    [canInstall, handleInstallClick, openUploadDialog, t]
   );
 
   const activePath = useMemo(() => {
@@ -213,24 +241,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
     openUploadDialog();
   };
 
-  const handleInstallClick = async () => {
-    const result = await requestInstall();
-    if (result === null) {
-      enqueueSnackbar(t("thisIsNotAnInstallableEnvironment"), { variant: "info" });
-      return;
-    }
-    if (result) {
-      enqueueSnackbar(
-        t("aRequestToInstallAnAppHasBeenSentPleaseCheckYourBrowserInstructions"),
-        {
-          variant: "success",
-        }
-      );
-    } else {
-      enqueueSnackbar(t("appInstallationHasBeenCancelled"), { variant: "info" });
-    }
-  };
-
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Box
@@ -277,50 +287,26 @@ export default function MainLayout({ children }: MainLayoutProps) {
           >
             MalSori
           </Typography>
-
-          {canInstall ? (
-            <Tooltip title={t("installMalsoriAsAnApp")}>
-              <Button
+          <Box sx={{ ml: 1 }}>
+            <CloudSyncStatus />
+          </Box>
+          {compactActions ? (
+            <Tooltip title={t("selectLanguage")}>
+              <IconButton
                 color="inherit"
-                variant="outlined"
                 size="small"
-                startIcon={<AddToHomeScreenIcon fontSize="small" />}
-                onClick={handleInstallClick}
+                onClick={handleLanguageMenuOpen}
+                aria-label={t("selectLanguage")}
                 sx={{
                   ml: 1,
-                  borderColor: "rgba(255,255,255,0.7)",
+                  border: "1px solid rgba(255,255,255,0.7)",
+                  borderRadius: 999,
+                  px: 1,
                   "&:hover": {
                     borderColor: "#fff",
                     backgroundColor: "rgba(255,255,255,0.15)",
                   },
                 }}
-              >
-                {t("installApp")}
-              </Button>
-            </Tooltip>
-          ) : null}
-          <Box sx={{ ml: 1 }}>
-            <CloudSyncStatus />
-          </Box>
-          <Tooltip title={t("selectLanguage")}>
-            <Button
-              color="inherit"
-              variant="outlined"
-              size="small"
-              startIcon={<TranslateIcon fontSize="small" />}
-              onClick={handleLanguageMenuOpen}
-              sx={{
-                ml: 1,
-                borderColor: "rgba(255,255,255,0.7)",
-                "&:hover": {
-                  borderColor: "#fff",
-                  backgroundColor: "rgba(255,255,255,0.15)",
-                },
-              }}
-            >
-              <Box
-                component="span"
-                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
               >
                 <Box
                   component="span"
@@ -330,10 +316,42 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 >
                   {currentLocaleFlag}
                 </Box>
-                {currentLocaleLabel}
-              </Box>
-            </Button>
-          </Tooltip>
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Tooltip title={t("selectLanguage")}>
+              <Button
+                color="inherit"
+                variant="outlined"
+                size="small"
+                startIcon={<TranslateIcon fontSize="small" />}
+                onClick={handleLanguageMenuOpen}
+                sx={{
+                  ml: 1,
+                  borderColor: "rgba(255,255,255,0.7)",
+                  "&:hover": {
+                    borderColor: "#fff",
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                  },
+                }}
+              >
+                <Box
+                  component="span"
+                  sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
+                >
+                  <Box
+                    component="span"
+                    role="img"
+                    aria-label={currentLocaleFlagLabel}
+                    sx={{ fontSize: 18, lineHeight: 1 }}
+                  >
+                    {currentLocaleFlag}
+                  </Box>
+                  {currentLocaleLabel}
+                </Box>
+              </Button>
+            </Tooltip>
+          )}
           <Menu
             anchorEl={menuAnchor}
             open={Boolean(menuAnchor)}

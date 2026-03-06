@@ -63,18 +63,31 @@
 
 ## Implementation Log
 
-- [ ] UI inventory / copy draft 작성
-- [ ] empty-state / mobile header / operator boundary 반영
-- [ ] screenshot / note 정리
+- [x] UI inventory / copy draft 작성
+- [x] empty-state / mobile header / operator boundary 반영
+- [x] screenshot / note 정리
+
+### 구현 메모
+
+- list empty-state copy를 verb-first 문장으로 교체했다.
+- install CTA를 app bar에서 menu item으로 이동시켜 mobile header density를 줄였다.
+- mobile 언어 선택을 icon/flag 중심 compact control로 줄였다.
+- settings operator boundary box에 warning/success outline 토큰을 추가해 public/operator 경계를 더 빨리 읽히게 했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] copy가 실제 CTA와 모순되지 않는지 확인
-- [ ] mobile header가 crowded 해지지 않는지 확인
-- [ ] operator boundary 표현이 과장되거나 noisy 하지 않은지 확인
+- [x] copy가 실제 CTA와 모순되지 않는지 확인
+- [x] mobile header가 crowded 해지지 않는지 확인
+- [x] operator boundary 표현이 과장되거나 noisy 하지 않은지 확인
+
+## Self Review (Implementation)
+
+- [x] 기능 동작은 유지하고 chrome density와 hierarchy만 조정했다.
+- [x] install CTA를 제거한 대신 menu 경로를 유지해 기능 회귀를 피했다.
+- [x] operator boundary는 색을 늘리기보다 outline/helper 중심으로 보강해 noisy 해지지 않도록 제한했다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] mobile/desktop screenshot note 작성
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] mobile/desktop screenshot note 작성
