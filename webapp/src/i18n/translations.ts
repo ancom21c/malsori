@@ -105,9 +105,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "セッション動画キャプチャ",
   },
   recordVideoAlongsideRealTimeTranscription: {
-    ko: "실시간 전사와 함께 카메라 영상을 기록합니다.",
-    en: "Capture camera video alongside your real-time transcription.",
-    ja: "リアルタイム文字起こしと一緒にカメラ映像を記録します。",
+    ko: "실시간 전사와 함께 보조 카메라 영상을 기록합니다. 전사 오디오는 마이크 PCM을 사용합니다.",
+    en: "Capture supplementary camera video alongside your real-time transcription. Transcription audio still uses microphone PCM.",
+    ja: "リアルタイム文字起こしと一緒に補助的なカメラ映像を記録します。文字起こし音声は引き続きマイク PCM を使用します。",
   },
   cameraPreview: {
     ko: "카메라가 꺼져 있습니다. 카메라를 켜면 미리보기가 표시됩니다.",
@@ -140,9 +140,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "リアカメラに切り替え",
   },
   cameraRecordingSavedWithSession: {
-    ko: "카메라가 켜져 있는 동안 촬영된 영상이 이 세션에 함께 저장됩니다.",
-    en: "Video captured while the camera is on will be saved with this session.",
-    ja: "カメラがオンの間に撮影された動画はこのセッションに保存されます。",
+    ko: "카메라가 켜져 있는 동안 촬영된 보조 영상이 이 세션에 저장됩니다. 전사 오디오는 별도의 마이크 캡처를 사용합니다.",
+    en: "Supplementary video captured while the camera is on will be saved with this session. Transcription audio stays on the dedicated microphone capture.",
+    ja: "カメラがオンの間に撮影された補助動画がこのセッションに保存されます。文字起こし音声は専用のマイク収録を維持します。",
   },
   enableCameraToCaptureVideo: {
     ko: "카메라를 켜서 비디오 캡처를 시작할 수 있습니다.",
@@ -155,9 +155,14 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "セッション動画",
   },
   recordedVideoPreview: {
-    ko: "세션 동안 녹화된 영상을 확인하고 다운로드합니다.",
-    en: "Preview and download the video recorded during the session.",
-    ja: "セッション中に録画された動画をプレビューしてダウンロードします。",
+    ko: "세션 동안 녹화된 보조 영상을 확인하고 다운로드합니다.",
+    en: "Preview and download the supplementary video recorded during the session.",
+    ja: "セッション中に録画された補助動画をプレビューしてダウンロードします。",
+  },
+  sessionVideoSupplementaryNote: {
+    ko: "세션 비디오는 보조 기록용입니다. 전사 결과는 별도로 수집된 마이크 오디오를 기준으로 생성됩니다.",
+    en: "Session video is supplementary. Transcription results are generated from the separately captured microphone audio.",
+    ja: "セッション動画は補助記録用です。文字起こし結果は別途取得したマイク音声を基準に生成されます。",
   },
   noVideoRecorded: {
     ko: "이 세션에는 저장된 비디오가 없습니다.",

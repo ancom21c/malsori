@@ -105,9 +105,9 @@ const LATENCY_LEVEL_LABEL_KEY: Record<RealtimeLatencyLevel, string> = {
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
 const VIDEO_CAPTURE_TIMESLICE_MS = 4000;
 const VIDEO_MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp8,opus",
-  "video/webm;codecs=h264,opus",
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=vp8",
+  "video/webm;codecs=h264",
   "video/webm",
   "video/mp4",
 ];
@@ -882,7 +882,7 @@ export default function RealtimeSessionPage() {
         await stopVideoRecorder();
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: cameraFacingMode },
-          audio: true,
+          audio: false,
         });
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());

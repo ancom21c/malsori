@@ -62,19 +62,31 @@
 
 ## Implementation Log
 
-- [ ] camera/media capture inventory 작성
-- [ ] video-only capture contract 반영
-- [ ] UI copy / artifact semantics 조정
-- [ ] capture smoke note 작성
+- [x] camera/media capture inventory 작성
+- [x] video-only capture contract 반영
+- [x] UI copy / artifact semantics 조정
+- [x] capture smoke note 작성
+
+### 구현 메모
+
+- camera preview/capture의 `getUserMedia()`를 `audio: false`로 바꿨다.
+- session video MIME 후보를 video-only codec 우선으로 정리했다.
+- realtime screen과 detail screen 모두에 "session video is supplementary" 카피를 반영했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] camera on/off 시 microphone 재획득 문제가 없는지 확인
-- [ ] saved video artifact semantics가 화면 문구와 맞는지 확인
-- [ ] permission failure 시 recovery copy가 여전히 이해 가능한지 확인
+- [x] camera on/off 시 microphone 재획득 문제가 없는지 확인
+- [x] saved video artifact semantics가 화면 문구와 맞는지 확인
+- [x] permission failure 시 recovery copy가 여전히 이해 가능한지 확인
+
+## Self Review (Implementation)
+
+- [x] duplicate audio capture 제거에 집중하고, post-session muxing 같은 후속 범위는 건드리지 않았다.
+- [x] detail page notice를 추가해 silent/supplementary video artifact semantics를 화면에서도 바로 설명한다.
+- [x] T602와 충돌하지 않도록 transcription audio source는 recorder PCM 하나로 그대로 유지했다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
-- [ ] realtime camera/manual smoke note 작성
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] realtime camera smoke note 작성

@@ -1698,6 +1698,7 @@ export default function TranscriptionDetailPage() {
         onDelete={handleDelete}
         onShare={handleShareDialogOpen}
         onTitleUpdate={handleTitleUpdate}
+        mediaNotice={videoReady ? t("sessionVideoSupplementaryNote") : null}
         sticky
         compactOnScroll
         headingComponent="h1"

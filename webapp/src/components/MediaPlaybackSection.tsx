@@ -55,6 +55,7 @@ type MediaPlaybackSectionProps = {
   onDelete?: () => void;
   onShare?: () => void;
   onTitleUpdate?: (nextTitle: string) => Promise<void> | void;
+  mediaNotice?: string | null;
   sticky?: boolean;
   compactOnScroll?: boolean;
   showEditingHint?: boolean;
@@ -84,6 +85,7 @@ export function MediaPlaybackSection({
   onDelete,
   onShare,
   onTitleUpdate,
+  mediaNotice,
   sticky,
   compactOnScroll,
   showEditingHint,
@@ -328,6 +330,7 @@ export function MediaPlaybackSection({
                 </audio>
               </Box>
             ) : null}
+            {mediaNotice ? <Alert severity="info" variant="outlined">{mediaNotice}</Alert> : null}
           </Stack>
           {hasActions ? (
             <Popover
