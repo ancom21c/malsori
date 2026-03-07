@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useId } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, useId } from "react";
 import dayjs from "dayjs";
 import {
   Avatar,
@@ -57,8 +57,6 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { formatLocalizedDateTime } from "../utils/time";
 import { ActionStrip, StudioPageShell } from "../components/studio";
-import { motion, AnimatePresence } from "framer-motion";
-import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -188,7 +186,6 @@ function getDownloadStatusLabel(
 export default function TranscriptionListPage() {
   const theme = useTheme();
   const showTopActions = useMediaQuery(theme.breakpoints.up("sm"));
-  const prefersReducedMotion = usePrefersReducedMotion();
   const transcriptions = useTranscriptions();
   const searchIndexMap = useTranscriptionSearchIndexes();
   const { enqueueSnackbar } = useSnackbar();
@@ -750,32 +747,11 @@ export default function TranscriptionListPage() {
               </Typography>
             </Box>
           ) : (
-            <List disablePadding component={motion.ul} layout={!prefersReducedMotion}>
-              <AnimatePresence mode={prefersReducedMotion ? "sync" : "popLayout"}>
+            <List disablePadding>
                 {filteredTranscriptions.map((item, index) => {
                   const endpointLabel = getEndpointLabel(item, t);
                   return (
-                    <motion.div
-                      key={item.id}
-                      layout={!prefersReducedMotion}
-                      initial={prefersReducedMotion ? false : { opacity: 0, y: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={
-                        prefersReducedMotion
-                          ? { opacity: 0 }
-                          : { opacity: 0, scale: 0.9, transition: { duration: 0.2 } }
-                      }
-                      transition={
-                        prefersReducedMotion
-                          ? { duration: 0 }
-                          : {
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
-                            mass: 0.8,
-                          }
-                      }
-                    >
+                    <Fragment key={item.id}>
                       <ListItem
                         secondaryAction={
                           <Stack direction="row" spacing={1}>
@@ -888,10 +864,9 @@ export default function TranscriptionListPage() {
                         </ListItemButton>
                       </ListItem>
                       {index !== filteredTranscriptions.length - 1 && <Divider component="li" />}
-                    </motion.div>
+                    </Fragment>
                   );
                 })}
-              </AnimatePresence>
             </List>
           )}
         </CardContent>

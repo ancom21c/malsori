@@ -24,7 +24,6 @@
     "dayjs": "^1.11.18",
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^4.2.0",
-    "framer-motion": "^12.35.0",
     "notistack": "^3.0.2",
     "pako": "^2.1.0",
     "react": "^19.1.1",

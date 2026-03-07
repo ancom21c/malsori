@@ -1,38 +1,48 @@
-# Webapp Bundle Performance Follow-up (2026-03-03)
+# Webapp Bundle Performance Status
+
+## Current Status (2026-03-07)
+
+- Status: current
+- Gate: `npm --prefix webapp run bundle:check`
+- Result: `PASS`
 
 ## Context
 
-- `npm --prefix webapp run bundle:check` failed because `vendor-mui-core` exceeded the `maxJsChunkBytes` threshold.
-- Failure blocked the CI webapp job (`build + bundle:check + test`).
+- `bundle:check` failed on 2026-03-07 because total JS in `dist/assets` reached `1276.09 KiB`, above the `1220.70 KiB` budget.
+- The earlier 2026-03-03 note only described a `vendor-mui-core` split fix and no longer matched the current codebase.
+- The actual overage was not a chunk naming problem alone. The app still shipped `framer-motion` even though the remaining animations were non-critical.
 
-## Change
+## Current Fix
 
-`webapp/vite.config.ts` manual chunk groups were adjusted to split emotion runtime from the MUI core bundle:
+- Removed `framer-motion` from the webapp dependency graph.
+- Replaced `ActionStrip`, transcription list entry transitions, realtime transcript entry transitions, and realtime countdown animation with static MUI rendering.
+- Kept the existing manual chunk strategy in `webapp/vite.config.ts` because the measured overage was resolved without threshold changes.
 
-- `vendor-mui-core`: `@mui/material`
-- `vendor-emotion`: `@emotion/react`, `@emotion/styled`
-- `vendor-mui-lab`: `@mui/lab`
+## Current Build Result
 
-No budget threshold changes were made.
+From `npm --prefix webapp run build` on 2026-03-07:
 
-## Build Result
+- `vendor-mui-core-*.js`: `354.61 kB`
+- `hooks-*.js`: `296.17 kB`
+- `vendor-app-*.js`: `205.18 kB`
+- `main-*.js`: `78.42 kB`
+- `RealtimeSessionPage-*.js`: `46.12 kB`
+- `TranscriptionListPage-*.js`: `15.99 kB`
 
-From `npm --prefix webapp run build`:
+From `npm --prefix webapp run bundle:check` on 2026-03-07:
 
-- `vendor-mui-core-*.js`: `352.56 kB` (gzip `104.25 kB`)
-- `vendor-emotion-*.js`: `13.51 kB` (gzip `5.83 kB`)
-- `hooks-*.js`: `287.23 kB` (gzip `91.47 kB`)
-- `vendor-app-*.js`: `205.18 kB` (gzip `67.71 kB`)
-- `main-*.js`: `73.86 kB` (gzip `22.88 kB`)
-
-From `npm --prefix webapp run bundle:check`:
-
-- `vendor-mui-core-*.js`: `344.29 KiB` (budget `351.56 KiB`)
+- total JS: `1154.97 KiB` / budget `1220.70 KiB`
+- `share-embed.js`: `616.18 KiB` / budget `683.59 KiB`
+- `main-*.js`: `76.58 KiB` / budget `87.89 KiB`
 - Result: `PASS`
+
+## Historical Note (2026-03-03)
+
+- The 2026-03-03 fix split `@emotion/*` away from `vendor-mui-core` and recovered an earlier chunk-size regression.
+- That note is now historical evidence only. Current truth is the 2026-03-07 state above.
 
 ## Verification
 
 - `npm --prefix webapp run lint`
-- `npm --prefix webapp run test`
 - `npm --prefix webapp run build`
 - `npm --prefix webapp run bundle:check`

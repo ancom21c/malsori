@@ -11,7 +11,6 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { motion, AnimatePresence } from "framer-motion";
 import { useRef, useEffect } from "react";
 import { useI18n } from "../../i18n";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
@@ -112,24 +111,8 @@ export default function RealtimeTranscript({
                 </Box>
               ) : (
                 <Stack spacing={2}>
-                  <AnimatePresence mode={prefersReducedMotion ? "sync" : "popLayout"}>
-                    {segments.map((segment) => (
-                      <motion.div
-                        key={segment.id}
-                        layout={!prefersReducedMotion}
-                        initial={prefersReducedMotion ? false : { opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0 }
-                            : {
-                              type: "spring",
-                              stiffness: 400,
-                              damping: 30,
-                              mass: 0.8,
-                            }
-                        }
-                      >
+                  {segments.map((segment) => (
+                    <Box key={segment.id}>
                         <Card
                           variant="outlined"
                           sx={{
@@ -153,27 +136,11 @@ export default function RealtimeTranscript({
                             </Typography>
                           </CardContent>
                         </Card>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+                    </Box>
+                  ))}
 
                   {partialText && (
-                    <AnimatePresence>
-                      <motion.div
-                        layout={!prefersReducedMotion}
-                        initial={prefersReducedMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={
-                          prefersReducedMotion
-                            ? { opacity: 0 }
-                            : { opacity: 0, scale: 0.95, transition: { duration: 0.15 } }
-                        }
-                        transition={
-                          prefersReducedMotion
-                            ? { duration: 0 }
-                            : { type: "spring", stiffness: 400, damping: 30 }
-                        }
-                      >
+                    <Box>
                         <Card
                           variant="outlined"
                           sx={{
@@ -196,8 +163,7 @@ export default function RealtimeTranscript({
                             </Typography>
                           </CardContent>
                         </Card>
-                      </motion.div>
-                    </AnimatePresence>
+                    </Box>
                   )}
                 </Stack>
               )}

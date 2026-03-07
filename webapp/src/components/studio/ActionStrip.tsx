@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 import { Box, Stack, alpha } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { motion } from "framer-motion";
-
-const MotionBox = motion(Box);
 
 type ActionStripVariant = "header" | "content" | "sticky-mobile";
 
@@ -29,7 +26,7 @@ export function ActionStrip({
   const effectiveVariant = stickyMobile ? "sticky-mobile" : variant;
 
   return (
-    <MotionBox
+    <Box
       role="group"
       aria-label={ariaLabel}
       sx={{
@@ -72,6 +69,6 @@ export function ActionStrip({
       >
         {children}
       </Stack>
-    </MotionBox>
+    </Box>
   );
 }

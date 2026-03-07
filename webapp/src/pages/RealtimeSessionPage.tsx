@@ -42,7 +42,6 @@ import {
   resolveRealtimeStreamingConfigString,
 } from "./realtimeSessionModel";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
-import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { useUiStore } from "../store/uiStore";
 import {
@@ -64,7 +63,6 @@ import {
   reduceRealtimeConnectionUxState,
   type RealtimeLatencyLevel,
 } from "./realtimeConnectionUx";
-import { motion, AnimatePresence } from "framer-motion";
 import RealtimeToolbar from "../components/realtime/RealtimeToolbar";
 import RealtimeStatusBanner from "../components/realtime/RealtimeStatusBanner";
 import RealtimeTranscript from "../components/realtime/RealtimeTranscript";
@@ -391,7 +389,6 @@ export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
-  const prefersReducedMotion = usePrefersReducedMotion();
   const enqueueRealtimeSnackbar = useCallback(
     (message: string, options?: OptionsObject) =>
       enqueueSnackbar(message, {
@@ -2056,44 +2053,30 @@ export default function RealtimeSessionPage() {
       />
 
       {/* Countdown Overlay */}
-      <AnimatePresence>
-        {sessionState === "countdown" && countdown > 0 && (
-          <Box
+      {sessionState === "countdown" && countdown > 0 ? (
+        <Box
+          sx={{
+            position: "fixed",
+            inset: 0,
+            bgcolor: "rgba(0, 0, 0, 0.75)",
+            zIndex: (theme) => theme.zIndex.modal + 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "common.white",
+          }}
+        >
+          <Typography
             sx={{
-              position: "fixed",
-              inset: 0,
-              bgcolor: "rgba(0, 0, 0, 0.75)",
-              zIndex: (theme) => theme.zIndex.modal + 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "common.white",
+              fontSize: { xs: "35vw", md: "20vw" },
+              fontWeight: 900,
+              lineHeight: 1,
             }}
           >
-            <motion.div
-              initial={prefersReducedMotion ? { opacity: 1 } : { scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { scale: 1.5, opacity: 0 }}
-              key={countdown}
-              transition={
-                prefersReducedMotion
-                  ? { duration: 0 }
-                  : { type: "spring", stiffness: 300, damping: 20 }
-              }
-            >
-              <Typography
-                sx={{
-                  fontSize: { xs: "35vw", md: "20vw" },
-                  fontWeight: 900,
-                  lineHeight: 1,
-                }}
-              >
-                {countdown}
-              </Typography>
-            </motion.div>
-          </Box>
-        )}
-      </AnimatePresence>
+            {countdown}
+          </Typography>
+        </Box>
+      ) : null}
     </>
   );
 }
