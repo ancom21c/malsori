@@ -658,9 +658,7 @@ export default function TranscriptionListPage() {
                     {t("thereAreNoTranscriptionRecordsYet")}
                   </Typography>
                   <Typography variant="body2">
-                    {t(
-                      "clickTheButtonInTheBottomRightToRequestFileTranscriptionOrStartRealTimeTranscription"
-                    )}
+                    {t("requestFileTranscriptionOrStartRealTimeSessionToGetStarted")}
                   </Typography>
                 </Box>
                 <ActionStrip
@@ -725,7 +723,7 @@ export default function TranscriptionListPage() {
                     to="/realtime"
                     sx={{ flex: 1, minWidth: 0 }}
                   >
-                    {t("realTimeTranscription")}
+                    {t("startRealTimeTranscription")}
                   </Button>
                 </ActionStrip>
               </Stack>

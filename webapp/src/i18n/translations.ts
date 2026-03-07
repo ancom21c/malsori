@@ -434,10 +434,10 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Clear saved Client Secret",
     ja: "保存されたクライアント シークレットをクリアする",
   },
-  clickTheButtonInTheBottomRightToRequestFileTranscriptionOrStartRealTimeTranscription: {
-    ko: "파일을 올려 전사를 시작하거나 실시간 세션을 열어 보세요.",
-    en: "Upload a file to start a transcript or open a real-time session.",
-    ja: "ファイルをアップロードして文字起こしを始めるか、リアルタイム セッションを開いてください。",
+  requestFileTranscriptionOrStartRealTimeSessionToGetStarted: {
+    ko: "파일 전사를 요청하거나 실시간 세션을 시작해 첫 전사 기록을 만들어 보세요.",
+    en: "Request file transcription or start a real-time session to create your first transcript.",
+    ja: "ファイル文字起こしを依頼するか、リアルタイム セッションを開始して最初の記録を作成してください。",
   },
   clickingOnEachListItemTakesYouToTheDetailedTranscriptionResultsScreen: {
     ko: "각 리스트 항목을 클릭하면 세부 전사 결과 화면으로 이동합니다.",

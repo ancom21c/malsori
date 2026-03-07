@@ -57,14 +57,25 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] empty-state helper key를 위치 기반 이름에서 행동 기반 의미로 교체했다.
+- [x] helper 문구를 `file transcription 요청` 또는 `real-time session 시작`이라는 실제 행동 기준으로 다시 썼다.
+- [x] mobile sticky CTA의 realtime 라벨도 `startRealTimeTranscription`으로 맞춰 desktop/mobile semantics를 통일했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- 실제 layout을 건드리지 않고 copy/key 이름만 정리해 회귀 위험을 낮췄다.
+- helper 문구와 버튼 라벨이 모두 동사형이 되어 first-run empty state에서 다음 행동이 더 분명해졌다.
+- semantics rename이 번역 키까지 포함되므로 나중에 다시 읽어도 의미 drift가 덜하다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`
