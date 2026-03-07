@@ -67,14 +67,28 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] filter query schema를 `title`, `content`, `start`, `end`, repeated `kind`, repeated `model`, repeated `endpoint`로 고정했다.
+- [x] `transcriptionListFilterState.ts`에 parse/build/equality 순수 함수를 분리했다.
+- [x] invalid query는 trim/validation/dedupe 후 safe default로 복구하고, `kind=none` sentinel로 explicit empty kind selection도 보존했다.
+- [x] `TranscriptionListPage`는 `useSearchParams`와 filter state를 양방향 sync하도록 바꿨다. URL 갱신은 `replace: true`로 처리해 검색 입력 history spam을 막았다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- parse/build/equality를 모델로 분리해 invalid query와 round-trip 규칙을 빠르게 테스트할 수 있게 했다.
+- `replace: true`를 택해 share/reload/back-to-list 재현성을 확보하면서도 키 입력마다 history가 쌓이는 문제를 피했다.
+- `selectedKinds=[]`는 기존 UI에서 의미가 있었기 때문에 sentinel을 넣어 refresh 후 checkbox state drift를 막았다.
+- 남은 리스크는 page-level DOM integration test 부재다. 대신 URL schema/model test와 build/lint gate로 현재 루프 범위는 통제했다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `npm --prefix webapp run test -- transcriptionListFilterState`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`

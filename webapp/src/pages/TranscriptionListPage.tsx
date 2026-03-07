@@ -41,7 +41,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "notistack";
 import { useTranscriptions } from "../hooks/useTranscriptions";
 import { useTranscriptionSearchIndexes } from "../hooks/useTranscriptionSearchIndexes";
@@ -57,6 +57,14 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { formatLocalizedDateTime } from "../utils/time";
 import { ActionStrip, StudioPageShell } from "../components/studio";
+import {
+  ALL_TRANSCRIPTION_LIST_FILTER_KINDS,
+  DEFAULT_TRANSCRIPTION_LIST_FILTER_STATE,
+  areTranscriptionListFilterStatesEqual,
+  buildTranscriptionListFilterSearchParams,
+  parseTranscriptionListFilterState,
+  type TranscriptionListFilterState,
+} from "./transcriptionListFilterState";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 
@@ -141,8 +149,6 @@ const KIND_LABEL: Record<LocalTranscriptionKind, string> = {
   realtime: "realTimeTranscription",
 };
 
-const ALL_KINDS: LocalTranscriptionKind[] = ["file", "realtime"];
-
 function getEndpointLabel(transcription: LocalTranscription, t: Translator): string {
   if (transcription.backendEndpointName) {
     const suffix = transcription.backendApiBaseUrl ? ` · ${transcription.backendApiBaseUrl}` : "";
@@ -186,6 +192,7 @@ function getDownloadStatusLabel(
 export default function TranscriptionListPage() {
   const theme = useTheme();
   const showTopActions = useMediaQuery(theme.breakpoints.up("sm"));
+  const [searchParams, setSearchParams] = useSearchParams();
   const transcriptions = useTranscriptions();
   const searchIndexMap = useTranscriptionSearchIndexes();
   const { enqueueSnackbar } = useSnackbar();
@@ -201,17 +208,49 @@ export default function TranscriptionListPage() {
     [transcriptions]
   );
 
-  const [titleQuery, setTitleQuery] = useState("");
-  const [contentQuery, setContentQuery] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [selectedKinds, setSelectedKinds] = useState<LocalTranscriptionKind[]>(() => [...ALL_KINDS]);
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [selectedEndpoints, setSelectedEndpoints] = useState<string[]>([]);
+  const [filterState, setFilterState] = useState<TranscriptionListFilterState>(() =>
+    parseTranscriptionListFilterState(searchParams)
+  );
   const [deleteTarget, setDeleteTarget] = useState<LocalTranscription | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const modelSelectId = useId();
   const endpointSelectId = useId();
+  const {
+    titleQuery,
+    contentQuery,
+    startDate,
+    endDate,
+    selectedKinds,
+    selectedModels,
+    selectedEndpoints,
+  } = filterState;
+  const searchParamString = searchParams.toString();
+  const normalizedFilterSearchParams = useMemo(
+    () => buildTranscriptionListFilterSearchParams(filterState),
+    [filterState]
+  );
+  const normalizedFilterSearchString = normalizedFilterSearchParams.toString();
+
+  useEffect(() => {
+    const nextFilterState = parseTranscriptionListFilterState(new URLSearchParams(searchParamString));
+    setFilterState((current) =>
+      areTranscriptionListFilterStatesEqual(current, nextFilterState) ? current : nextFilterState
+    );
+  }, [searchParamString]);
+
+  useEffect(() => {
+    if (searchParamString === normalizedFilterSearchString) {
+      return;
+    }
+    setSearchParams(normalizedFilterSearchParams, { replace: true });
+  }, [normalizedFilterSearchParams, normalizedFilterSearchString, searchParamString, setSearchParams]);
+
+  const patchFilterState = useCallback(
+    (patch: Partial<TranscriptionListFilterState>) => {
+      setFilterState((current) => ({ ...current, ...patch }));
+    },
+    []
+  );
 
   const parsedContentQuery = useMemo(() => parseSearchQuery(contentQuery), [contentQuery]);
 
@@ -303,7 +342,7 @@ export default function TranscriptionListPage() {
     Boolean(endDate) ||
     selectedModels.length > 0 ||
     selectedEndpoints.length > 0 ||
-    selectedKinds.length !== ALL_KINDS.length;
+    selectedKinds.length !== ALL_TRANSCRIPTION_LIST_FILTER_KINDS.length;
 
   const advancedFiltersActive =
     Boolean(startDate) ||
@@ -320,13 +359,7 @@ export default function TranscriptionListPage() {
   const advancedFiltersVisible = advancedFiltersOpen;
 
   const handleResetFilters = useCallback(() => {
-    setTitleQuery("");
-    setContentQuery("");
-    setStartDate("");
-    setEndDate("");
-    setSelectedKinds([...ALL_KINDS]);
-    setSelectedModels([]);
-    setSelectedEndpoints([]);
+    setFilterState(DEFAULT_TRANSCRIPTION_LIST_FILTER_STATE);
     setAdvancedFiltersOpen(false);
   }, []);
 
@@ -365,22 +398,29 @@ export default function TranscriptionListPage() {
   };
 
   const handleKindToggle = (kind: LocalTranscriptionKind) => {
-    setSelectedKinds((prev) => {
-      if (prev.includes(kind)) {
-        return prev.filter((value) => value !== kind);
-      }
-      return [...prev, kind];
+    setFilterState((current) => {
+      const nextKinds = current.selectedKinds.includes(kind)
+        ? current.selectedKinds.filter((value) => value !== kind)
+        : [...current.selectedKinds, kind];
+      return {
+        ...current,
+        selectedKinds: nextKinds,
+      };
     });
   };
 
   const handleModelFilterChange = (event: SelectChangeEvent<string[]>) => {
     const value = event.target.value;
-    setSelectedModels(typeof value === "string" ? value.split(",") : value);
+    patchFilterState({
+      selectedModels: typeof value === "string" ? value.split(",") : value,
+    });
   };
 
   const handleEndpointFilterChange = (event: SelectChangeEvent<string[]>) => {
     const value = event.target.value;
-    setSelectedEndpoints(typeof value === "string" ? value.split(",") : value);
+    patchFilterState({
+      selectedEndpoints: typeof value === "string" ? value.split(",") : value,
+    });
   };
 
   const handleDeleteRequest = (transcription: LocalTranscription) => {
@@ -460,14 +500,14 @@ export default function TranscriptionListPage() {
                 <TextField
                   label={t("titleSearch")}
                   value={titleQuery}
-                  onChange={(event) => setTitleQuery(event.target.value)}
+                  onChange={(event) => patchFilterState({ titleQuery: event.target.value })}
                   fullWidth
                   placeholder={t("exampleMarchMeeting")}
                 />
                 <TextField
                   label={t("searchForUtteranceContent")}
                   value={contentQuery}
-                  onChange={(event) => setContentQuery(event.target.value)}
+                  onChange={(event) => patchFilterState({ contentQuery: event.target.value })}
                   fullWidth
                   placeholder={t('exampleMeetingMinutesFilter')}
                   helperText={t('youCanUseQuotationMarksExcludeOrOperator')}
@@ -487,7 +527,7 @@ export default function TranscriptionListPage() {
                     "& .MuiFormControlLabel-root": { mr: 1.5, my: 0.5 },
                   }}
                 >
-                  {ALL_KINDS.map((kind) => (
+                  {ALL_TRANSCRIPTION_LIST_FILTER_KINDS.map((kind) => (
                     <FormControlLabel
                       key={kind}
                       control={
@@ -540,7 +580,7 @@ export default function TranscriptionListPage() {
                       label={t("startDate")}
                       type="date"
                       value={startDate}
-                      onChange={(event) => setStartDate(event.target.value)}
+                      onChange={(event) => patchFilterState({ startDate: event.target.value })}
                       InputLabelProps={{ shrink: true }}
                       fullWidth
                     />
@@ -548,7 +588,7 @@ export default function TranscriptionListPage() {
                       label={t("endDate")}
                       type="date"
                       value={endDate}
-                      onChange={(event) => setEndDate(event.target.value)}
+                      onChange={(event) => patchFilterState({ endDate: event.target.value })}
                       InputLabelProps={{ shrink: true }}
                       fullWidth
                     />
