@@ -1,9 +1,11 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useMemo } from "react";
 import {
-  BrowserRouter,
+  createBrowserRouter,
   Navigate,
+  Outlet,
   Route,
-  Routes,
+  RouterProvider,
+  createRoutesFromElements,
 } from "react-router-dom";
 import { CircularProgress, Box } from "@mui/material";
 import MainLayout from "../layouts/MainLayout";
@@ -41,28 +43,39 @@ function Loader() {
   );
 }
 
-export default function AppRouter() {
+function RootLayout() {
   return (
-    <BrowserRouter>
-      <MainLayout>
-        <Suspense fallback={<Loader />}>
-          <Routes>
-            <Route path="/" element={<TranscriptionListPage />} />
-            <Route
-              path="/transcriptions/:transcriptionId"
-              element={<TranscriptionDetailPage />}
-            />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/realtime" element={<RealtimeSessionPage />} />
-            <Route path="/lab" element={<LabPage />} />
-            {devOnlyUiConceptsEnabled && UiConceptsPage ? (
-              <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />
-            ) : null}
-            <Route path="/help" element={<HelpPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </MainLayout>
-    </BrowserRouter>
+    <MainLayout>
+      <Suspense fallback={<Loader />}>
+        <Outlet />
+      </Suspense>
+    </MainLayout>
   );
+}
+
+function createAppRouter() {
+  return createBrowserRouter(
+    createRoutesFromElements(
+      <Route element={<RootLayout />}>
+        <Route path="/" element={<TranscriptionListPage />} />
+        <Route
+          path="/transcriptions/:transcriptionId"
+          element={<TranscriptionDetailPage />}
+        />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/realtime" element={<RealtimeSessionPage />} />
+        <Route path="/lab" element={<LabPage />} />
+        {devOnlyUiConceptsEnabled && UiConceptsPage ? (
+          <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />
+        ) : null}
+        <Route path="/help" element={<HelpPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    )
+  );
+}
+
+export default function AppRouter() {
+  const router = useMemo(() => createAppRouter(), []);
+  return <RouterProvider router={router} />;
 }

@@ -27,6 +27,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, SyntheticEvent } from "react";
 import type { ChipProps } from "@mui/material/Chip";
 import { useBeforeUnload, useSearchParams } from "react-router-dom";
+import { useBlocker } from "react-router";
+import type { BlockerFunction } from "react-router";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import TranscriptionConfigQuickOptions from "../components/TranscriptionConfigQuickOptions";
@@ -381,6 +383,26 @@ export default function SettingsPage() {
       [shouldWarnOnUnsavedDraft]
     )
   );
+
+  const shouldBlockNavigation = useCallback<BlockerFunction>(
+    ({ currentLocation, nextLocation }) =>
+      shouldWarnOnUnsavedDraft && currentLocation.pathname !== nextLocation.pathname,
+    [shouldWarnOnUnsavedDraft]
+  );
+
+  const navigationBlocker = useBlocker(shouldBlockNavigation);
+
+  useEffect(() => {
+    if (navigationBlocker.state !== "blocked") {
+      return;
+    }
+    const shouldProceed = window.confirm(t("discardUnsavedConnectionSettingsChanges"));
+    if (shouldProceed) {
+      navigationBlocker.proceed();
+      return;
+    }
+    navigationBlocker.reset();
+  }, [navigationBlocker, t]);
 
   const handleConnectionDraftChange = useCallback(
     (key: keyof ConnectionSettingsDraft, value: string) => {
