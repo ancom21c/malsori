@@ -609,6 +609,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Edit Speaker",
     ja: "話者の編集",
   },
+  editTitle: {
+    ko: "제목 편집",
+    en: "Edit title",
+    ja: "タイトルを編集",
+  },
   editQuicklyWithKeyboardShortcutsIncludingWordByWordProofreadingAndVimStyleNavigationHJKL: {
     ko: "단어 단위 교정, Vim 스타일 이동(h/j/k/l) 등 키보드 단축키로 빠르게 편집합니다.",
     en: "Edit quickly with keyboard shortcuts, including word-by-word proofreading and Vim-style navigation (h/j/k/l).",
@@ -2859,10 +2864,10 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Check network status, then choose retry connection or abort session.",
     ja: "ネットワーク状態を確認し、接続再試行またはセッション中断を選択してください。",
   },
-  editingHintDoubleClickToCorrectAndNavigate: {
-    ko: "발화나 단어를 더블클릭하여 교정할 수 있습니다. h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.",
-    en: "Double-click an utterance or word to correct it. Use h/j/k/l or the arrow keys to move between segments.",
-    ja: "発話や単語をダブルクリックして修正できます。h/j/k/l または矢印キーで区間を移動できます。",
+  editingHintUseEditActionsAndKeyboardNavigation: {
+    ko: "제목 편집 버튼과 세그먼트 편집 아이콘으로 교정을 시작할 수 있습니다. 전사 영역 안에서는 h/j/k/l 또는 방향키로 구간을 이동할 수 있습니다.",
+    en: "Use the title edit button and segment edit icons to start corrections. Inside the transcript workspace, use h/j/k/l or the arrow keys to move between segments.",
+    ja: "タイトル編集ボタンとセグメント編集アイコンから修正を始められます。文字起こしワークスペース内では、h/j/k/l または矢印キーで区間を移動できます。",
   },
   runtimeRequestConfig: {
     ko: "Runtime RequestConfig",

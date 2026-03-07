@@ -57,15 +57,21 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] detail page의 전역 `window` 단축키 리스너를 제거했다.
+- [x] segment navigation shortcut을 transcript workspace 내부 `onKeyDown`으로 제한했다.
+- [x] `MediaPlaybackSection` 헤더에 visible title edit CTA를 추가했다.
+- [x] hidden double-click 의존 helper copy를 explicit affordance 기준으로 바꿨다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] shortcut regression 없이 player/transcript 조작이 가능한가?
-- [ ] title edit CTA가 compact layout에서도 접근 가능한가?
-- [ ] copy와 actual interaction이 일치하는가?
+- [x] shortcut regression 없이 player/transcript 조작이 가능한가?
+- [x] title edit CTA가 compact layout에서도 접근 가능한가?
+- [x] copy와 actual interaction이 일치하는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- AppRouter`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- AppRouter`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `node scripts/check-todo-board-consistency.mjs`

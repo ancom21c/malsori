@@ -440,6 +440,7 @@ export default function TranscriptionDetailPage() {
   const activeSegmentIdRef = useRef<string | null>(null);
   const activeWordHighlightRef = useRef<{ segmentId: string; index: number } | null>(null);
   const segmentCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const transcriptWorkspaceRef = useRef<HTMLDivElement | null>(null);
 
   const [speakerEditDialogOpen, setSpeakerEditDialogOpen] = useState(false);
   const [speakerEditTarget, setSpeakerEditTarget] = useState<{
@@ -815,8 +816,8 @@ export default function TranscriptionDetailPage() {
     [handleCancelEdit, handleSaveEdit]
   );
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+  const handleTranscriptWorkspaceKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>) => {
       if (event.key === "Escape" && editingSegmentId) {
         if (!event.defaultPrevented) {
           event.preventDefault();
@@ -843,9 +844,15 @@ export default function TranscriptionDetailPage() {
 
       const normalizedKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const isPreviousKey =
-        event.key === "ArrowUp" || event.key === "ArrowLeft" || normalizedKey === "h" || normalizedKey === "k";
+        event.key === "ArrowUp" ||
+        event.key === "ArrowLeft" ||
+        normalizedKey === "h" ||
+        normalizedKey === "k";
       const isNextKey =
-        event.key === "ArrowDown" || event.key === "ArrowRight" || normalizedKey === "j" || normalizedKey === "l";
+        event.key === "ArrowDown" ||
+        event.key === "ArrowRight" ||
+        normalizedKey === "j" ||
+        normalizedKey === "l";
 
       if (isPreviousKey) {
         event.preventDefault();
@@ -857,11 +864,9 @@ export default function TranscriptionDetailPage() {
         event.preventDefault();
         focusSegmentByDirection("next");
       }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [editingSegmentId, focusSegmentByDirection, handleCancelEdit]);
+    },
+    [editingSegmentId, focusSegmentByDirection, handleCancelEdit]
+  );
 
   const handleDownloadJson = useCallback(() => {
     if (!transcription) {
@@ -1959,7 +1964,9 @@ export default function TranscriptionDetailPage() {
         </Card>
 
         <Card
+          ref={transcriptWorkspaceRef}
           variant="outlined"
+          onKeyDown={handleTranscriptWorkspaceKeyDown}
           sx={{
             backgroundImage: (theme) =>
               `linear-gradient(170deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(

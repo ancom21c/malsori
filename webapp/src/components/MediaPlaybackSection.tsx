@@ -8,6 +8,7 @@ import {
   CardContent,
   CardHeader,
   Fab,
+  IconButton,
   LinearProgress,
   Popover,
   Stack,
@@ -25,6 +26,7 @@ import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import ReplayIcon from "@mui/icons-material/Replay";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import type { LocalTranscription } from "../data/app-db";
 import type { MutableRefObject } from "react";
 import { formatLocalizedDateTime } from "../utils/time";
@@ -147,6 +149,14 @@ export function MediaPlaybackSection({
     setActionsAnchor(null);
   };
 
+  const handleTitleEditStart = () => {
+    if (!canEditTitle) {
+      return;
+    }
+    setIsEditingTitle(true);
+    setTitleDraft(rawTitle);
+  };
+
   const handleTitleSubmit = async () => {
     if (!onTitleUpdate) {
       setIsEditingTitle(false);
@@ -239,18 +249,43 @@ export function MediaPlaybackSection({
                 fullWidth
               />
             ) : (
-              <Typography
-                component={headingComponent}
-                variant={isCompact ? "subtitle1" : "h6"}
-                sx={{ cursor: canEditTitle ? "text" : "default" }}
-                onDoubleClick={() => {
-                  if (!canEditTitle) return;
-                  setIsEditingTitle(true);
-                  setTitleDraft(rawTitle);
-                }}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                alignItems={{ xs: "flex-start", sm: "center" }}
+                flexWrap="wrap"
               >
-                {resolvedTitle}
-              </Typography>
+                <Typography
+                  component={headingComponent}
+                  variant={isCompact ? "subtitle1" : "h6"}
+                  sx={{ cursor: canEditTitle ? "text" : "default" }}
+                  onDoubleClick={canEditTitle ? handleTitleEditStart : undefined}
+                >
+                  {resolvedTitle}
+                </Typography>
+                {canEditTitle ? (
+                  isCompact ? (
+                    <Tooltip title={t("editTitle")}>
+                      <IconButton
+                        size="small"
+                        onClick={handleTitleEditStart}
+                        aria-label={t("editTitle")}
+                      >
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={<EditOutlinedIcon fontSize="small" />}
+                      onClick={handleTitleEditStart}
+                    >
+                      {t("editTitle")}
+                    </Button>
+                  )
+                ) : null}
+              </Stack>
             )}
             {!isCompact ? (
               <Typography variant="body2" color="text.secondary">
@@ -372,7 +407,7 @@ export function MediaPlaybackSection({
           ) : null}
           {showHint && !isCompact ? (
             <Typography variant="caption" color="text.secondary">
-              {t("editingHintDoubleClickToCorrectAndNavigate")}
+              {t("editingHintUseEditActionsAndKeyboardNavigation")}
             </Typography>
           ) : null}
         </Stack>

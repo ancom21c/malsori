@@ -24,7 +24,7 @@
 | T804 | P1 | Realtime accessibility recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T804-realtime-accessibility-recovery.md` |
 | T805 | P1 | Settings guardrails | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T805-settings-guardrails.md` |
 | T806 | P1 | List navigation/accessibility hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T806-list-navigation-accessibility-hardening.md` |
-| T807 | P1 | Detail ergonomics recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T807-detail-ergonomics-recovery.md` |
+| T807 | P1 | Detail ergonomics recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T807-detail-ergonomics-recovery.md` |
 | T808 | P2 | Large-list scalability v2 | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T808-large-list-scalability-v2.md` |
 
 ## 이번 루프 우선순위
