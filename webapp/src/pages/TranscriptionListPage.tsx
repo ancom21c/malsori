@@ -65,7 +65,10 @@ import {
   parseTranscriptionListFilterState,
   type TranscriptionListFilterState,
 } from "./transcriptionListFilterState";
-import { getTranscriptionListRenderMode } from "./transcriptionListRenderingModel";
+import {
+  getOptimizedTranscriptionListVisibleCount,
+  getTranscriptionListRenderMode,
+} from "./transcriptionListRenderingModel";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 type FilterHistoryMode = "replace" | "push";
@@ -215,7 +218,9 @@ export default function TranscriptionListPage() {
   );
   const [deleteTarget, setDeleteTarget] = useState<LocalTranscription | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [visibleExpansionStep, setVisibleExpansionStep] = useState(1);
   const searchParamsUpdateModeRef = useRef<FilterHistoryMode>("replace");
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const modelSelectId = useId();
   const endpointSelectId = useId();
   const advancedFiltersToggleId = useId();
@@ -478,6 +483,20 @@ export default function TranscriptionListPage() {
     [filteredTranscriptions.length]
   );
   const useLargeListOptimizations = listRenderMode === "optimized";
+  const visibleTranscriptionCount = useMemo(() => {
+    if (!useLargeListOptimizations) {
+      return filteredTranscriptions.length;
+    }
+    return getOptimizedTranscriptionListVisibleCount(
+      filteredTranscriptions.length,
+      visibleExpansionStep
+    );
+  }, [filteredTranscriptions.length, useLargeListOptimizations, visibleExpansionStep]);
+  const visibleTranscriptions = useMemo(
+    () => filteredTranscriptions.slice(0, visibleTranscriptionCount),
+    [filteredTranscriptions, visibleTranscriptionCount]
+  );
+  const hasMoreVisible = visibleTranscriptionCount < filteredTranscriptions.length;
 
   useEffect(() => {
     setFloatingActionsVisible(listPageOwnsPrimaryAction ? false : null);
@@ -485,6 +504,48 @@ export default function TranscriptionListPage() {
       setFloatingActionsVisible(null);
     };
   }, [listPageOwnsPrimaryAction, setFloatingActionsVisible]);
+
+  useEffect(() => {
+    setVisibleExpansionStep(1);
+  }, [normalizedFilterSearchString, useLargeListOptimizations]);
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleExpansionStep((current) => {
+      if (!hasMoreVisible) {
+        return current;
+      }
+      return current + 1;
+    });
+  }, [hasMoreVisible]);
+
+  useEffect(() => {
+    if (!hasMoreVisible) {
+      return;
+    }
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleExpansionStep((current) => {
+            const nextVisibleCount = getOptimizedTranscriptionListVisibleCount(
+              filteredTranscriptions.length,
+              current
+            );
+            if (nextVisibleCount >= filteredTranscriptions.length) {
+              return current;
+            }
+            return current + 1;
+          });
+        }
+      },
+      { rootMargin: "320px 0px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filteredTranscriptions.length, hasMoreVisible]);
 
   const quickActionSlot = showTopActions ? (
     <ActionStrip ariaLabel={t("quickActions")} sx={{ width: "auto" }}>
@@ -833,13 +894,14 @@ export default function TranscriptionListPage() {
               </Typography>
             </Box>
           ) : (
-            <List disablePadding>
-                {filteredTranscriptions.map((item, index) => {
+            <>
+              <List disablePadding>
+                {visibleTranscriptions.map((item, index) => {
                   const endpointLabel = getEndpointLabel(item, t);
                   return (
                     <ListItem
                       key={item.id}
-                      divider={index !== filteredTranscriptions.length - 1}
+                      divider={index !== visibleTranscriptions.length - 1 || hasMoreVisible}
                       secondaryAction={
                         <Stack direction="row" spacing={1}>
                           {item.downloadStatus === "not_downloaded" || item.downloadStatus === "downloading" ? (
@@ -961,7 +1023,35 @@ export default function TranscriptionListPage() {
                     </ListItem>
                   );
                 })}
-            </List>
+              </List>
+              {useLargeListOptimizations ? (
+                <Box
+                  ref={loadMoreSentinelRef}
+                  sx={{ px: 3, py: 2.5, borderTop: 1, borderColor: "divider" }}
+                >
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "stretch", sm: "center" }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      {t("showingTranscriptionRecordsCount", {
+                        values: {
+                          visible: visibleTranscriptionCount,
+                          total: filteredTranscriptions.length,
+                        },
+                      })}
+                    </Typography>
+                    {hasMoreVisible ? (
+                      <Button variant="outlined" size="small" onClick={handleLoadMore}>
+                        {t("loadMoreTranscriptionRecords")}
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </Box>
+              ) : null}
+            </>
           )}
         </CardContent>
       </Card>

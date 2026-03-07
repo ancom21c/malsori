@@ -2999,6 +2999,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "The saved connection settings are currently active.",
     ja: "現在は保存済みの接続設定が適用されています。",
   },
+  loadMoreTranscriptionRecords: {
+    ko: "전사 기록 더 보기",
+    en: "Load more transcription records",
+    ja: "文字起こし記録をさらに読み込む",
+  },
+  showingTranscriptionRecordsCount: {
+    ko: "전사 기록 {{visible}} / {{total}}개 표시 중",
+    en: "Showing {{visible}} of {{total}} transcription records",
+    ja: "文字起こし記録 {{total}} 件中 {{visible}} 件を表示中",
+  },
   notConfigured: {
     ko: "미설정",
     en: "Not configured",

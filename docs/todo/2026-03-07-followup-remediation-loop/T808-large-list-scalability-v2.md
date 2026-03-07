@@ -56,16 +56,22 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] `transcriptionListRenderingModel`에 initial/increment batch contract를 추가했다.
+- [x] list page가 optimized mode에서 전체 목록 대신 visible slice만 렌더하도록 바꿨다.
+- [x] sentinel 기반 auto expansion과 수동 `Load more` fallback을 같이 넣었다.
+- [x] visible count summary와 관련 model test를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] initial render count가 실제로 줄었는가?
-- [ ] row identity/action state가 안정적인가?
-- [ ] threshold 이하의 기본 path를 깨지 않았는가?
+- [x] initial render count가 실제로 줄었는가?
+- [x] row identity/action state가 안정적인가?
+- [x] threshold 이하의 기본 path를 깨지 않았는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- transcriptionListRenderingModel`
-- [ ] `npm --prefix webapp run build`
-- [ ] `npm --prefix webapp run bundle:check`
+- [x] `npm --prefix webapp run test -- transcriptionListRenderingModel`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`
+- [x] `node scripts/check-todo-board-consistency.mjs`
