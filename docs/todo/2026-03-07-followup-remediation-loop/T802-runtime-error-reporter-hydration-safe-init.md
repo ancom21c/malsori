@@ -57,15 +57,18 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] `main.tsx`의 eager init을 제거하고 app/provider 내부 bootstrap effect로 이동했다.
+- [x] bootstrap effect는 settings hydration을 먼저 보장하고, hydrated 이후 `adminApiBaseUrl` 변화를 기준으로 reporter init을 재평가한다.
+- [x] `runtimeErrorReporter.test.ts`에 “초기에는 admin base 없음 -> 이후 설정됨 -> 재초기화 가능” 경로를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] listeners가 중복 등록되지 않는가?
-- [ ] hydrate 완료 전에는 premature send를 시도하지 않는가?
-- [ ] tests가 persisted-base case를 잡는가?
+- [x] listeners가 중복 등록되지 않는가?
+- [x] hydrate 완료 전에는 premature send를 시도하지 않는가?
+- [x] tests가 persisted-base case를 잡는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- runtimeErrorReporter settingsStore`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- runtimeErrorReporter settingsStore`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`

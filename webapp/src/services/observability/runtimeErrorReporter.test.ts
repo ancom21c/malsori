@@ -143,4 +143,25 @@ describe("runtimeErrorReporter", () => {
     expect(sendBeacon).not.toHaveBeenCalled();
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
+
+  it("can initialize after admin base becomes available later", async () => {
+    useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
+    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      value: sendBeacon,
+    });
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+
+    initRuntimeErrorReporter();
+    useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "/internal" });
+    initRuntimeErrorReporter();
+
+    const error = new Error("late-init");
+    window.dispatchEvent(new ErrorEvent("error", { message: "late-init", error }));
+    await Promise.resolve();
+
+    expect(sendBeacon).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 });

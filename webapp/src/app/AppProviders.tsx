@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { SnackbarProvider } from "notistack";
 import {
@@ -11,6 +12,8 @@ import { I18nProvider } from "../i18n";
 
 import { GoogleAuthProvider } from "../services/auth/GoogleAuthProvider";
 import { SyncProvider } from "../services/cloud/SyncProvider";
+import { useSettingsStore } from "../store/settingsStore";
+import { initRuntimeErrorReporter } from "../services/observability/runtimeErrorReporter";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,11 +28,33 @@ type AppProvidersProps = {
   children: ReactNode;
 };
 
+function SettingsRuntimeBootstrap() {
+  const hydrated = useSettingsStore((state) => state.hydrated);
+  const hydrateSettings = useSettingsStore((state) => state.hydrate);
+  const adminApiBaseUrl = useSettingsStore((state) => state.adminApiBaseUrl);
+
+  useEffect(() => {
+    if (!hydrated) {
+      void hydrateSettings();
+    }
+  }, [hydrateSettings, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    initRuntimeErrorReporter();
+  }, [adminApiBaseUrl, hydrated]);
+
+  return null;
+}
+
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <I18nProvider>
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
+        <SettingsRuntimeBootstrap />
         <SnackbarProvider
           maxSnack={3}
           autoHideDuration={4000}
