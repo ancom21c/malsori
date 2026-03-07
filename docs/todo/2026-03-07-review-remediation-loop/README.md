@@ -1,5 +1,7 @@
 # Review Remediation Loop Board (2026-03-07)
 
+> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-07-followup-remediation-loop/README.md`.
+
 ## 목적
 
 2026-03-07 review findings를 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰 -> 검증` 루프로 정리한다.

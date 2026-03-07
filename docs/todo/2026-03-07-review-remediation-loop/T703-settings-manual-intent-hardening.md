@@ -34,7 +34,7 @@
 
 - settings page에 `connectionDraft` state를 둔다.
 - `Save Connection Settings` 버튼을 추가한다.
-- URL field는 `type="url"`, `name`, `autoComplete="off"`를 명시한다.
+- URL field는 same-origin `/`를 허용하기 위해 `type="text"` + `inputMode="url"`, `name`, `autoComplete="off"`를 사용한다.
 - 저장 전 draft와 persisted 값이 다르면 dirty state를 보여준다.
 - admin token은 계속 local memory only를 유지한다.
 

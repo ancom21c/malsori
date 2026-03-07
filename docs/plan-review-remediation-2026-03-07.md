@@ -1,11 +1,11 @@
 # Review Remediation Plan (2026-03-07)
 
-> Status: current execution plan. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`.
+> Status: historical execution plan. `T701`~`T707` are complete in `docs/todo/2026-03-07-review-remediation-loop/README.md`. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`, and current execution work lives in `docs/plan-review-followup-2026-03-07.md`.
 
 ## Goal
 
-2026-03-07 코드베이스 리뷰에서 확인된 release gate, dev contract, settings operator UX, list UX/performance, 문서 hierarchy 문제를 다음 루프에서 정리한다.
-이번 문서는 현재 리뷰 결과를 구현 가능한 remediation spec으로 고정한다.
+이 문서는 2026-03-07 review remediation loop에서 다룬 release gate, dev contract, settings operator UX, list UX/performance, 문서 hierarchy 문제의 target spec과 실행 기준을 보존하는 historical execution plan이다.
+현재 활성 작업은 follow-up loop 문서가 담당한다.
 
 ## Inputs
 

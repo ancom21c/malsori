@@ -1,6 +1,6 @@
 # Malsori UI Remediation Loop Board (2026-03-06)
 
-> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-07-review-remediation-loop/README.md`.
+> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-07-followup-remediation-loop/README.md`.
 
 ## 목적
 

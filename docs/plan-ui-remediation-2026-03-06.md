@@ -1,6 +1,6 @@
 # UI Remediation + Studio Console Alignment Plan (2026-03-06)
 
-> Status: current canonical UI/spec baseline. Current execution plan lives in `docs/plan-review-remediation-2026-03-07.md`, and the current execution board lives in `docs/todo/2026-03-07-review-remediation-loop/README.md`.
+> Status: current canonical UI/spec baseline. Current execution plan lives in `docs/plan-review-followup-2026-03-07.md`, and the current execution board lives in `docs/todo/2026-03-07-followup-remediation-loop/README.md`.
 
 ## Goal
 
@@ -20,7 +20,7 @@
 
 ### 1. Release Gate Contract
 
-- 배포 전 최소 게이트는 `npm --prefix webapp run lint`, `npm --prefix webapp run build`, `npm --prefix webapp run i18n:check`, `npm --prefix webapp run test -- AppRouter`이다.
+- 배포 전 최소 게이트는 `npm --prefix webapp run lint`, `npm --prefix webapp run i18n:check`, `npm --prefix webapp run build`, `npm --prefix webapp run bundle:check`, `npm --prefix webapp run test`다.
 - 위 게이트를 통과하지 못하면 Studio Console 관련 문서의 stage 상태를 `verified`로 간주하지 않는다.
 - 임시 산출물(`*.tmp`)은 `src/` 아래에 남기지 않는다.
 
@@ -67,7 +67,7 @@
 ### 6. Documentation Contract
 
 - 현재 canonical spec은 `docs/plan-ui-remediation-2026-03-06.md` 하나만 사용한다.
-- 현재 구현 추적과 상태 관리는 `docs/plan-review-remediation-2026-03-07.md`와 `docs/todo/2026-03-07-review-remediation-loop/`로 관리한다.
+- 현재 구현 추적과 상태 관리는 `docs/plan-review-followup-2026-03-07.md`와 `docs/todo/2026-03-07-followup-remediation-loop/`로 관리한다.
 - `docs/todo/2026-03-06-ui-remediation-loop/`는 foundational remediation loop의 historical execution board다.
 - `docs/studio-console-rollout-plan-2026-03-04.md`는 execution history 전용 문서다.
 - `docs/plan-studio-console-v3.md`는 concept/IA baseline 문서다.
@@ -80,9 +80,12 @@
 | Document | Role | Status rule |
 |---|---|---|
 | `docs/plan-ui-remediation-2026-03-06.md` | current canonical spec | 현재 코드와 승인된 contract만 유지 |
-| `docs/plan-review-remediation-2026-03-07.md` | current execution plan | 현재 review follow-up 범위와 우선순위만 유지 |
-| `docs/todo/2026-03-07-review-remediation-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
-| `docs/todo/2026-03-07-review-remediation-loop/T*.md` | current task-level spec/review/verify log | 현재 task evidence와 검증 명령 연결 |
+| `docs/plan-review-followup-2026-03-07.md` | current execution plan | 현재 review follow-up 범위와 우선순위만 유지 |
+| `docs/todo/2026-03-07-followup-remediation-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
+| `docs/todo/2026-03-07-followup-remediation-loop/T*.md` | current task-level spec/review/verify log | 현재 task evidence와 검증 명령 연결 |
+| `docs/plan-review-remediation-2026-03-07.md` | historical execution plan | 완료된 2026-03-07 remediation loop decision/log 보존 |
+| `docs/todo/2026-03-07-review-remediation-loop/README.md` | historical execution board | 완료된 2026-03-07 remediation loop 상태 기록 |
+| `docs/todo/2026-03-07-review-remediation-loop/T*.md` | historical task log | 완료된 remediation task evidence 보존 |
 | `docs/todo/2026-03-06-ui-remediation-loop/README.md` | historical execution board | foundational remediation loop의 완료 기록 |
 | `docs/todo/2026-03-06-ui-remediation-loop/T*.md` | historical task log | 당시 evidence와 검증 기록 보존 |
 | `docs/studio-console-rollout-plan-2026-03-04.md` | historical rollout execution log | 당시 실행/검증 기록만 보존, canonical truth로 사용하지 않음 |

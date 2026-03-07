@@ -36,7 +36,7 @@
 
 ### 수용 기준 (AC)
 
-- [ ] large history에서 스크롤/필터가 눈에 띄게 버벅이지 않음
+- [ ] large history에서 threshold-based optimized mode가 적용되고 full DOM cost를 일부 줄임
 - [ ] item count threshold에 따라 rendering 전략이 바뀜
 - [ ] a11y/keyboard semantics 유지
 
@@ -64,6 +64,7 @@
 - [x] `transcriptionListRenderingModel.ts`에 `100+` 항목에서 optimized mode로 전환하는 threshold contract를 추가했다.
 - [x] 목록 row는 extra `Divider` DOM 노드를 없애고 `ListItem divider`로 통합했다.
 - [x] optimized mode에서는 row에 `content-visibility: auto`, `contain-intrinsic-size`, `contain`을 적용해 offscreen item 비용을 줄였다.
+- [x] 실제 100+ 데이터셋 체감 측정 note는 아직 후속 과제로 남으며, 이번 task는 threshold contract와 equivalent optimization 적용까지를 완료 범위로 고정했다.
 
 ## Review Checklist (Implementation Review)
 

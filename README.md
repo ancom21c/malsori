@@ -11,7 +11,12 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 - File transcription flow with upload dialog, preset selection, status polling, and history list.
 - Settings management for API base URL, credentials, realtime autosave interval, and preset CRUD.
 
-See `webapp/docs/IMPLEMENTATION_NOTES.md` for milestone details and remaining backlog.
+Current canonical/UI execution references:
+
+- `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
+- `docs/plan-review-followup-2026-03-07.md` - current execution plan
+- `docs/todo/2026-03-07-followup-remediation-loop/README.md` - current execution board
+- `webapp/docs/IMPLEMENTATION_NOTES.md` - implementation snapshot and code-level notes
 
 ## Development
 
@@ -121,5 +126,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 
 - `webapp/README.md` – application overview and local usage instructions.
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
-- `docs/studio-console-rollout-plan-2026-03-04.md` – Studio Console 단계적 확장(DoD/회귀체크/롤백) 계획.
-- `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation notes and backlog.
+- `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
+- `docs/plan-review-followup-2026-03-07.md` – current execution plan for active remediation work.
+- `docs/todo/2026-03-07-followup-remediation-loop/README.md` – current execution board.
+- `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation snapshot, current references, and code-level notes.

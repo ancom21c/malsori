@@ -13,13 +13,20 @@
   - Incoming partial/final messages are normalised so heterogeneous API payloads surface consistent segments.
 - Settings & presets: CRUD backed by Dexie with single-default enforcement, environment values (API base URL, token, client id/secret, autosave cadence).
 - Audio utilities: PCM resampler, recorder manager, WAV builder for stitching PCM chunks, and UI playback controls for individual transcript segments.
-- QA & Tooling: Vitest coverage for repositories & hooks, jsdom + `fake-indexeddb` test harness, ESLint flat config, and CI workflow running lint/build/tests on push/PR.
+- QA & Tooling: Vitest coverage for repositories & hooks, jsdom + `fake-indexeddb` test harness, ESLint flat config, and CI workflow running lint/i18n/build/bundle/test on push/PR.
 
-## Next Steps
-- UI design refresh plan: see `docs/plan-p1-ui-refresh.md` (repo root).
-- Bundle split review: see `docs/perf-webapp-bundle-2026-02-19.md` (repo root).
+## Current References
+- Canonical UI/spec baseline: `docs/plan-ui-remediation-2026-03-06.md`
+- Current execution plan: `docs/plan-review-followup-2026-03-07.md`
+- Current execution board: `docs/todo/2026-03-07-followup-remediation-loop/README.md`
+- Historical Studio Console rollout log: `docs/studio-console-rollout-plan-2026-03-04.md`
+
+## Follow-up Backlog
+- Realtime stop/finalize resilience during reconnect with clearer degraded-save semantics.
+- Realtime accessibility: focus restore for settings dialog, follow-live toggle, and transcript live-region tuning.
+- Settings guardrails: unsaved-draft leave warning and section URL deep-linking.
+- History/detail ergonomics: back-forward-friendly filters, visible title edit affordance, and shortcut scope reduction.
 - Waveform visualisation and timeline scrubbing (e.g., @ffmpeg/wasm or Wavesurfer integration) with loop markers per transcript segment.
-- Advanced realtime UX: live latency indicators, reconnect toast with retry/abort affordances, and surfaced server error metadata.
 - Offline-first enhancements: chunk compaction, storage quota monitoring, and ability to resume partially uploaded realtime sessions.
 - Preset management polish: import/export presets as JSON, multi-default guardrails across file/streaming types, and validation helpers.
 - Secure credential storage guidance (e.g., optional Web Crypto wrapping) and environment sanity checks before starting sessions.
