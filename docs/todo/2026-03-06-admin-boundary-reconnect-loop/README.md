@@ -1,5 +1,7 @@
 # Malsori Admin Boundary + Reconnect Resilience Loop Board (2026-03-06)
 
+> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-07-review-remediation-loop/README.md`.
+
 ## 목적
 
 public/internal 운영 경계, realtime reconnect 복원력, operator UX, Studio Console 경계 표현을 다음 루프에서 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰 -> 검증` 방식으로 통제한다.

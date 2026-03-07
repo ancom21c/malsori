@@ -1,9 +1,11 @@
 # Admin Boundary + Reconnect Resilience Loop Plan (2026-03-06)
 
+> Status: historical loop plan. `T601`~`T606` are complete in `docs/todo/2026-03-06-admin-boundary-reconnect-loop/README.md`. Current canonical UI/spec baseline lives in `docs/plan-ui-remediation-2026-03-06.md`, and current execution work lives in `docs/plan-review-remediation-2026-03-07.md`.
+
 ## Goal
 
-현재 코드베이스의 운영 경계/실시간 복원력/Studio Console UX 결함을 다음 루프에서 정리한다.
-이번 문서는 "현재 구현 truth"를 덮어쓰는 문서가 아니라, 다음 구현 사이클의 target spec이다.
+이 문서는 2026-03-06 운영 경계/실시간 복원력/Studio Console UX 루프의 target spec을 기록한 historical design note다.
+현재 구현 truth를 직접 규정하는 문서가 아니라, 완료된 loop의 의사결정과 당시 목표를 보존한다.
 
 ## Inputs
 
@@ -116,4 +118,4 @@
 
 - [x] user가 명시한 두 결정(별도 admin URL, buffered replay + degraded 표시)을 상위 contract에 반영했다.
 - [x] infra/API/realtime/UX를 서로 충돌 없이 분리된 task로 나눴다.
-- [x] 현재 구현 truth를 덮어쓰지 않고, 다음 루프 target spec으로 위치를 분명히 했다.
+- [x] 현재 구현 truth를 덮어쓰지 않고, completed loop의 historical target spec으로 위치를 분명히 했다.

@@ -1,5 +1,7 @@
 # Malsori UI Remediation Loop Board (2026-03-06)
 
+> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-07-review-remediation-loop/README.md`.
+
 ## 목적
 
 현재 Studio Console branch에서 식별된 `P0~P2` 결함을 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰 -> 검증` 루프로 재정리하고, 웹 디자인 수정 방향까지 같은 보드에서 통제한다.

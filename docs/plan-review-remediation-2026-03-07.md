@@ -1,5 +1,7 @@
 # Review Remediation Plan (2026-03-07)
 
+> Status: current execution plan. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`.
+
 ## Goal
 
 2026-03-07 코드베이스 리뷰에서 확인된 release gate, dev contract, settings operator UX, list UX/performance, 문서 hierarchy 문제를 다음 루프에서 정리한다.
@@ -83,7 +85,7 @@
 
 - settings page의 `apiBaseUrl`, `adminApiBaseUrl`는 draft state + `Save Connection Settings` 버튼으로 바꾼다.
 - availability effect dependency에서 입력값 변화를 제거한다.
-- URL field는 `type="url"`, `name`, `autoComplete="off"`를 사용한다.
+- URL field는 same-origin root(`/`)를 허용해야 하므로 `inputMode="url"` 기반 affordance와 `name`, `autoComplete="off"`를 사용한다.
 
 ### T704 방향
 

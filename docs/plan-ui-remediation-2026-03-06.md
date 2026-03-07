@@ -1,5 +1,7 @@
 # UI Remediation + Studio Console Alignment Plan (2026-03-06)
 
+> Status: current canonical UI/spec baseline. Current execution plan lives in `docs/plan-review-remediation-2026-03-07.md`, and the current execution board lives in `docs/todo/2026-03-07-review-remediation-loop/README.md`.
+
 ## Goal
 
 현재 워킹트리에서 식별된 `P0~P2` 결함을 출하 가능 상태로 복구하고, 동시에 `Studio Console` 디자인 방향을 문서상 canonical contract로 재정의한다.
@@ -65,10 +67,12 @@
 ### 6. Documentation Contract
 
 - 현재 canonical spec은 `docs/plan-ui-remediation-2026-03-06.md` 하나만 사용한다.
-- 구현 추적과 상태 관리는 `docs/todo/2026-03-06-ui-remediation-loop/` 아래의 task 문서와 board로 관리한다.
+- 현재 구현 추적과 상태 관리는 `docs/plan-review-remediation-2026-03-07.md`와 `docs/todo/2026-03-07-review-remediation-loop/`로 관리한다.
+- `docs/todo/2026-03-06-ui-remediation-loop/`는 foundational remediation loop의 historical execution board다.
 - `docs/studio-console-rollout-plan-2026-03-04.md`는 execution history 전용 문서다.
 - `docs/plan-studio-console-v3.md`는 concept/IA baseline 문서다.
 - `docs/plan-p1-ui-refresh.md`는 pre-remediation archive 문서다.
+- `docs/plan-admin-boundary-reconnect-resilience-2026-03-06.md`와 `docs/todo/2026-03-06-admin-boundary-reconnect-loop/`는 completed loop archive다.
 - `verified`, `Done` 같은 상태 표현은 각 문서에 적힌 검증 명령이 실제로 통과했을 때만 사용한다.
 
 ## Documentation Roles
@@ -76,11 +80,16 @@
 | Document | Role | Status rule |
 |---|---|---|
 | `docs/plan-ui-remediation-2026-03-06.md` | current canonical spec | 현재 코드와 승인된 contract만 유지 |
-| `docs/todo/2026-03-06-ui-remediation-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
-| `docs/todo/2026-03-06-ui-remediation-loop/T*.md` | task-level spec/review/verify log | 각 task의 evidence와 검증 명령 연결 |
+| `docs/plan-review-remediation-2026-03-07.md` | current execution plan | 현재 review follow-up 범위와 우선순위만 유지 |
+| `docs/todo/2026-03-07-review-remediation-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
+| `docs/todo/2026-03-07-review-remediation-loop/T*.md` | current task-level spec/review/verify log | 현재 task evidence와 검증 명령 연결 |
+| `docs/todo/2026-03-06-ui-remediation-loop/README.md` | historical execution board | foundational remediation loop의 완료 기록 |
+| `docs/todo/2026-03-06-ui-remediation-loop/T*.md` | historical task log | 당시 evidence와 검증 기록 보존 |
 | `docs/studio-console-rollout-plan-2026-03-04.md` | historical rollout execution log | 당시 실행/검증 기록만 보존, canonical truth로 사용하지 않음 |
 | `docs/plan-studio-console-v3.md` | concept + IA baseline | 현재 구현과 다르면 remediation plan이 우선 |
 | `docs/plan-p1-ui-refresh.md` | historical archive | 배경 맥락만 제공, current contract 아님 |
+| `docs/plan-admin-boundary-reconnect-resilience-2026-03-06.md` | historical loop plan | completed loop의 target/decision context 보존 |
+| `docs/todo/2026-03-06-admin-boundary-reconnect-loop/README.md` | historical execution board | completed boundary/reconnect loop 상태 기록 |
 
 ## Work Breakdown
 

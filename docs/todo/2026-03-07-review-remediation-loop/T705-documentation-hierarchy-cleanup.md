@@ -58,14 +58,24 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] `docs/plan-ui-remediation-2026-03-06.md`에 current canonical / current execution / historical loop 역할표를 다시 정리했다.
+- [x] `docs/plan-admin-boundary-reconnect-resilience-2026-03-06.md`를 historical loop plan으로 명시하고 future-target tone을 걷어냈다.
+- [x] 완료된 2026-03-06 board 두 개에 `historical execution board` status를 추가했다.
+- [x] `docs/plan-review-remediation-2026-03-07.md`는 current execution plan으로 위치를 분명히 하고, T703 URL affordance 설명도 현재 구현 기준으로 고쳤다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- canonical 문서를 새로 만들지 않고 헤더와 역할표만 고쳐 source-of-truth를 바로 찾게 만들었다.
+- completed loop 문서와 board를 삭제하지 않고 historical로 내려 evidence 보존 요구를 만족했다.
+- `plan-review-remediation`까지 함께 만져 현재 execution plan과 canonical baseline의 경계를 문서 헤더만 읽어도 이해할 수 있게 했다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `node scripts/check-todo-board-consistency.mjs`
+- [x] role keyword re-scan (`current canonical`, `current execution`, `historical`) on touched docs
