@@ -66,14 +66,28 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] `apiBaseUrl`, `adminApiBaseUrl`를 page-local `connectionDraft`로 분리하고, explicit `Save connection settings` 버튼에서만 store를 갱신하도록 바꿨다.
+- [x] operator refresh/apply/reset 계열 버튼은 draft가 dirty이거나 저장 중일 때 모두 잠그도록 정리했다.
+- [x] URL field affordance는 `type="url"` 대신 `inputMode="url"`로 구현했다. canonical default가 `/`라서 relative same-origin 값을 허용해야 하기 때문이다.
+- [x] connection save/dirty/block 규칙을 `settingsConnectionModel.ts`로 분리하고 unit test를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- draft/save 분리 덕분에 입력 중 network churn 문제는 구조적으로 사라졌다.
+- `type="url"`을 그대로 밀어붙이지 않고 same-origin `/` 계약과 충돌하지 않는 `inputMode="url"`로 수정한 점이 중요하다.
+- operator actions를 dirty draft에서 막아 두지 않으면 저장 전 URL과 저장된 URL이 섞여 보일 수 있었는데, 이번 변경으로 그 ambiguity를 줄였다.
+- page-level interaction test는 안정성이 떨어져 pure model test로 내렸다. 대신 실제 저장/dirty/block 규칙을 코드 경계로 분리해 회귀 검증 지점을 남겼다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `npm --prefix webapp run test -- settingsConnectionModel`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`

@@ -76,6 +76,12 @@ import {
 import { ContextCard, StatusChipSet, StudioPageShell, StudioJsonEditor } from "../components/studio";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { normalizeAdminApiBaseUrl } from "../utils/baseUrl";
+import {
+  buildConnectionSettingsUpdatePlan,
+  hasConnectionSettingsDraftChanges,
+  shouldBlockOperatorActions,
+  type ConnectionSettingsDraft,
+} from "./settingsConnectionModel";
 
 type SettingsTab = "file" | "streaming";
 
@@ -214,6 +220,11 @@ export default function SettingsPage() {
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
   const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const updateSetting = useSettingsStore((state) => state.updateSetting);
+  const [connectionDraft, setConnectionDraft] = useState<ConnectionSettingsDraft>({
+    apiBaseUrl,
+    adminApiBaseUrl,
+  });
+  const [savingConnectionSettings, setSavingConnectionSettings] = useState(false);
   const presetType: PresetConfig["type"] = activeTab === "file" ? "file" : "streaming";
   const presets = usePresets(presetType);
   const backendPresets = useBackendEndpointPresets();
@@ -316,6 +327,74 @@ export default function SettingsPage() {
   useEffect(() => {
     void refreshPermissionStatus();
   }, [refreshPermissionStatus]);
+
+  useEffect(() => {
+    setConnectionDraft({
+      apiBaseUrl,
+      adminApiBaseUrl,
+    });
+  }, [adminApiBaseUrl, apiBaseUrl]);
+
+  const connectionSettingsDirty =
+    hasConnectionSettingsDraftChanges(
+      { apiBaseUrl, adminApiBaseUrl },
+      connectionDraft
+    );
+  const draftApiBaseUrl = connectionDraft.apiBaseUrl;
+  const draftAdminApiBaseUrl = connectionDraft.adminApiBaseUrl;
+
+  const handleConnectionDraftChange = useCallback(
+    (key: keyof ConnectionSettingsDraft, value: string) => {
+      setConnectionDraft((current) => ({
+        ...current,
+        [key]: value,
+      }));
+    },
+    []
+  );
+
+  const handleResetConnectionDraft = useCallback(() => {
+    setConnectionDraft({
+      apiBaseUrl,
+      adminApiBaseUrl,
+    });
+  }, [adminApiBaseUrl, apiBaseUrl]);
+
+  const handleSaveConnectionSettings = useCallback(async () => {
+    const updates = buildConnectionSettingsUpdatePlan(
+      { apiBaseUrl, adminApiBaseUrl },
+      {
+        apiBaseUrl: draftApiBaseUrl,
+        adminApiBaseUrl: draftAdminApiBaseUrl,
+      }
+    );
+    if (updates.length === 0) {
+      handleResetConnectionDraft();
+      return;
+    }
+
+    setSavingConnectionSettings(true);
+    try {
+      await Promise.all(updates.map(({ key, value }) => updateSetting(key, value)));
+      enqueueSnackbar(t("connectionSettingsSaved"), { variant: "success" });
+    } catch (error) {
+      enqueueSnackbar(
+        error instanceof Error ? error.message : t("failedToSaveConnectionSettings"),
+        { variant: "error" }
+      );
+    } finally {
+      setSavingConnectionSettings(false);
+    }
+  }, [
+    adminApiBaseUrl,
+    apiBaseUrl,
+    draftAdminApiBaseUrl,
+    draftApiBaseUrl,
+    enqueueSnackbar,
+    handleResetConnectionDraft,
+    t,
+    updateSetting,
+  ]);
 
   const handleRefreshBackendAvailability = useCallback(async () => {
     if (!apiBaseUrl.trim()) {
@@ -459,11 +538,17 @@ export default function SettingsPage() {
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
   const backendStatusUnavailable = Boolean(backendStateError) && !backendState;
   const backendAdminTokenPresent = backendAdminToken.trim().length > 0;
+  const operatorActionsBlockedByDraft = shouldBlockOperatorActions(
+    connectionSettingsDirty,
+    savingConnectionSettings
+  );
   const backendOperatorAvailable = adminApiConfigured && backendAdminEnabled;
   const backendOperatorBlockedMessage = !apiConfigured
     ? t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus")
     : !adminApiConfigured
       ? t("internalAdminApiBaseUrlRequired")
+      : operatorActionsBlockedByDraft
+        ? t("saveConnectionSettingsToUseDraftValues")
       : !backendAdminEnabled
         ? t("operatorSettingsUnavailableFromServer")
         : !backendAdminTokenPresent
@@ -1329,18 +1414,75 @@ export default function SettingsPage() {
                 <Stack spacing={2} sx={{ mt: 2 }}>
                   <TextField
                     label={t("pythonApiBaseUrl")}
-                    value={apiBaseUrl}
-                    onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
-                    placeholder="http://localhost:8000"
+                    value={connectionDraft.apiBaseUrl}
+                    onChange={(event) => handleConnectionDraftChange("apiBaseUrl", event.target.value)}
+                    type="text"
+                    inputProps={{
+                      inputMode: "url",
+                      autoCapitalize: "off",
+                      autoCorrect: "off",
+                      spellCheck: "false",
+                    }}
+                    name="python-api-base-url"
+                    autoComplete="off"
+                    placeholder="/"
                     helperText={t("fileTranscriptionAndLiveStreamingRequestsAreDirectedToThisAddress")}
                   />
                   <TextField
                     label={t("internalAdminApiBaseUrl")}
-                    value={adminApiBaseUrl}
-                    onChange={(event) => void updateSetting("adminApiBaseUrl", event.target.value)}
+                    value={connectionDraft.adminApiBaseUrl}
+                    onChange={(event) =>
+                      handleConnectionDraftChange("adminApiBaseUrl", event.target.value)
+                    }
+                    type="text"
+                    inputProps={{
+                      inputMode: "url",
+                      autoCapitalize: "off",
+                      autoCorrect: "off",
+                      spellCheck: "false",
+                    }}
+                    name="internal-admin-api-base-url"
+                    autoComplete="off"
                     placeholder="https://malsori-internal.example.local"
                     helperText={t("internalAdminApiBaseUrlHelper")}
                   />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
+                    justifyContent="space-between"
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                      {connectionSettingsDirty ? (
+                        <Chip size="small" color="warning" label={t("unsavedChanges")} />
+                      ) : (
+                        <Chip size="small" color="success" variant="outlined" label={t("saved")} />
+                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {connectionSettingsDirty
+                          ? t("saveConnectionSettingsToUseDraftValues")
+                          : t("savedConnectionSettingsAreActive")}
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={handleResetConnectionDraft}
+                        disabled={!connectionSettingsDirty || savingConnectionSettings}
+                      >
+                        {t("restoreSavedValues")}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={() => void handleSaveConnectionSettings()}
+                        disabled={!connectionSettingsDirty || savingConnectionSettings}
+                      >
+                        {t("saveConnectionSettings")}
+                      </Button>
+                    </Stack>
+                  </Stack>
                   <TextField
                     label={t("realTimeTranscriptionAutoSaveCycleSeconds")}
                     type="number"
@@ -1712,7 +1854,12 @@ export default function SettingsPage() {
                         size="small"
                         variant="text"
                         onClick={() => void handleRefreshBackendAvailability()}
-                        disabled={backendStateLoading || !apiConfigured || !adminApiConfigured}
+                        disabled={
+                          backendStateLoading ||
+                          !apiConfigured ||
+                          !adminApiConfigured ||
+                          operatorActionsBlockedByDraft
+                        }
                       >
                         {backendStateLoading ? t("checking") : t("refreshOperatorAccess")}
                       </Button>
@@ -1729,7 +1876,9 @@ export default function SettingsPage() {
                       </Typography>
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
-                      {t("operatorSettingsBoundaryHelper")}
+                      {operatorActionsBlockedByDraft
+                        ? t("saveConnectionSettingsToUseDraftValues")
+                        : t("operatorSettingsBoundaryHelper")}
                     </Typography>
                   </Stack>
                 </Box>
@@ -1751,7 +1900,12 @@ export default function SettingsPage() {
                         size="small"
                         color="inherit"
                         onClick={() => void handleRefreshBackendAvailability()}
-                        disabled={backendStateLoading || !apiConfigured || !adminApiConfigured}
+                        disabled={
+                          backendStateLoading ||
+                          !apiConfigured ||
+                          !adminApiConfigured ||
+                          operatorActionsBlockedByDraft
+                        }
                       >
                         {backendStateLoading ? t("checking") : t("refreshOperatorAccess")}
                       </Button>
@@ -1782,7 +1936,8 @@ export default function SettingsPage() {
                           disabled={
                             backendStateLoading ||
                             !adminApiConfigured ||
-                            !backendAdminTokenPresent
+                            !backendAdminTokenPresent ||
+                            operatorActionsBlockedByDraft
                           }
                         >
                           {backendStateLoading ? t("checking") : t("refreshServerStatus")}
@@ -1795,7 +1950,8 @@ export default function SettingsPage() {
                             backendStateLoading ||
                             !adminApiConfigured ||
                             backendStatusUnavailable ||
-                            !backendAdminTokenPresent
+                            !backendAdminTokenPresent ||
+                            operatorActionsBlockedByDraft
                           }
                         >
                           {t("returnToServerDefault")}
@@ -1812,7 +1968,8 @@ export default function SettingsPage() {
                               disabled={
                                 backendStateLoading ||
                                 !adminApiConfigured ||
-                                !backendAdminTokenPresent
+                                !backendAdminTokenPresent ||
+                                operatorActionsBlockedByDraft
                               }
                             >
                               {backendStateLoading ? t("checking") : t("refreshServerStatus")}
@@ -1999,7 +2156,8 @@ export default function SettingsPage() {
                                   !selectedBackendPreset ||
                                   backendStateLoading ||
                                   backendStatusUnavailable ||
-                                  !backendAdminTokenPresent
+                                  !backendAdminTokenPresent ||
+                                  operatorActionsBlockedByDraft
                                 }
                               >
                                 {t("applyToServer")}

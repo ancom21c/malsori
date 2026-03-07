@@ -1694,6 +1694,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Save",
     ja: "保存",
   },
+  saveConnectionSettings: {
+    ko: "연결 설정 저장",
+    en: "Save connection settings",
+    ja: "接続設定を保存",
+  },
   savePreset: {
     ko: "프리셋 저장",
     en: "Save preset",
@@ -1708,6 +1713,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "저장 중...",
     en: "Saving...",
     ja: "保存中...",
+  },
+  saved: {
+    ko: "저장됨",
+    en: "Saved",
+    ja: "保存済み",
+  },
+  connectionSettingsSaved: {
+    ko: "연결 설정을 저장했습니다.",
+    en: "Connection settings saved.",
+    ja: "接続設定を保存しました。",
+  },
+  failedToSaveConnectionSettings: {
+    ko: "연결 설정 저장에 실패했습니다.",
+    en: "Failed to save connection settings.",
+    ja: "接続設定の保存に失敗しました。",
   },
   savingResults: {
     ko: "결과를 저장하는 중입니다",
@@ -2933,6 +2953,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "권한 {{ready}}/{{total}}",
     en: "Permissions {{ready}}/{{total}}",
     ja: "権限 {{ready}}/{{total}}",
+  },
+  unsavedChanges: {
+    ko: "미저장 변경",
+    en: "Unsaved changes",
+    ja: "未保存の変更",
+  },
+  restoreSavedValues: {
+    ko: "저장된 값으로 되돌리기",
+    en: "Restore saved values",
+    ja: "保存済みの値に戻す",
+  },
+  saveConnectionSettingsToUseDraftValues: {
+    ko: "입력 중인 URL을 사용하려면 먼저 연결 설정을 저장하세요.",
+    en: "Save the connection settings first to use the URLs you are editing.",
+    ja: "編集中の URL を使うには、先に接続設定を保存してください。",
+  },
+  savedConnectionSettingsAreActive: {
+    ko: "현재 저장된 연결 설정이 적용 중입니다.",
+    en: "The saved connection settings are currently active.",
+    ja: "現在は保存済みの接続設定が適用されています。",
   },
   notConfigured: {
     ko: "미설정",
