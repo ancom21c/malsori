@@ -21,7 +21,7 @@
 | T801 | P0 | Documentation truth recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T801-documentation-truth-recovery.md` |
 | T802 | P1 | Runtime error reporter hydration-safe init | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T802-runtime-error-reporter-hydration-safe-init.md` |
 | T803 | P1 | Realtime stop/finalize resilience | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T803-realtime-stop-finalize-resilience.md` |
-| T804 | P1 | Realtime accessibility recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T804-realtime-accessibility-recovery.md` |
+| T804 | P1 | Realtime accessibility recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-followup-remediation-loop/T804-realtime-accessibility-recovery.md` |
 | T805 | P1 | Settings guardrails | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T805-settings-guardrails.md` |
 | T806 | P1 | List navigation/accessibility hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T806-list-navigation-accessibility-hardening.md` |
 | T807 | P1 | Detail ergonomics recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-followup-remediation-loop/T807-detail-ergonomics-recovery.md` |

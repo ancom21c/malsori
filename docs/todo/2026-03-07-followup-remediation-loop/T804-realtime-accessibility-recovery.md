@@ -59,15 +59,22 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] `RealtimeToolbar` settings trigger에 실제 ref를 연결했다.
+- [x] `RealtimeSettingsDialog`에서 restore focus를 막던 옵션을 제거했다.
+- [x] `RealtimeSessionPage`에 `followLive` state를 추가하고 세션 reset/start 시 기본값을 복구하도록 연결했다.
+- [x] `RealtimeTranscript`에 follow-live toggle, guarded auto-scroll, live region semantics를 추가했다.
+- [x] 필요한 realtime transcript i18n key를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] focus restore가 실제 trigger에 돌아가는가?
-- [ ] follow-live off 상태에서 새 segment가 와도 scroll jump가 없는가?
-- [ ] transcript live region이 과도한 재공지 없이 동작하는가?
+- [x] focus restore가 실제 trigger에 돌아가는가?
+- [x] follow-live off 상태에서 새 segment가 와도 scroll jump가 없는가?
+- [x] transcript live region이 과도한 재공지 없이 동작하는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- AppRouter`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- AppRouter`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `node scripts/check-todo-board-consistency.mjs`

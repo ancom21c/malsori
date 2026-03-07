@@ -1544,6 +1544,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Real-time recognition",
     ja: "リアルタイム認識",
   },
+  realTimeTranscriptLog: {
+    ko: "실시간 전사 로그",
+    en: "Real-time transcript log",
+    ja: "リアルタイム文字起こしログ",
+  },
   realtimeLatency: {
     ko: "지연",
     en: "Latency",
@@ -1953,6 +1958,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "스트리밍 전사 설정",
     en: "Stream Transcription Settings",
     ja: "ストリーム文字起こし設定",
+  },
+  followLive: {
+    ko: "실시간 따라가기",
+    en: "Follow live",
+    ja: "ライブ追従",
+  },
+  followLiveHelper: {
+    ko: "끄면 새 문장이 추가되어도 스크롤 위치를 유지합니다.",
+    en: "Turn off to keep your current scroll position when new lines arrive.",
+    ja: "オフにすると、新しい文が追加されても現在のスクロール位置を維持します。",
   },
   streamingError: {
     ko: "스트리밍 오류",

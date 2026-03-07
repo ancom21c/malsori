@@ -115,7 +115,6 @@ export default function RealtimeSettingsDialog({
       slotProps={{
         root: {
           container: portalContainer ?? undefined,
-          disableRestoreFocus: true,
         },
       }}
     >

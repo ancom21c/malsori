@@ -6,6 +6,7 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
+import type { RefObject } from "react";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import PauseRoundedIcon from "@mui/icons-material/PauseRounded";
 import MicNoneRoundedIcon from "@mui/icons-material/MicNoneRounded";
@@ -28,6 +29,7 @@ interface RealtimeToolbarProps {
   cameraEnabled: boolean;
   onToggleCamera: () => void;
   audioLevel: number;
+  runtimeSettingsButtonRef?: RefObject<HTMLButtonElement | null>;
   mainButtonPointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
   clearPointerState?: () => void;
 }
@@ -42,6 +44,7 @@ export default function RealtimeToolbar({
   cameraEnabled,
   onToggleCamera,
   audioLevel,
+  runtimeSettingsButtonRef,
   mainButtonPointerDown,
   clearPointerState,
 }: RealtimeToolbarProps) {
@@ -129,6 +132,7 @@ export default function RealtimeToolbar({
         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
           <Tooltip title={t("streamTranscriptionSettings")}>
             <IconButton
+              ref={runtimeSettingsButtonRef}
               onClick={onRuntimeSettingsOpen}
               aria-label={t("streamTranscriptionSettings")}
               sx={{

@@ -520,6 +520,7 @@ export default function RealtimeSessionPage() {
   const [segments, setSegments] = useState<RealtimeSegment[]>([]);
   const [partialText, setPartialText] = useState<string | null>(null);
   const [noteMode, setNoteMode] = useState(false);
+  const [followLive, setFollowLive] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
@@ -1015,6 +1016,7 @@ export default function RealtimeSessionPage() {
     setSegments([]);
     setPartialText(null);
     setNoteMode(false);
+    setFollowLive(true);
     setCountdown(3);
     sessionStartRef.current = null;
     sessionConnectedRef.current = false;
@@ -1694,6 +1696,7 @@ export default function RealtimeSessionPage() {
     segmentsRef.current = [];
     setSegments([]);
     setPartialText(null);
+    setFollowLive(true);
     chunkIndexRef.current = 0;
     cameraShouldRecordRef.current = true;
     // Video recording will be triggered by useEffect when state becomes "recording"
@@ -2010,6 +2013,8 @@ export default function RealtimeSessionPage() {
               partialText={partialText}
               noteMode={noteMode}
               onNoteModeChange={setNoteMode}
+              followLive={followLive}
+              onFollowLiveChange={setFollowLive}
               noteModeText={noteModeText}
               sessionState={sessionState}
             />
@@ -2028,6 +2033,7 @@ export default function RealtimeSessionPage() {
         cameraEnabled={cameraEnabled}
         onToggleCamera={handleToggleCamera}
         audioLevel={audioLevel}
+        runtimeSettingsButtonRef={runtimeSettingsFabRef}
         mainButtonPointerDown={handleMainButtonPointerDown}
         clearPointerState={clearMainButtonPointerState}
       />
