@@ -57,15 +57,22 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] `settingsSectionModel`을 추가해 section query parse/normalize를 순수 함수로 분리했다.
+- [x] `SettingsPage`가 `section` query를 source of truth로 사용하도록 바꿨다.
+- [x] invalid section query는 `transcription`으로 normalize 하도록 연결했다.
+- [x] dirty connection draft에 대해 `beforeunload`와 route leave blocker를 추가했다.
+- [x] 같은 `/settings` 경로 안의 query-only 이동은 block하지 않도록 pathname 기준으로 제한했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] browser unload와 route navigation 둘 다 커버하는가?
-- [ ] section query sync가 jitter 없이 동작하는가?
-- [ ] dirty draft 초기화/저장 후 가드가 해제되는가?
+- [x] browser unload와 route navigation 둘 다 커버하는가?
+- [x] section query sync가 jitter 없이 동작하는가?
+- [x] dirty draft 초기화/저장 후 가드가 해제되는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- settingsConnectionModel AppRouter`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- settingsConnectionModel settingsSectionModel AppRouter`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `node scripts/check-todo-board-consistency.mjs`

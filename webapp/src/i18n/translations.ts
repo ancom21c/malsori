@@ -2984,6 +2984,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Save the connection settings first to use the URLs you are editing.",
     ja: "編集中の URL を使うには、先に接続設定を保存してください。",
   },
+  discardUnsavedConnectionSettingsChanges: {
+    ko: "저장하지 않은 연결 설정 변경사항이 있습니다. 이 페이지를 떠나시겠습니까?",
+    en: "You have unsaved connection settings changes. Leave this page?",
+    ja: "保存していない接続設定の変更があります。このページを離れますか？",
+  },
   savedConnectionSettingsAreActive: {
     ko: "현재 저장된 연결 설정이 적용 중입니다.",
     en: "The saved connection settings are currently active.",

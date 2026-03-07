@@ -26,6 +26,9 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, SyntheticEvent } from "react";
 import type { ChipProps } from "@mui/material/Chip";
+import { useBeforeUnload, useSearchParams } from "react-router-dom";
+import { useBlocker } from "react-router";
+import type { BlockerFunction } from "react-router";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
 import TranscriptionConfigQuickOptions from "../components/TranscriptionConfigQuickOptions";
@@ -82,6 +85,12 @@ import {
   shouldBlockOperatorActions,
   type ConnectionSettingsDraft,
 } from "./settingsConnectionModel";
+import {
+  normalizeSettingsSectionSearchParams,
+  parseSettingsSectionQuery,
+  SETTINGS_SECTION_IDS,
+  type SettingsSection,
+} from "./settingsSectionModel";
 
 type SettingsTab = "file" | "streaming";
 
@@ -92,8 +101,6 @@ type PresetFormState = {
   configJson: string;
   isDefault: boolean;
 };
-
-type SettingsSection = "transcription" | "permissions" | "backend";
 
 type BackendPresetFormState = {
   id?: string;
@@ -173,11 +180,17 @@ function normalizeConfigJson(value: unknown): string {
   return "{}";
 }
 
-const SETTINGS_SECTIONS: { id: SettingsSection; labelKey: string }[] = [
-  { id: "transcription", labelKey: "manageTranscriptionSettings" },
-  { id: "permissions", labelKey: "browserPermissions" },
-  { id: "backend", labelKey: "backendSettings" },
-];
+const SETTINGS_SECTIONS: { id: SettingsSection; labelKey: string }[] = SETTINGS_SECTION_IDS.map(
+  (id) => ({
+    id,
+    labelKey:
+      id === "transcription"
+        ? "manageTranscriptionSettings"
+        : id === "permissions"
+          ? "browserPermissions"
+          : "backendSettings",
+  })
+);
 
 function isPresetFormEqual(a: PresetFormState, b: PresetFormState) {
   return (
@@ -225,6 +238,7 @@ export default function SettingsPage() {
     adminApiBaseUrl,
   });
   const [savingConnectionSettings, setSavingConnectionSettings] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const presetType: PresetConfig["type"] = activeTab === "file" ? "file" : "streaming";
   const presets = usePresets(presetType);
   const backendPresets = useBackendEndpointPresets();
@@ -253,10 +267,10 @@ export default function SettingsPage() {
   const [permissionLoading, setPermissionLoading] = useState(false);
   const [requestingMicrophone, setRequestingMicrophone] = useState(false);
   const [requestingStorage, setRequestingStorage] = useState(false);
-  const [activeSection, setActiveSection] = useState<SettingsSection>("transcription");
   const transcriptionSectionRef = useRef<HTMLDivElement | null>(null);
   const permissionsSectionRef = useRef<HTMLDivElement | null>(null);
   const backendSectionRef = useRef<HTMLDivElement | null>(null);
+  const sectionScrollReadyRef = useRef(false);
   const [backendState, setBackendState] = useState<BackendEndpointState | null>(null);
   const [backendStateLoading, setBackendStateLoading] = useState(false);
   const [backendStateError, setBackendStateError] = useState<string | null>(null);
@@ -265,12 +279,25 @@ export default function SettingsPage() {
   const [backendAdminToken, setBackendAdminToken] = useState("");
   const backendImportInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptionImportInputRef = useRef<HTMLInputElement | null>(null);
-  const sectionRefs = {
-    transcription: transcriptionSectionRef,
-    permissions: permissionsSectionRef,
-    backend: backendSectionRef,
-  };
   const visibleSections = SETTINGS_SECTIONS;
+  const activeSection = useMemo(
+    () => parseSettingsSectionQuery(searchParams.get("section")),
+    [searchParams]
+  );
+  const getSectionTarget = useCallback(
+    (section: SettingsSection) => {
+      switch (section) {
+        case "permissions":
+          return permissionsSectionRef.current;
+        case "backend":
+          return backendSectionRef.current;
+        case "transcription":
+        default:
+          return transcriptionSectionRef.current;
+      }
+    },
+    []
+  );
   const selectedBackendPreset = useMemo(() => {
     if (!selectedBackendPresetId) return null;
     return backendPresets.find((preset) => preset.id === selectedBackendPresetId) ?? null;
@@ -340,8 +367,42 @@ export default function SettingsPage() {
       { apiBaseUrl, adminApiBaseUrl },
       connectionDraft
     );
+  const shouldWarnOnUnsavedDraft = connectionSettingsDirty && !savingConnectionSettings;
   const draftApiBaseUrl = connectionDraft.apiBaseUrl;
   const draftAdminApiBaseUrl = connectionDraft.adminApiBaseUrl;
+
+  useBeforeUnload(
+    useCallback(
+      (event) => {
+        if (!shouldWarnOnUnsavedDraft) {
+          return;
+        }
+        event.preventDefault();
+        event.returnValue = "";
+      },
+      [shouldWarnOnUnsavedDraft]
+    )
+  );
+
+  const shouldBlockNavigation = useCallback<BlockerFunction>(
+    ({ currentLocation, nextLocation }) =>
+      shouldWarnOnUnsavedDraft && currentLocation.pathname !== nextLocation.pathname,
+    [shouldWarnOnUnsavedDraft]
+  );
+
+  const navigationBlocker = useBlocker(shouldBlockNavigation);
+
+  useEffect(() => {
+    if (navigationBlocker.state !== "blocked") {
+      return;
+    }
+    const shouldProceed = window.confirm(t("discardUnsavedConnectionSettingsChanges"));
+    if (shouldProceed) {
+      navigationBlocker.proceed();
+      return;
+    }
+    navigationBlocker.reset();
+  }, [navigationBlocker, t]);
 
   const handleConnectionDraftChange = useCallback(
     (key: keyof ConnectionSettingsDraft, value: string) => {
@@ -489,11 +550,30 @@ export default function SettingsPage() {
   }, [adminApiBaseUrl, apiBaseUrl, apiClient, backendAdminToken, t]);
 
   useEffect(() => {
-    if (visibleSections.some((section) => section.id === activeSection)) {
+    const nextSearchParams = normalizeSettingsSectionSearchParams(searchParams, activeSection);
+    if (nextSearchParams) {
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+  }, [activeSection, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const shouldScroll =
+      sectionScrollReadyRef.current ||
+      searchParams.has("section") ||
+      activeSection !== "transcription";
+    if (!shouldScroll) {
+      sectionScrollReadyRef.current = true;
       return;
     }
-    setActiveSection("transcription");
-  }, [activeSection, visibleSections]);
+    const target = getSectionTarget(activeSection);
+    if (target) {
+      target.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    }
+    sectionScrollReadyRef.current = true;
+  }, [activeSection, getSectionTarget, prefersReducedMotion, searchParams]);
 
   useEffect(() => {
     if (!backendPresets.length) {
@@ -1241,14 +1321,9 @@ export default function SettingsPage() {
   };
 
   const handleSectionTabChange = (_: SyntheticEvent, value: SettingsSection) => {
-    setActiveSection(value);
-    const target = sectionRefs[value].current;
-    if (target) {
-      target.scrollIntoView({
-        behavior: prefersReducedMotion ? "auto" : "smooth",
-        block: "start",
-      });
-    }
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set("section", value);
+    setSearchParams(nextSearchParams, { replace: false });
   };
 
   const renderPermissionChip = (state: BrowserPermissionState) => {
