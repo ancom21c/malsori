@@ -61,14 +61,27 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] `transcriptionListRenderingModel.ts`에 `100+` 항목에서 optimized mode로 전환하는 threshold contract를 추가했다.
+- [x] 목록 row는 extra `Divider` DOM 노드를 없애고 `ListItem divider`로 통합했다.
+- [x] optimized mode에서는 row에 `content-visibility: auto`, `contain-intrinsic-size`, `contain`을 적용해 offscreen item 비용을 줄였다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- virtualization 라이브러리를 바로 넣지 않고, 현재 레이아웃을 보존하는 equivalent optimization으로 먼저 갔다. 이번 루프 우선순위에는 이쪽이 맞다.
+- threshold contract를 모델로 분리해 이후 virtualization로 바꾸더라도 기준점이 남는다.
+- `content-visibility`는 Chrome/Android에서 효과가 크고, 미지원 브라우저에서는 무해하게 무시된다.
+- 남은 리스크는 실제 100+ 데이터셋에서의 체감 측정 note가 아직 없다는 점이다. 이번 루프는 구조적 최적화와 build gate까지를 완료 범위로 잡았다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `npm --prefix webapp run test -- transcriptionListRenderingModel`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`

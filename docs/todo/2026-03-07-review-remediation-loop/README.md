@@ -24,7 +24,7 @@
 | T704 | P1 | List empty-state copy alignment | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T704-list-empty-state-copy-alignment.md` |
 | T705 | P2 | Documentation hierarchy cleanup | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T705-documentation-hierarchy-cleanup.md` |
 | T706 | P2 | List filter URL state | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T706-list-filter-url-state.md` |
-| T707 | P2 | List rendering scalability | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-review-remediation-loop/T707-list-rendering-scalability.md` |
+| T707 | P2 | List rendering scalability | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T707-list-rendering-scalability.md` |
 
 ## 이번 루프 우선순위
 
