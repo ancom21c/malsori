@@ -58,15 +58,20 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] `RtzrStreamingClient`에 final 요청 상태를 추가해 reconnect 중에도 buffered audio flush 후 `final`을 보낼 수 있게 했다.
+- [x] normal stop path에서 recorder flush를 먼저 실행한 뒤 `requestFinal()`을 호출하도록 순서를 바꿨다.
+- [x] stop 중 reconnect/open callback이 다시 `recording` 상태로 되돌아가지 않도록 `RealtimeSessionPage` state transition을 가드했다.
+- [x] degraded save 시 warning snackbar를 띄워 결과 불완전 가능성을 명시했다.
+- [x] reconnect-mid-stop 경로를 `rtzrStreamingClient.test.ts`로 고정했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] normal stop/abort/reconnect retry regression이 없는가?
-- [ ] timeout 후 finalize가 deterministic한가?
-- [ ] tests가 drain 실패와 성공 경로를 모두 포함하는가?
+- [x] normal stop/abort/reconnect retry regression이 없는가?
+- [x] timeout 후 finalize가 deterministic한가?
+- [x] tests가 drain 실패와 성공 경로를 모두 포함하는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- rtzrStreamingClient realtimeSessionModel`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- rtzrStreamingClient`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`

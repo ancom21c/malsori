@@ -1320,6 +1320,10 @@ export default function RealtimeSessionPage() {
       onError: handleStreamingError,
       onBufferMetrics: handleStreamingBufferMetricsChange,
       onReconnectAttempt: (attempt) => {
+        if (sessionStateRef.current === "stopping") {
+          setConnectionEventMessage(t("finalizing"));
+          return;
+        }
         setConnectionUxState((prev) =>
           reduceRealtimeConnectionUxState(prev, { type: "reconnect-attempt", attempt })
         );
@@ -1334,6 +1338,10 @@ export default function RealtimeSessionPage() {
         const recovered = connectionUxStateRef.current.phase !== "normal";
         sessionConnectedRef.current = true;
         connectionReadyRef.current = true;
+        if (sessionStateRef.current === "stopping") {
+          setConnectionEventMessage(t("finalizing"));
+          return;
+        }
         setConnectionUxState((prev) =>
           reduceRealtimeConnectionUxState(prev, { type: "socket-open" })
         );
@@ -1447,6 +1455,10 @@ export default function RealtimeSessionPage() {
       enqueueRealtimeSnackbar(t("realTimeTranscriptionWasInterruptedAndTheResultsWereTemporarilyStored"), {
         variant: "warning",
       });
+    } else if (reconnectMetrics.degraded) {
+      enqueueRealtimeSnackbar(t("someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete"), {
+        variant: "warning",
+      });
     } else {
       enqueueRealtimeSnackbar(t("realTimeTranscriptionResultsAreSaved"), { variant: "success" });
     }
@@ -1476,30 +1488,15 @@ export default function RealtimeSessionPage() {
       if (id) {
         void updateLocalTranscription(id, { processingStage: "finalizing" });
       }
-
-      // If we have partial text, we should wait for the final result
-      if (partialText) {
-        waitingForFinalRef.current = true;
-        streamingClientRef.current?.requestFinal();
-
-        // Safety timer: if final doesn't come within 3 seconds, force stop
-        stopSafetyTimerRef.current = window.setTimeout(() => {
-          if (sessionStateRef.current === "stopping") {
-            waitingForFinalRef.current = false;
-            void finalizeSession(false);
-          }
-        }, 3000);
-      }
-
-      if (!waitingForFinalRef.current) {
-        streamingClientRef.current?.requestFinal();
-        // Safety timer in case server doesn't close connection
-        stopSafetyTimerRef.current = window.setTimeout(() => {
-          if (sessionStateRef.current === "stopping") {
-            void finalizeSession(false);
-          }
-        }, 3000);
-      }
+      waitingForFinalRef.current = true;
+      stopRecorder();
+      streamingClientRef.current?.requestFinal();
+      stopSafetyTimerRef.current = window.setTimeout(() => {
+        if (sessionStateRef.current === "stopping") {
+          waitingForFinalRef.current = false;
+          void finalizeSession(false);
+        }
+      }, 3000);
     }
     if (!stopRecorder() && aborted) {
       void finalizeSession(true);

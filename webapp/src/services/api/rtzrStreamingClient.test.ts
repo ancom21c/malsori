@@ -207,6 +207,64 @@ describe("RtzrStreamingClient handshake", () => {
     });
   });
 
+  it("replays buffered audio and sends final after reconnect when final was requested mid-recovery", async () => {
+    vi.useFakeTimers();
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onMessage = vi.fn();
+    const onReconnectAttempt = vi.fn();
+    const onBufferMetrics = vi.fn();
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "ws://localhost:8000",
+      decoderConfig: {},
+      onMessage,
+      onReconnectAttempt,
+      onBufferMetrics,
+      reconnectAttempts: 1,
+      reconnectBackoffMs: 10,
+      handshakeTimeoutMs: 200,
+      maxBufferedAudioMs: 1000,
+    });
+
+    const first = MockWebSocket.instances[0];
+    first.emitOpen();
+    first.emitMessage(JSON.stringify({ type: "ready" }));
+    await Promise.resolve();
+
+    first.emitClose(1011, "temporary");
+    expect(onReconnectAttempt).toHaveBeenCalledTimes(1);
+
+    client.sendAudioChunk(new Uint8Array([9, 8]), { durationMs: 600 });
+    client.requestFinal();
+
+    vi.advanceTimersByTime(15);
+    const second = MockWebSocket.instances[1];
+    expect(second).toBeTruthy();
+    second.emitOpen();
+    expect(typeof second.sent[0]).toBe("string");
+
+    second.emitMessage(JSON.stringify({ type: "ready" }));
+    await Promise.resolve();
+
+    expect(onBufferMetrics).toHaveBeenLastCalledWith({
+      bufferedAudioMs: 0,
+      replayedBufferedAudioMs: 600,
+      droppedBufferedAudioMs: 0,
+      attemptedBufferedAudioMs: 600,
+      droppedBufferedAudioRatio: 0,
+      degraded: false,
+    });
+    expect(second.sent).toContain(JSON.stringify({ type: "final" }));
+    expect(
+      second.sent.some((payload) => payload instanceof ArrayBuffer && toBytes(payload).join(",") === "9,8")
+    ).toBe(true);
+
+    second.emitClose(1000, "");
+    vi.advanceTimersByTime(20);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
   it("fails with STREAM_ACK_TIMEOUT when ack is not received", () => {
     vi.useFakeTimers();
     globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;

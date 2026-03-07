@@ -95,6 +95,8 @@ export class RtzrStreamingClient {
   private bufferMetrics: StreamingBufferMetrics = { ...EMPTY_STREAMING_BUFFER_METRICS };
   private handshakeComplete = false;
   private handshakeTimer: number | null = null;
+  private finalRequested = false;
+  private finalDispatched = false;
 
   get connectionState(): StreamingConnectionState {
     return this.state;
@@ -125,6 +127,8 @@ export class RtzrStreamingClient {
     this.bufferMetrics = { ...EMPTY_STREAMING_BUFFER_METRICS };
     this.handshakeComplete = false;
     this.clearHandshakeTimer();
+    this.finalRequested = false;
+    this.finalDispatched = false;
     this.state = "connecting";
     this.emitBufferMetrics();
     this.openSocket();
@@ -143,14 +147,14 @@ export class RtzrStreamingClient {
   }
 
   requestFinal() {
-    this.shouldReconnect = false;
-    if (this.socket && this.state === "open") {
-      this.socket.send(JSON.stringify({ type: "final" }));
-    }
+    this.finalRequested = true;
+    this.sendFinalIfReady();
   }
 
   disconnect() {
     this.shouldReconnect = false;
+    this.finalRequested = false;
+    this.finalDispatched = false;
     this.markPendingChunksDropped();
     this.cleanupSocket();
     this.pendingChunks = [];
@@ -238,6 +242,7 @@ export class RtzrStreamingClient {
     this.reconnectAttempt = 0;
     this.clearHandshakeTimer();
     this.flushPendingChunks();
+    this.sendFinalIfReady();
     this.options?.onOpen?.();
   }
 
@@ -465,6 +470,21 @@ export class RtzrStreamingClient {
     }
     this.refreshBufferHealth();
     this.emitBufferMetrics();
+  }
+
+  private sendFinalIfReady() {
+    if (
+      !this.finalRequested ||
+      this.finalDispatched ||
+      !this.socket ||
+      this.state !== "open" ||
+      !this.handshakeComplete
+    ) {
+      return;
+    }
+    this.socket.send(JSON.stringify({ type: "final" }));
+    this.finalDispatched = true;
+    this.shouldReconnect = false;
   }
 
   private startKeepAlive() {
