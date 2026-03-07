@@ -62,14 +62,26 @@
 
 ## Implementation Log
 
-- [ ] 구현 전
+- [x] public runtime default(`/`)는 유지하고, dev server에 `/v1/*` proxy를 추가했다.
+- [x] `/api/*` proxy는 legacy alias로만 남겨 기존 로컬 설정을 깨지 않도록 했다.
+- [x] top-level README와 `webapp/README.md`를 same-origin `/` contract 기준으로 갱신했다.
+- [x] mock backend(`127.0.0.1:8000`) + Vite dev server(`127.0.0.1:4173`) 조합으로 `/v1/health`, `/api/v1/health` 양쪽이 proxy되는 것을 확인했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] 구현 후 spec drift가 없는지 확인
-- [ ] regression risk를 점검
-- [ ] verify 명령과 문서 역할이 일치하는지 확인
+- [x] 구현 후 spec drift가 없는지 확인
+- [x] regression risk를 점검
+- [x] verify 명령과 문서 역할이 일치하는지 확인
+
+### Self Review (Implementation)
+
+- canonical default를 `/api`로 되돌리지 않고 dev proxy만 확장해 production mental model을 유지했다.
+- `/api` alias를 즉시 제거하지 않아 기존 저장값 회귀 위험을 줄였다.
+- README 설명은 runtime default, dev proxy, override 방법을 한 모델로 묶어 다시 읽었을 때도 혼동이 적다.
 
 ## Verify
 
-- [ ] 구현 후 검증 명령 기록
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run bundle:check`
+- [x] mock backend + `npm --prefix webapp run dev -- --host 127.0.0.1 --port 4173` + `curl http://127.0.0.1:4173/v1/health`

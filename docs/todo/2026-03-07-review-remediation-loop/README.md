@@ -19,7 +19,7 @@
 | ID | 우선순위 | 작업 | Spec | Plan Review | Implement | Impl Review | Verify | 문서 |
 |---|---|---|---|---|---|---|---|---|
 | T701 | P0 | Bundle / CI gate recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T701-bundle-ci-gate-recovery.md` |
-| T702 | P1 | Local dev API contract alignment | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-review-remediation-loop/T702-local-dev-api-contract-alignment.md` |
+| T702 | P1 | Local dev API contract alignment | Done | Done | Done | Done | Done | `docs/todo/2026-03-07-review-remediation-loop/T702-local-dev-api-contract-alignment.md` |
 | T703 | P1 | Settings manual intent hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-review-remediation-loop/T703-settings-manual-intent-hardening.md` |
 | T704 | P1 | List empty-state copy alignment | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-review-remediation-loop/T704-list-empty-state-copy-alignment.md` |
 | T705 | P2 | Documentation hierarchy cleanup | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-07-review-remediation-loop/T705-documentation-hierarchy-cleanup.md` |

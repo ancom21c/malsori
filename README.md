@@ -89,7 +89,10 @@ Once configured, use the “Connect Google Drive” button in the webapp; the AP
 
 ### Connecting the webapp to the Python API
 
-The React app talks only to the Python proxy. When you run `npm run dev`, Vite proxies `/api/*` to `http://localhost:8000` by default, so the “Python API Base URL” can be left as `/api` (**설정 → 환경 설정**). If the proxy runs elsewhere, set the value to a full URL (or adjust the Vite proxy target).  
+The React app talks only to the Python proxy. The canonical public API base is same-origin root (`/`), which means the SPA requests endpoints such as `/v1/health`, `/v1/transcribe`, and `/v1/streaming`.
+
+When you run `npm run dev`, Vite proxies `/v1/*` to `http://localhost:8000` by default, so the “Python API Base URL” can be left at its default value `/` (**설정 → 환경 설정**). If the proxy runs elsewhere, set the value to a full URL or adjust the Vite proxy target. The `/api/*` dev proxy remains only as a legacy alias for older local settings.
+
 Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime webapp settings. Set `webapp.apiBaseUrl` when you want the SPA to target an ingress API host, and use flags like `webapp.runtimeErrorReportingEnabled` for runtime behavior control.
 
 ### Useful Scripts

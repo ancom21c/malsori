@@ -15,6 +15,8 @@ npm run dev
 
 Open http://localhost:5173/ to view the app.
 
+The default webapp API base is same-origin root (`/`). During local development, Vite proxies `/v1/*` to `http://localhost:8000`, so the default settings work without changing the API base URL.
+
 ### Available Scripts
 
 - `npm run dev` – start Vite dev server.

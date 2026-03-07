@@ -71,6 +71,8 @@ function assetVersioningPlugin(hash: string): Plugin {
   };
 }
 
+const devProxyTarget = "http://localhost:8000";
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
@@ -79,8 +81,13 @@ export default defineConfig({
   plugins: [react(), assetVersioningPlugin(buildHash)],
   server: {
     proxy: {
+      "/v1": {
+        target: devProxyTarget,
+        changeOrigin: true,
+        ws: true,
+      },
       "/api": {
-        target: "http://localhost:8000",
+        target: devProxyTarget,
         changeOrigin: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
