@@ -110,6 +110,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const currentLocaleLabel = currentLocaleOption?.label ?? t("language");
   const currentLocaleFlag = currentLocaleOption?.flag ?? "🌐";
   const currentLocaleFlagLabel = currentLocaleOption?.flagAriaLabel ?? currentLocaleLabel;
+  const navigationMenuId = "main-navigation-menu";
+  const navigationMenuButtonId = "main-navigation-menu-button";
+  const languageMenuId = "main-language-menu";
+  const languageMenuButtonId = "main-language-menu-button";
   useTranscriptionSync();
 
   const handleInstallClick = useCallback(async () => {
@@ -262,6 +266,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       >
         <Toolbar>
           <IconButton
+            id={navigationMenuButtonId}
             edge="start"
             color="inherit"
             sx={{
@@ -271,6 +276,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
             }}
             onClick={handleMenuOpen}
             aria-label={t("openMenu")}
+            aria-haspopup="menu"
+            aria-expanded={menuAnchor ? "true" : undefined}
+            aria-controls={menuAnchor ? navigationMenuId : undefined}
           >
             <MalsoriIcon sx={{ fontSize: 28 }} />
           </IconButton>
@@ -293,10 +301,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {compactActions ? (
             <Tooltip title={t("selectLanguage")}>
               <IconButton
+                id={languageMenuButtonId}
                 color="inherit"
                 size="small"
                 onClick={handleLanguageMenuOpen}
                 aria-label={t("selectLanguage")}
+                aria-haspopup="menu"
+                aria-expanded={languageMenuAnchor ? "true" : undefined}
+                aria-controls={languageMenuAnchor ? languageMenuId : undefined}
                 sx={{
                   ml: 1,
                   border: "1px solid rgba(255,255,255,0.7)",
@@ -321,11 +333,15 @@ export default function MainLayout({ children }: MainLayoutProps) {
           ) : (
             <Tooltip title={t("selectLanguage")}>
               <Button
+                id={languageMenuButtonId}
                 color="inherit"
                 variant="outlined"
                 size="small"
                 startIcon={<TranslateIcon fontSize="small" />}
                 onClick={handleLanguageMenuOpen}
+                aria-haspopup="menu"
+                aria-expanded={languageMenuAnchor ? "true" : undefined}
+                aria-controls={languageMenuAnchor ? languageMenuId : undefined}
                 sx={{
                   ml: 1,
                   borderColor: "rgba(255,255,255,0.7)",
@@ -353,10 +369,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </Tooltip>
           )}
           <Menu
+            id={navigationMenuId}
             anchorEl={menuAnchor}
             open={Boolean(menuAnchor)}
             onClose={handleMenuClose}
             keepMounted
+            MenuListProps={{
+              "aria-labelledby": navigationMenuButtonId,
+            }}
             PaperProps={{
               sx: {
                 mt: 1,
@@ -406,10 +426,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
             ))}
           </Menu>
           <Menu
+            id={languageMenuId}
             anchorEl={languageMenuAnchor}
             open={Boolean(languageMenuAnchor)}
             onClose={handleLanguageMenuClose}
             keepMounted
+            MenuListProps={{
+              "aria-labelledby": languageMenuButtonId,
+            }}
             PaperProps={{
               sx: {
                 mt: 1,

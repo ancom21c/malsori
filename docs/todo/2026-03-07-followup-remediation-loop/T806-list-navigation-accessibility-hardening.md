@@ -57,15 +57,21 @@
 
 ## Implementation Log
 
-- [ ] pending
+- [x] list filter URL sync를 `replace-only`에서 `replace/push` 혼합 정책으로 바꿨다.
+- [x] free-text 입력은 `replace`, kind/date/select/reset 같은 이산 변경은 `push`로 기록하도록 정리했다.
+- [x] advanced filter toggle에 `aria-expanded` / `aria-controls`를 연결했다.
+- [x] global navigation menu와 language menu trigger에 disclosure ARIA를 추가했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] back/forward와 controlled state가 충돌하지 않는가?
-- [ ] trigger id/open state가 정확히 대응하는가?
-- [ ] reset/default path가 여전히 안정적인가?
+- [x] back/forward와 controlled state가 충돌하지 않는가?
+- [x] trigger id/open state가 정확히 대응하는가?
+- [x] reset/default path가 여전히 안정적인가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- transcriptionListFilterState AppRouter`
-- [ ] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run test -- transcriptionListFilterState AppRouter`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `npm --prefix webapp run build`
+- [x] `node scripts/check-todo-board-consistency.mjs`
