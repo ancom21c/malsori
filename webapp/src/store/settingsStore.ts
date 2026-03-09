@@ -38,6 +38,10 @@ type SettingsState = {
   defaultSpeakerName: string;
   hydrated: boolean;
   hydrate: () => Promise<void>;
+  updateConnectionSettings: (value: {
+    apiBaseUrl: string;
+    adminApiBaseUrl: string;
+  }) => Promise<void>;
   updateSetting: <T extends SettingKey>(
     key: T,
     value: SettingsState[T]
@@ -75,6 +79,34 @@ async function persistSetting(key: SettingKey, value: string) {
   await appDb.settings.put(payload);
 }
 
+async function persistSettingsBatch(entries: Array<{ key: SettingKey; value: string }>) {
+  await appDb.transaction("rw", appDb.settings, async () => {
+    for (const entry of entries) {
+      await persistSetting(entry.key, entry.value);
+    }
+  });
+}
+
+function normalizeSettingValue<T extends SettingKey>(
+  key: T,
+  value: SettingsState[T]
+): SettingsState[T] {
+  if (key === "realtimeAutoSaveSeconds") {
+    return sanitizeRealtimeAutoSaveSeconds(value) as SettingsState[T];
+  }
+  if (key === "apiBaseUrl") {
+    return normalizePublicApiBaseUrl(
+      typeof value === "string" ? value : String(value ?? DEFAULT_API_BASE_URL)
+    ) as SettingsState[T];
+  }
+  if (key === "adminApiBaseUrl") {
+    return normalizeAdminApiBaseUrl(
+      typeof value === "string" ? value : String(value ?? "")
+    ) as SettingsState[T];
+  }
+  return value;
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiBaseUrl: DEFAULT_API_BASE_URL,
   adminApiBaseUrl: DEFAULT_ADMIN_API_BASE_URL,
@@ -106,19 +138,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       hydrated: true,
     });
   },
+  updateConnectionSettings: async ({ apiBaseUrl, adminApiBaseUrl }) => {
+    const normalizedApiBaseUrl = normalizeSettingValue("apiBaseUrl", apiBaseUrl);
+    const normalizedAdminApiBaseUrl = normalizeSettingValue(
+      "adminApiBaseUrl",
+      adminApiBaseUrl
+    );
+    await persistSettingsBatch([
+      { key: "apiBaseUrl", value: normalizedApiBaseUrl },
+      { key: "adminApiBaseUrl", value: normalizedAdminApiBaseUrl },
+    ]);
+    set({
+      apiBaseUrl: normalizedApiBaseUrl,
+      adminApiBaseUrl: normalizedAdminApiBaseUrl,
+    });
+  },
   updateSetting: async (key, value) => {
-    const normalizedValue =
-      key === "realtimeAutoSaveSeconds"
-        ? sanitizeRealtimeAutoSaveSeconds(value)
-        : key === "apiBaseUrl"
-          ? normalizePublicApiBaseUrl(
-              typeof value === "string" ? value : String(value ?? DEFAULT_API_BASE_URL)
-            )
-          : key === "adminApiBaseUrl"
-            ? normalizeAdminApiBaseUrl(
-                typeof value === "string" ? value : String(value ?? "")
-              )
-        : value;
+    const normalizedValue = normalizeSettingValue(key, value);
     set({ [key]: normalizedValue } as Partial<SettingsState>);
     await persistSetting(
       key,

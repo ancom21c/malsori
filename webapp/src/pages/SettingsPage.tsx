@@ -236,6 +236,7 @@ export default function SettingsPage() {
   const activeBackendPresetId = useSettingsStore((state) => state.activeBackendPresetId);
   const defaultSpeakerName = useSettingsStore((state) => state.defaultSpeakerName);
   const updateSetting = useSettingsStore((state) => state.updateSetting);
+  const updateConnectionSettings = useSettingsStore((state) => state.updateConnectionSettings);
   const initialConnectionSettings = normalizeConnectionSettingsDraft({
     apiBaseUrl,
     adminApiBaseUrl,
@@ -462,7 +463,12 @@ export default function SettingsPage() {
 
     setSavingConnectionSettings(true);
     try {
-      await Promise.all(updates.map(({ key, value }) => updateSetting(key, value)));
+      await updateConnectionSettings({
+        apiBaseUrl: updates.find(({ key }) => key === "apiBaseUrl")?.value ?? connectionCommitted.apiBaseUrl,
+        adminApiBaseUrl:
+          updates.find(({ key }) => key === "adminApiBaseUrl")?.value ??
+          connectionCommitted.adminApiBaseUrl,
+      });
       setConnectionCommitted(nextCommitted);
       setConnectionDraft(nextCommitted);
       enqueueSnackbar(t("connectionSettingsSaved"), { variant: "success" });
@@ -481,7 +487,7 @@ export default function SettingsPage() {
     enqueueSnackbar,
     handleResetConnectionDraft,
     t,
-    updateSetting,
+    updateConnectionSettings,
   ]);
 
   const handleRefreshBackendAvailability = useCallback(async () => {

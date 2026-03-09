@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "./settingsStore";
 import { appDb } from "../data/app-db";
 
@@ -55,5 +55,39 @@ describe("settingsStore realtimeAutoSaveSeconds guardrails", () => {
     expect(useSettingsStore.getState().adminApiBaseUrl).toBe("");
     expect((await appDb.settings.get("apiBaseUrl"))?.value).toBe("/");
     expect((await appDb.settings.get("adminApiBaseUrl"))?.value).toBe("");
+  });
+
+  it("commits connection settings only after batch persistence succeeds", async () => {
+    await useSettingsStore.getState().updateConnectionSettings({
+      apiBaseUrl: " https://example.com/api ",
+      adminApiBaseUrl: " https://internal.example.local ",
+    });
+
+    expect(useSettingsStore.getState().apiBaseUrl).toBe("https://example.com/api");
+    expect(useSettingsStore.getState().adminApiBaseUrl).toBe("https://internal.example.local");
+    expect((await appDb.settings.get("apiBaseUrl"))?.value).toBe("https://example.com/api");
+    expect((await appDb.settings.get("adminApiBaseUrl"))?.value).toBe(
+      "https://internal.example.local"
+    );
+  });
+
+  it("keeps runtime connection settings unchanged when batch persistence fails", async () => {
+    const transactionSpy = vi
+      .spyOn(appDb, "transaction")
+      .mockRejectedValueOnce(new Error("persist failed"));
+
+    await expect(
+      useSettingsStore.getState().updateConnectionSettings({
+        apiBaseUrl: "https://failed.example.com",
+        adminApiBaseUrl: "https://failed.internal.example.com",
+      })
+    ).rejects.toThrow("persist failed");
+
+    expect(useSettingsStore.getState().apiBaseUrl).toBe("/");
+    expect(useSettingsStore.getState().adminApiBaseUrl).toBe("");
+    expect(await appDb.settings.get("apiBaseUrl")).toBeUndefined();
+    expect(await appDb.settings.get("adminApiBaseUrl")).toBeUndefined();
+
+    transactionSpy.mockRestore();
   });
 });
