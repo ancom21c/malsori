@@ -247,7 +247,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <Box sx={{ minHeight: "var(--malsori-app-height)", display: "flex", flexDirection: "column" }}>
       <Box
         component="a"
         href="#main-content"

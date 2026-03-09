@@ -1810,7 +1810,7 @@ export default function RealtimeSessionPage() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          height: "100dvh",
+          height: "var(--malsori-app-height)",
           overflow: "hidden",
           position: "relative",
           bgcolor: "background.default",
@@ -1886,7 +1886,7 @@ export default function RealtimeSessionPage() {
                           maxWidth: "100%",
                           "@media (orientation: landscape)": {
                             maxWidth: "100%",
-                            maxHeight: "100vh",
+                            maxHeight: "var(--malsori-app-height)",
                           },
                         }}
                       >

@@ -481,7 +481,7 @@ export default function ShareViewerPage() {
   }, [setActiveWordHighlight, setWordDetailsVisibility]);
 
   return (
-    <Box sx={{ minHeight: "100vh" }}>
+    <Box sx={{ minHeight: "var(--malsori-app-height)" }}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Stack spacing={3}>
           {error ? <Alert severity="error">{error}</Alert> : null}
