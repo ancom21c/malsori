@@ -10,6 +10,7 @@ import {
   Collapse,
   Stack,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -386,6 +387,7 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
 }
 
 export default function RealtimeSessionPage() {
+  const compactRealtimeLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
@@ -1970,7 +1972,7 @@ export default function RealtimeSessionPage() {
               flexDirection: "column",
               gap: 2,
               pb: {
-                xs: "calc(220px + var(--malsori-bottom-clearance))",
+                xs: compactRealtimeLayout ? 2 : "calc(220px + var(--malsori-bottom-clearance))",
                 sm: "calc(180px + var(--malsori-bottom-clearance))",
               },
               minHeight: 0,
@@ -2020,23 +2022,51 @@ export default function RealtimeSessionPage() {
             />
           </Box>
         </Box>
+
+        {compactRealtimeLayout && (
+          <Box
+            sx={{
+              px: 2,
+              pt: 1,
+              pb: "calc(12px + var(--malsori-bottom-clearance))",
+            }}
+          >
+            <RealtimeToolbar
+              variant="docked"
+              sessionState={sessionState}
+              retryingConnection={retryingConnection}
+              onMainAction={handleMainButtonClick}
+              onStopAction={handleStopFabClick}
+              onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
+              cameraSupported={cameraSupported}
+              cameraEnabled={cameraEnabled}
+              onToggleCamera={handleToggleCamera}
+              audioLevel={audioLevel}
+              runtimeSettingsButtonRef={runtimeSettingsFabRef}
+              mainButtonPointerDown={handleMainButtonPointerDown}
+              clearPointerState={clearMainButtonPointerState}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Toolbar and Settings */}
-      <RealtimeToolbar
-        sessionState={sessionState}
-        retryingConnection={retryingConnection}
-        onMainAction={handleMainButtonClick}
-        onStopAction={handleStopFabClick}
-        onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
-        cameraSupported={cameraSupported}
-        cameraEnabled={cameraEnabled}
-        onToggleCamera={handleToggleCamera}
-        audioLevel={audioLevel}
-        runtimeSettingsButtonRef={runtimeSettingsFabRef}
-        mainButtonPointerDown={handleMainButtonPointerDown}
-        clearPointerState={clearMainButtonPointerState}
-      />
+      {!compactRealtimeLayout && (
+        <RealtimeToolbar
+          sessionState={sessionState}
+          retryingConnection={retryingConnection}
+          onMainAction={handleMainButtonClick}
+          onStopAction={handleStopFabClick}
+          onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
+          cameraSupported={cameraSupported}
+          cameraEnabled={cameraEnabled}
+          onToggleCamera={handleToggleCamera}
+          audioLevel={audioLevel}
+          runtimeSettingsButtonRef={runtimeSettingsFabRef}
+          mainButtonPointerDown={handleMainButtonPointerDown}
+          clearPointerState={clearMainButtonPointerState}
+        />
+      )}
 
       <RealtimeSettingsDialog
         open={runtimeSettingsOpen}

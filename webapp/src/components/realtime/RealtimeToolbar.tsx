@@ -37,6 +37,7 @@ interface RealtimeToolbarProps {
   runtimeSettingsButtonRef?: RefObject<HTMLButtonElement | null>;
   mainButtonPointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
   clearPointerState?: () => void;
+  variant?: "floating" | "docked";
 }
 
 export default function RealtimeToolbar({
@@ -52,6 +53,7 @@ export default function RealtimeToolbar({
   runtimeSettingsButtonRef,
   mainButtonPointerDown,
   clearPointerState,
+  variant = "floating",
 }: RealtimeToolbarProps) {
   const { t } = useI18n();
   const theme = useTheme();
@@ -99,19 +101,23 @@ export default function RealtimeToolbar({
       : sessionState === "connecting" || sessionState === "countdown"
         ? t("connecting")
         : t("realTimeTranscription");
+  const docked = variant === "docked";
+  const mainFabSize = docked ? 68 : 76;
 
   return (
     <Box
       sx={{
-        position: "fixed",
-        bottom: "var(--malsori-bottom-clearance)",
-        left: 0,
-        right: 0,
-        px: 2,
-        pt: 2,
-        pb: 3,
-        background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 18%, ${alpha(theme.palette.background.default, 0.72)} 54%, transparent 100%)`,
-        zIndex: 1000,
+        position: docked ? "relative" : "fixed",
+        bottom: docked ? "auto" : "var(--malsori-bottom-clearance)",
+        left: docked ? "auto" : 0,
+        right: docked ? "auto" : 0,
+        px: docked ? 0 : 2,
+        pt: docked ? 0 : 2,
+        pb: docked ? 0 : 3,
+        background: docked
+          ? "none"
+          : `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 18%, ${alpha(theme.palette.background.default, 0.72)} 54%, transparent 100%)`,
+        zIndex: docked ? 1 : 1000,
         display: "flex",
         alignItems: "center",
       }}
@@ -119,18 +125,27 @@ export default function RealtimeToolbar({
       <Box
         sx={{
           width: "100%",
-          maxWidth: 640,
-          borderRadius: 4,
-          px: 2,
-          py: 1.5,
+          maxWidth: docked ? "none" : 640,
+          borderRadius: docked ? 3 : 4,
+          px: docked ? 1.5 : 2,
+          py: docked ? 1.25 : 1.5,
           backgroundColor: alpha(theme.palette.background.paper, 0.94),
           border: "1px solid",
           borderColor: alpha(theme.palette.common.white, 0.07),
-          boxShadow: "0 18px 36px rgba(0,0,0,0.32)",
+          boxShadow: docked ? "0 10px 24px rgba(0,0,0,0.26)" : "0 18px 36px rgba(0,0,0,0.32)",
           backdropFilter: "blur(10px)",
         }}
       >
-        <Box sx={{ width: "100%", px: 0.5, pb: 1.25, mb: 1.5, borderBottom: "1px solid", borderColor: alpha(theme.palette.common.white, 0.06) }}>
+        <Box
+          sx={{
+            width: "100%",
+            px: 0.5,
+            pb: docked ? 0.75 : 1.25,
+            mb: docked ? 1 : 1.5,
+            borderBottom: "1px solid",
+            borderColor: alpha(theme.palette.common.white, 0.06),
+          }}
+        >
           <AudioVisualizer level={audioLevel} active={isRecording || sessionState === "paused"} />
         </Box>
 
@@ -170,8 +185,8 @@ export default function RealtimeToolbar({
               onPointerCancel={clearPointerState}
               aria-label={mainButtonLabel}
               sx={{
-                width: 76,
-                height: 76,
+                width: mainFabSize,
+                height: mainFabSize,
                 transition: FAB_TRANSITION,
                 boxShadow: (currentTheme) =>
                   `0 16px 32px ${alpha(currentTheme.palette[mainButtonColor].main, 0.3)}`,

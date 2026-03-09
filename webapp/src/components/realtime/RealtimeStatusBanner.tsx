@@ -7,12 +7,13 @@ import {
   LinearProgress,
   Stack,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import MicIcon from "@mui/icons-material/Mic";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import StorageIcon from "@mui/icons-material/Storage";
-import { alpha } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../../i18n";
 import type { RealtimeConnectionUxState } from "../../pages/realtimeConnectionUx";
 import type { StreamingBufferMetrics } from "../../services/api/rtzrStreamingClient";
@@ -59,6 +60,8 @@ export default function RealtimeStatusBanner({
   onManualRetryConnection,
 }: RealtimeStatusBannerProps) {
   const { t } = useI18n();
+  const theme = useTheme();
+  const compactLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
 
   const showConnectionBanner =
     sessionState !== "idle" && connectionUxState.phase !== "normal";
@@ -105,8 +108,19 @@ export default function RealtimeStatusBanner({
     });
   }
 
+  const compactSupplementaryMessage =
+    connectionUxState.phase !== "failed" && showConnectionBanner && connectionBannerMessage
+      ? connectionBannerMessage
+      : streamingBufferMetrics.degraded
+        ? t("someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete")
+        : streamingBufferMetrics.bufferedAudioMs > 0
+          ? t("bufferedAudioWillReplayWhenConnectionReturns", {
+            values: { seconds: bufferedSeconds },
+          })
+          : null;
+
   return (
-    <Stack spacing={2}>
+    <Stack spacing={compactLayout ? 1.25 : 2}>
       {sessionState !== "idle" &&
         (sessionState === "connecting" ||
           sessionState === "stopping" ||
@@ -119,30 +133,38 @@ export default function RealtimeStatusBanner({
           position: "relative",
           overflow: "hidden",
           borderColor: bannerBorderColor,
-          backgroundImage: (theme) =>
+          backgroundImage: () =>
             `linear-gradient(135deg, ${alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.15 : 0.2)} 0%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
           backdropFilter: "blur(16px) saturate(150%)",
           boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
           transition: "border-color .3s ease, box-shadow .3s ease",
         }}
       >
-        <CardContent sx={{ position: "relative", "&:last-child": { pb: 2 } }}>
-          <Stack spacing={2}>
+        <CardContent
+          sx={{
+            position: "relative",
+            p: compactLayout ? 1.5 : 2,
+            "&:last-child": { pb: compactLayout ? 1.5 : 2 },
+          }}
+        >
+          <Stack spacing={compactLayout ? 1.25 : 2}>
             <Stack
               direction={{ xs: "column", md: "row" }}
-              spacing={2}
+              spacing={compactLayout ? 1.25 : 2}
               justifyContent="space-between"
               alignItems={{ xs: "stretch", md: "center" }}
             >
               <Stack direction="row" spacing={2} alignItems="center">
                 <Stack spacing={0.25}>
-                  <Typography
-                    variant="overline"
-                    color="text.secondary"
-                    sx={{ letterSpacing: 0.75, lineHeight: 1 }}
-                  >
-                    {t("realTimeTranscription")}
-                  </Typography>
+                  {!compactLayout && (
+                    <Typography
+                      variant="overline"
+                      color="text.secondary"
+                      sx={{ letterSpacing: 0.75, lineHeight: 1 }}
+                    >
+                      {t("realTimeTranscription")}
+                    </Typography>
+                  )}
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Box
                       sx={{
@@ -170,17 +192,24 @@ export default function RealtimeStatusBanner({
                             : "none",
                       }}
                     />
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    <Typography variant={compactLayout ? "subtitle1" : "h6"} sx={{ fontWeight: 700 }}>
                       {sessionStateLabel}
                     </Typography>
                   </Stack>
                 </Stack>
               </Stack>
 
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Stack alignItems="flex-end">
+              <Stack
+                direction="row"
+                spacing={compactLayout ? 1 : 1.5}
+                alignItems="center"
+                justifyContent={compactLayout ? "space-between" : "flex-end"}
+                flexWrap="wrap"
+                useFlexGap
+              >
+                <Stack alignItems={compactLayout ? "flex-start" : "flex-end"}>
                   <Typography
-                    variant="subtitle2"
+                    variant={compactLayout ? "caption" : "subtitle2"}
                     color={
                       latencyChipColor === "default"
                         ? "text.secondary"
@@ -190,8 +219,8 @@ export default function RealtimeStatusBanner({
                     {latencyLevelLabel}
                   </Typography>
                   <Typography
-                    variant="subtitle2"
-                    sx={{ opacity: 0.6, fontSize: "0.7rem", mt: -0.5 }}
+                    variant="caption"
+                    sx={{ opacity: 0.6, fontSize: "0.7rem", mt: compactLayout ? 0 : -0.5 }}
                   >
                     {latencyValueLabel}
                   </Typography>
@@ -203,12 +232,27 @@ export default function RealtimeStatusBanner({
               </Stack>
             </Stack>
 
+            {compactLayout && compactSupplementaryMessage && (
+              <Box
+                sx={{
+                  px: 1.25,
+                  py: 0.875,
+                  borderRadius: 2,
+                  bgcolor: alpha(theme.palette.common.black, 0.24),
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {compactSupplementaryMessage}
+                </Typography>
+              </Box>
+            )}
+
             {(microphonePermissionState === "denied" ||
               (storagePermissionSupported && storagePermissionState === "denied") ||
               connectionUxState.phase === "failed") && (
                 <Box
                   sx={{
-                    p: 1.5,
+                    p: compactLayout ? 1.25 : 1.5,
                     borderRadius: 2,
                     bgcolor: alpha("#000", 0.4),
                     border: "1px solid rgba(255, 255, 255, 0.05)",
@@ -270,7 +314,7 @@ export default function RealtimeStatusBanner({
         </CardContent>
       </Card>
 
-      {showConnectionBanner && connectionUxState.phase !== "failed" && (
+      {!compactLayout && showConnectionBanner && connectionUxState.phase !== "failed" && (
         <Alert
           severity="warning"
           sx={{
@@ -283,7 +327,7 @@ export default function RealtimeStatusBanner({
         </Alert>
       )}
 
-      {streamingBufferMetrics.bufferedAudioMs > 0 && (
+      {!compactLayout && streamingBufferMetrics.bufferedAudioMs > 0 && (
         <Alert
           severity="info"
           sx={{
@@ -299,7 +343,7 @@ export default function RealtimeStatusBanner({
         </Alert>
       )}
 
-      {streamingBufferMetrics.degraded && (
+      {!compactLayout && streamingBufferMetrics.degraded && (
         <Alert
           severity="warning"
           sx={{

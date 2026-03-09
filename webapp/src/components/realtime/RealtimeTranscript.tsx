@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -9,6 +10,7 @@ import {
   Switch,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useRef, useEffect } from "react";
@@ -44,6 +46,7 @@ export default function RealtimeTranscript({
   sessionState,
 }: RealtimeTranscriptProps) {
   const { t } = useI18n();
+  const compactLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
   const prefersReducedMotion = usePrefersReducedMotion();
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const liveAnnouncementsEnabled = !noteMode && sessionState !== "idle";
@@ -65,53 +68,89 @@ export default function RealtimeTranscript({
   };
 
   const isEmpty = segments.length === 0 && !partialText && sessionState === "idle";
+  const compactToggleRail = (
+    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+      <Button
+        size="small"
+        variant={noteMode ? "contained" : "outlined"}
+        color={noteMode ? "secondary" : "inherit"}
+        aria-pressed={noteMode}
+        onClick={() => onNoteModeChange(!noteMode)}
+        sx={{ borderRadius: 999 }}
+      >
+        {t("noteMode")}
+      </Button>
+      <Button
+        size="small"
+        variant={followLive ? "contained" : "outlined"}
+        color={followLive ? "primary" : "inherit"}
+        aria-pressed={followLive}
+        onClick={() => onFollowLiveChange(!followLive)}
+        sx={{ borderRadius: 999 }}
+      >
+        {t("followLive")}
+      </Button>
+    </Stack>
+  );
 
   return (
     <Card sx={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
-      <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <Stack spacing={2} sx={{ flex: 1 }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "stretch", sm: "flex-start" }}
-            spacing={1.5}
-          >
-            <Stack spacing={0.5}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={noteMode}
-                    onChange={(event) => onNoteModeChange(event.target.checked)}
-                  />
-                }
-                label={t("noteMode")}
-              />
-              <Typography variant="caption" color="text.secondary">
-                {t("noteModeHelper")}
-              </Typography>
+      <CardContent
+        sx={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          p: compactLayout ? 1.5 : 2,
+          "&:last-child": { pb: compactLayout ? 1.5 : 2 },
+        }}
+      >
+        <Stack spacing={compactLayout ? 1.25 : 2} sx={{ flex: 1 }}>
+          {compactLayout ? (
+            compactToggleRail
+          ) : (
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              justifyContent="space-between"
+              alignItems={{ xs: "stretch", sm: "flex-start" }}
+              spacing={1.5}
+            >
+              <Stack spacing={0.5}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={noteMode}
+                      onChange={(event) => onNoteModeChange(event.target.checked)}
+                    />
+                  }
+                  label={t("noteMode")}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {t("noteModeHelper")}
+                </Typography>
+              </Stack>
+              <Stack spacing={0.5}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={followLive}
+                      onChange={(event) => onFollowLiveChange(event.target.checked)}
+                    />
+                  }
+                  label={t("followLive")}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {t("followLiveHelper")}
+                </Typography>
+              </Stack>
             </Stack>
-            <Stack spacing={0.5}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={followLive}
-                    onChange={(event) => onFollowLiveChange(event.target.checked)}
-                  />
-                }
-                label={t("followLive")}
-              />
-              <Typography variant="caption" color="text.secondary">
-                {t("followLiveHelper")}
-              </Typography>
-            </Stack>
-          </Stack>
+          )}
 
           <Divider />
 
           {noteMode ? (
             <TextField
               multiline
-              minRows={10}
+              minRows={compactLayout ? 8 : 10}
               fullWidth
               variant="outlined"
               label={t("noteModeTextAreaLabel")}
@@ -135,13 +174,13 @@ export default function RealtimeTranscript({
               aria-label={t("realTimeTranscriptLog")}
             >
               {isEmpty ? (
-                <Box sx={{ py: 4, textAlign: "center", color: "text.secondary" }}>
+                <Box sx={{ py: compactLayout ? 2.5 : 4, textAlign: "center", color: "text.secondary" }}>
                   <Typography variant="body1">
                     {t("whenYouStartASessionRecognizedSentencesWillAppearInThisAreaInOrder")}
                   </Typography>
                 </Box>
               ) : (
-                <Stack spacing={2}>
+                <Stack spacing={compactLayout ? 1.25 : 2}>
                   {segments.map((segment) => (
                     <Box key={segment.id}>
                       <Card
@@ -152,7 +191,7 @@ export default function RealtimeTranscript({
                           "&:hover": { borderColor: "primary.main" },
                         }}
                       >
-                        <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                        <CardContent sx={{ p: compactLayout ? 1.5 : 2, "&:last-child": { pb: compactLayout ? 1.5 : 2 } }}>
                           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
                             <Chip
                               label={formatTimeRange(segment)}
@@ -180,7 +219,7 @@ export default function RealtimeTranscript({
                           borderRadius: 3,
                         }}
                       >
-                        <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                        <CardContent sx={{ p: compactLayout ? 1.5 : 2, "&:last-child": { pb: compactLayout ? 1.5 : 2 } }}>
                           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
                             <Chip
                               label={t("realTimeRecognition")}
