@@ -61,7 +61,7 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
       mobileActionOwner: "realtime-dock",
       defaultFloatingActionsVisible: false,
       contentPaddingBottom: {
-        xs: "calc(24px + env(safe-area-inset-bottom))",
+        xs: "calc(24px + var(--malsori-bottom-inset))",
         sm: 4,
       },
     };
@@ -72,7 +72,7 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
       mobileActionOwner: "page-owned",
       defaultFloatingActionsVisible: false,
       contentPaddingBottom: {
-        xs: "calc(24px + env(safe-area-inset-bottom))",
+        xs: "calc(24px + var(--malsori-bottom-inset))",
         sm: 4,
       },
     };
@@ -82,7 +82,7 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
     mobileActionOwner: "global-fallback",
     defaultFloatingActionsVisible: true,
     contentPaddingBottom: {
-      xs: "calc(120px + env(safe-area-inset-bottom))",
+      xs: "calc(120px + var(--malsori-bottom-inset))",
       sm: 4,
     },
   };
@@ -508,7 +508,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               right: 0,
               bottom: 0,
               p: 2,
-              pb: "calc(16px + env(safe-area-inset-bottom))",
+              pb: "calc(16px + var(--malsori-bottom-inset))",
               background: `linear-gradient(to top, ${theme.palette.background.paper} 60%, transparent)`,
               backdropFilter: "blur(12px)",
               display: "flex",

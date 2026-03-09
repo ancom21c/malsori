@@ -34,7 +34,7 @@ export function ActionStrip({
           ? {
             display: { xs: "block", sm: "none" },
             position: "sticky",
-            bottom: "calc(12px + env(safe-area-inset-bottom))",
+            bottom: "calc(12px + var(--malsori-bottom-inset))",
             width: `calc(100% - ${stickyRightOffset}px)`,
             maxWidth,
             mr: "auto",

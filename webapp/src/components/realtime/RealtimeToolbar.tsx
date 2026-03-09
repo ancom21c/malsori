@@ -109,7 +109,7 @@ export default function RealtimeToolbar({
         right: 0,
         px: 2,
         pt: 2,
-        pb: "calc(24px + env(safe-area-inset-bottom))",
+        pb: "calc(24px + var(--malsori-bottom-inset))",
         background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 18%, ${alpha(theme.palette.background.default, 0.72)} 54%, transparent 100%)`,
         zIndex: 1000,
         display: "flex",

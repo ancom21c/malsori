@@ -15,15 +15,28 @@
     <div id="root"></div>
     <script>
       (() => {
-        const applyViewportHeight = () => {
-          const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        const standaloneQuery = window.matchMedia?.("(display-mode: standalone)");
+        const isStandalone = () =>
+          standaloneQuery?.matches === true || window.navigator.standalone === true;
+
+        const applyViewportMetrics = () => {
+          const viewport = window.visualViewport;
+          const viewportHeight = viewport?.height ?? window.innerHeight;
+          const offsetTop = viewport?.offsetTop ?? 0;
+          const extraBottomInset = isStandalone()
+            ? Math.max(0, window.innerHeight - (viewportHeight + offsetTop))
+            : 0;
+
           document.documentElement.style.setProperty("--malsori-app-height", `${viewportHeight}px`);
+          document.documentElement.style.setProperty("--malsori-system-bottom-inset", `${extraBottomInset}px`);
         };
 
-        applyViewportHeight();
-        window.addEventListener("resize", applyViewportHeight);
-        window.addEventListener("orientationchange", applyViewportHeight);
-        window.visualViewport?.addEventListener("resize", applyViewportHeight);
+        applyViewportMetrics();
+        window.addEventListener("resize", applyViewportMetrics);
+        window.addEventListener("orientationchange", applyViewportMetrics);
+        standaloneQuery?.addEventListener?.("change", applyViewportMetrics);
+        window.visualViewport?.addEventListener("resize", applyViewportMetrics);
+        window.visualViewport?.addEventListener("scroll", applyViewportMetrics);
       })();
     </script>
     <script src="/config/malsori-config.js"></script>
