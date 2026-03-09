@@ -1,6 +1,6 @@
 # Malsori UI Remediation Loop Board (2026-03-06)
 
-> Status: historical execution board. This loop is complete. Current execution board lives in `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: historical execution board. This loop is complete. The latest completed execution board is `docs/todo/2026-03-08-contract-ux-loop/README.md`. No active remediation loop is currently registered.
 
 ## 목적
 

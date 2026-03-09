@@ -11,11 +11,12 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 - File transcription flow with upload dialog, preset selection, status polling, and history list.
 - Settings management for API base URL, credentials, realtime autosave interval, and preset CRUD.
 
-Current canonical/UI execution references:
+Current canonical/UI references:
 
 - `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
-- `docs/plan-review-remediation-2026-03-08.md` - current execution plan
-- `docs/todo/2026-03-08-contract-ux-loop/README.md` - current execution board
+- No active remediation loop is currently registered.
+- `docs/plan-review-remediation-2026-03-08.md` - latest completed execution plan
+- `docs/todo/2026-03-08-contract-ux-loop/README.md` - latest completed execution board
 - `webapp/docs/IMPLEMENTATION_NOTES.md` - implementation snapshot and code-level notes
 
 ## Development
@@ -127,6 +128,13 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `webapp/README.md` – application overview and local usage instructions.
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
 - `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
-- `docs/plan-review-remediation-2026-03-08.md` – current execution plan for active remediation work.
-- `docs/todo/2026-03-08-contract-ux-loop/README.md` – current execution board.
+- No active remediation loop is currently registered.
+- `docs/plan-review-remediation-2026-03-08.md` – latest completed execution plan.
+- `docs/todo/2026-03-08-contract-ux-loop/README.md` – latest completed execution board.
 - `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation snapshot, current references, and code-level notes.
+
+### Agent Workloop Policy
+
+- Stable product/ops/spec docs stay under `docs/`.
+- Agent execution notes, temporary TODO loops, self-review logs, and implementation scratch plans are local-only and live under `.codex/workloops/`.
+- `.codex/workloops/` is gitignored by default; promote only stable conclusions into committed docs when they become part of the repo's long-lived truth.

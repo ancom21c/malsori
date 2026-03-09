@@ -1,6 +1,6 @@
 # Review Remediation Plan (2026-03-07)
 
-> Status: historical execution plan. `T701`~`T707` are complete in `docs/todo/2026-03-07-review-remediation-loop/README.md`. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`, and current execution work lives in `docs/plan-review-remediation-2026-03-08.md`.
+> Status: historical execution plan. `T701`~`T707` are complete in `docs/todo/2026-03-07-review-remediation-loop/README.md`. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`, and the latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md`. No active remediation loop is currently registered.
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Admin Boundary + Reconnect Resilience Loop Plan (2026-03-06)
 
-> Status: historical loop plan. `T601`~`T606` are complete in `docs/todo/2026-03-06-admin-boundary-reconnect-loop/README.md`. Current canonical UI/spec baseline lives in `docs/plan-ui-remediation-2026-03-06.md`, and current execution work lives in `docs/plan-review-remediation-2026-03-08.md`.
+> Status: historical loop plan. `T601`~`T606` are complete in `docs/todo/2026-03-06-admin-boundary-reconnect-loop/README.md`. Current canonical UI/spec baseline lives in `docs/plan-ui-remediation-2026-03-06.md`, and the latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md`. No active remediation loop is currently registered.
 
 ## Goal
 

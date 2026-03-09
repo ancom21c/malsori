@@ -17,8 +17,9 @@
 
 ## Current References
 - Canonical UI/spec baseline: `docs/plan-ui-remediation-2026-03-06.md`
-- Current execution plan: `docs/plan-review-remediation-2026-03-08.md`
-- Current execution board: `docs/todo/2026-03-08-contract-ux-loop/README.md`
+- No active remediation loop is currently registered.
+- Latest completed execution plan: `docs/plan-review-remediation-2026-03-08.md`
+- Latest completed execution board: `docs/todo/2026-03-08-contract-ux-loop/README.md`
 - Historical Studio Console rollout log: `docs/studio-console-rollout-plan-2026-03-04.md`
 
 ## Follow-up Backlog

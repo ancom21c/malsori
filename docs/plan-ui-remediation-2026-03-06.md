@@ -1,6 +1,6 @@
 # UI Remediation + Studio Console Alignment Plan (2026-03-06)
 
-> Status: current canonical UI/spec baseline. Current execution plan lives in `docs/plan-review-remediation-2026-03-08.md`, and the current execution board lives in `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: current canonical UI/spec baseline. No active remediation loop is currently registered. The latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md` and `docs/todo/2026-03-08-contract-ux-loop/README.md`.
 
 ## Goal
 
@@ -67,7 +67,8 @@
 ### 6. Documentation Contract
 
 - 현재 canonical spec은 `docs/plan-ui-remediation-2026-03-06.md` 하나만 사용한다.
-- 현재 구현 추적과 상태 관리는 `docs/plan-review-followup-2026-03-07.md`와 `docs/todo/2026-03-07-followup-remediation-loop/`로 관리한다.
+- active remediation loop가 없을 때는 `current execution` 표현을 사용하지 않는다.
+- 현재는 active remediation loop가 없고, 최신 완료 기록은 `docs/plan-review-remediation-2026-03-08.md`와 `docs/todo/2026-03-08-contract-ux-loop/README.md`다.
 - `docs/todo/2026-03-06-ui-remediation-loop/`는 foundational remediation loop의 historical execution board다.
 - `docs/studio-console-rollout-plan-2026-03-04.md`는 execution history 전용 문서다.
 - `docs/plan-studio-console-v3.md`는 concept/IA baseline 문서다.
@@ -80,9 +81,9 @@
 | Document | Role | Status rule |
 |---|---|---|
 | `docs/plan-ui-remediation-2026-03-06.md` | current canonical spec | 현재 코드와 승인된 contract만 유지 |
-| `docs/plan-review-remediation-2026-03-08.md` | current execution plan | 현재 contract/UX follow-up 범위와 우선순위만 유지 |
-| `docs/todo/2026-03-08-contract-ux-loop/README.md` | current execution board | `Spec -> Plan Review -> Implement -> Impl Review -> Verify` 상태 기록 |
-| `docs/todo/2026-03-08-contract-ux-loop/T*.md` | current task-level spec/review/verify log | 현재 task evidence와 검증 명령 연결 |
+| `docs/plan-review-remediation-2026-03-08.md` | latest completed execution plan | 가장 최근에 완료된 remediation loop decision/log 보존 |
+| `docs/todo/2026-03-08-contract-ux-loop/README.md` | latest completed execution board | 가장 최근에 완료된 remediation loop 상태 기록 |
+| `docs/todo/2026-03-08-contract-ux-loop/T*.md` | latest completed task log | 가장 최근 완료 loop의 task evidence와 검증 명령 연결 |
 | `docs/plan-review-followup-2026-03-07.md` | historical execution plan | 완료된 2026-03-07 follow-up loop decision/log 보존 |
 | `docs/todo/2026-03-07-followup-remediation-loop/README.md` | historical execution board | 완료된 2026-03-07 follow-up loop 상태 기록 |
 | `docs/todo/2026-03-07-followup-remediation-loop/T*.md` | historical task log | 완료된 follow-up task evidence 보존 |

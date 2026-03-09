@@ -1,6 +1,6 @@
 # Contract + UX Remediation Plan (2026-03-08)
 
-> Status: execution loop complete. This document remains the latest remediation execution record until a newer loop is registered. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`.
+> Status: latest completed execution record. No active remediation loop is currently registered. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`.
 
 ## Goal
 

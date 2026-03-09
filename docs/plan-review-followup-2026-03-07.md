@@ -1,6 +1,6 @@
 # Review Follow-up Remediation Plan (2026-03-07)
 
-> Status: historical execution plan. This loop is complete. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`, and current execution work lives in `docs/plan-review-remediation-2026-03-08.md`.
+> Status: historical execution plan. This loop is complete. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`, and the latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md`. No active remediation loop is currently registered.
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Studio Console Rollout Plan (2026-03-04)
 
-> Status: historical execution log. Current canonical spec lives in `docs/plan-ui-remediation-2026-03-06.md`, and current implementation status lives in `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: historical execution log. Current canonical spec lives in `docs/plan-ui-remediation-2026-03-06.md`, and the latest completed implementation board is `docs/todo/2026-03-08-contract-ux-loop/README.md`. No active remediation loop is currently registered.
 
 ## Goal
 
