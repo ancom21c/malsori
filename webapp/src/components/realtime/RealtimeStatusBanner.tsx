@@ -7,13 +7,12 @@ import {
   LinearProgress,
   Stack,
   Typography,
-  useMediaQuery,
 } from "@mui/material";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import MicIcon from "@mui/icons-material/Mic";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import StorageIcon from "@mui/icons-material/Storage";
-import { alpha, useTheme } from "@mui/material/styles";
+import { alpha } from "@mui/material/styles";
 import { useI18n } from "../../i18n";
 import type { RealtimeConnectionUxState } from "../../pages/realtimeConnectionUx";
 import type { StreamingBufferMetrics } from "../../services/api/rtzrStreamingClient";
@@ -38,6 +37,7 @@ interface RealtimeStatusBannerProps {
   onRetryMicrophonePermission?: () => void;
   onRetryStoragePermission?: () => void;
   onManualRetryConnection?: () => void;
+  compactLayout?: boolean;
 }
 
 export default function RealtimeStatusBanner({
@@ -58,10 +58,9 @@ export default function RealtimeStatusBanner({
   onRetryMicrophonePermission,
   onRetryStoragePermission,
   onManualRetryConnection,
+  compactLayout = false,
 }: RealtimeStatusBannerProps) {
   const { t } = useI18n();
-  const theme = useTheme();
-  const compactLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
 
   const showConnectionBanner =
     sessionState !== "idle" && connectionUxState.phase !== "normal";
@@ -133,7 +132,7 @@ export default function RealtimeStatusBanner({
           position: "relative",
           overflow: "hidden",
           borderColor: bannerBorderColor,
-          backgroundImage: () =>
+          backgroundImage: (theme) =>
             `linear-gradient(135deg, ${alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.15 : 0.2)} 0%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
           backdropFilter: "blur(16px) saturate(150%)",
           boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
@@ -238,7 +237,7 @@ export default function RealtimeStatusBanner({
                   px: 1.25,
                   py: 0.875,
                   borderRadius: 2,
-                  bgcolor: alpha(theme.palette.common.black, 0.24),
+                  bgcolor: (theme) => alpha(theme.palette.common.black, 0.24),
                 }}
               >
                 <Typography variant="caption" color="text.secondary">

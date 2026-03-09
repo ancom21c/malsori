@@ -1812,7 +1812,9 @@ export default function RealtimeSessionPage() {
         sx={{
           display: "flex",
           flexDirection: "column",
-          height: "var(--malsori-app-height)",
+          height: "100%",
+          flex: 1,
+          minHeight: 0,
           overflow: "hidden",
           position: "relative",
           bgcolor: "background.default",
@@ -1888,7 +1890,7 @@ export default function RealtimeSessionPage() {
                           maxWidth: "100%",
                           "@media (orientation: landscape)": {
                             maxWidth: "100%",
-                            maxHeight: "var(--malsori-app-height)",
+                            maxHeight: "100%",
                           },
                         }}
                       >
@@ -1997,6 +1999,7 @@ export default function RealtimeSessionPage() {
               onRetryMicrophonePermission={() => void handleRetryMicrophonePermission()}
               onRetryStoragePermission={() => void handleRetryStoragePermission()}
               onManualRetryConnection={() => void handleRetryConnection()}
+              compactLayout={compactRealtimeLayout}
             />
 
             {(errorMessage || !apiBaseUrl.trim()) && (
@@ -2019,6 +2022,7 @@ export default function RealtimeSessionPage() {
               onFollowLiveChange={setFollowLive}
               noteModeText={noteModeText}
               sessionState={sessionState}
+              compactLayout={compactRealtimeLayout}
             />
           </Box>
         </Box>

@@ -61,8 +61,8 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
       mobileActionOwner: "realtime-dock",
       defaultFloatingActionsVisible: false,
       contentPaddingBottom: {
-        xs: "calc(24px + var(--malsori-bottom-clearance))",
-        sm: 4,
+        xs: "0px",
+        sm: 0,
       },
     };
   }

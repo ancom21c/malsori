@@ -1,6 +1,5 @@
 import {
   Box,
-  Button,
   Card,
   CardContent,
   Chip,
@@ -10,7 +9,6 @@ import {
   Switch,
   TextField,
   Typography,
-  useMediaQuery,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useRef, useEffect } from "react";
@@ -33,6 +31,7 @@ interface RealtimeTranscriptProps {
   onFollowLiveChange: (enabled: boolean) => void;
   noteModeText: string;
   sessionState: string;
+  compactLayout?: boolean;
 }
 
 export default function RealtimeTranscript({
@@ -44,9 +43,9 @@ export default function RealtimeTranscript({
   onFollowLiveChange,
   noteModeText,
   sessionState,
+  compactLayout = false,
 }: RealtimeTranscriptProps) {
   const { t } = useI18n();
-  const compactLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
   const prefersReducedMotion = usePrefersReducedMotion();
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const liveAnnouncementsEnabled = !noteMode && sessionState !== "idle";
@@ -68,30 +67,6 @@ export default function RealtimeTranscript({
   };
 
   const isEmpty = segments.length === 0 && !partialText && sessionState === "idle";
-  const compactToggleRail = (
-    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-      <Button
-        size="small"
-        variant={noteMode ? "contained" : "outlined"}
-        color={noteMode ? "secondary" : "inherit"}
-        aria-pressed={noteMode}
-        onClick={() => onNoteModeChange(!noteMode)}
-        sx={{ borderRadius: 999 }}
-      >
-        {t("noteMode")}
-      </Button>
-      <Button
-        size="small"
-        variant={followLive ? "contained" : "outlined"}
-        color={followLive ? "primary" : "inherit"}
-        aria-pressed={followLive}
-        onClick={() => onFollowLiveChange(!followLive)}
-        sx={{ borderRadius: 999 }}
-      >
-        {t("followLive")}
-      </Button>
-    </Stack>
-  );
 
   return (
     <Card sx={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
@@ -105,45 +80,55 @@ export default function RealtimeTranscript({
         }}
       >
         <Stack spacing={compactLayout ? 1.25 : 2} sx={{ flex: 1 }}>
-          {compactLayout ? (
-            compactToggleRail
-          ) : (
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              justifyContent="space-between"
-              alignItems={{ xs: "stretch", sm: "flex-start" }}
-              spacing={1.5}
-            >
-              <Stack spacing={0.5}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={noteMode}
-                      onChange={(event) => onNoteModeChange(event.target.checked)}
-                    />
-                  }
-                  label={t("noteMode")}
-                />
-                <Typography variant="caption" color="text.secondary">
-                  {t("noteModeHelper")}
-                </Typography>
-              </Stack>
-              <Stack spacing={0.5}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={followLive}
-                      onChange={(event) => onFollowLiveChange(event.target.checked)}
-                    />
-                  }
-                  label={t("followLive")}
-                />
-                <Typography variant="caption" color="text.secondary">
-                  {t("followLiveHelper")}
-                </Typography>
-              </Stack>
+          <Stack
+            direction={compactLayout ? "row" : { xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={compactLayout ? "center" : { xs: "stretch", sm: "flex-start" }}
+            spacing={compactLayout ? 1 : 1.5}
+            useFlexGap={compactLayout}
+            flexWrap={compactLayout ? "wrap" : "nowrap"}
+          >
+            <Stack spacing={compactLayout ? 0 : 0.5} sx={compactLayout ? { minWidth: 0 } : undefined}>
+              <FormControlLabel
+                sx={{ m: 0 }}
+                control={
+                  <Switch
+                    size={compactLayout ? "small" : "medium"}
+                    checked={noteMode}
+                    onChange={(event) => onNoteModeChange(event.target.checked)}
+                  />
+                }
+                label={t("noteMode")}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: compactLayout ? "none" : "block" }}
+              >
+                {t("noteModeHelper")}
+              </Typography>
             </Stack>
-          )}
+            <Stack spacing={compactLayout ? 0 : 0.5} sx={compactLayout ? { minWidth: 0 } : undefined}>
+              <FormControlLabel
+                sx={{ m: 0 }}
+                control={
+                  <Switch
+                    size={compactLayout ? "small" : "medium"}
+                    checked={followLive}
+                    onChange={(event) => onFollowLiveChange(event.target.checked)}
+                  />
+                }
+                label={t("followLive")}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: compactLayout ? "none" : "block" }}
+              >
+                {t("followLiveHelper")}
+              </Typography>
+            </Stack>
+          </Stack>
 
           <Divider />
 
