@@ -19,6 +19,11 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../../i18n";
 import AudioVisualizer from "../audio/AudioVisualizer";
 
+const CONTROL_TRANSITION =
+  "background-color .2s ease, box-shadow .2s ease, transform .2s ease";
+const FAB_TRANSITION =
+  "box-shadow .3s ease, transform .3s ease, background-color .3s ease";
+
 interface RealtimeToolbarProps {
   sessionState: string;
   retryingConnection: boolean;
@@ -136,9 +141,17 @@ export default function RealtimeToolbar({
               onClick={onRuntimeSettingsOpen}
               aria-label={t("streamTranscriptionSettings")}
               sx={{
-                bgcolor: alpha(theme.palette.background.default, 0.84),
+                bgcolor: alpha(theme.palette.background.default, 0.8),
+                backdropFilter: "blur(12px)",
                 border: "1px solid",
-                borderColor: alpha(theme.palette.common.white, 0.08),
+                borderColor: alpha(theme.palette.common.white, 0.1),
+                transition: CONTROL_TRANSITION,
+                "&:hover": {
+                  bgcolor: alpha(theme.palette.background.default, 0.95),
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                },
+                "&:active": { transform: "translateY(0)" },
               }}
             >
               <SettingsRoundedIcon />
@@ -157,10 +170,17 @@ export default function RealtimeToolbar({
               onPointerCancel={clearPointerState}
               aria-label={mainButtonLabel}
               sx={{
-                width: 72,
-                height: 72,
+                width: 76,
+                height: 76,
+                transition: FAB_TRANSITION,
                 boxShadow: (currentTheme) =>
-                  `0 12px 24px ${alpha(currentTheme.palette[mainButtonColor].main, 0.22)}`,
+                  `0 16px 32px ${alpha(currentTheme.palette[mainButtonColor].main, 0.3)}`,
+                "&:hover": {
+                  transform: "scale(1.05)",
+                  boxShadow: (currentTheme) =>
+                    `0 20px 40px ${alpha(currentTheme.palette[mainButtonColor].main, 0.4)}`,
+                },
+                "&:active": { transform: "scale(0.95)" },
               }}
             >
               {mainButtonIcon}
@@ -195,8 +215,14 @@ export default function RealtimeToolbar({
                 onClick={onStopAction}
                 aria-label={t("sessionEnds")}
                 sx={{
-                  bgcolor: alpha(theme.palette.error.main, 0.82),
-                  boxShadow: `0 10px 22px ${alpha(theme.palette.error.main, 0.2)}`,
+                  bgcolor: theme.palette.error.main,
+                  boxShadow: `0 12px 28px ${alpha(theme.palette.error.main, 0.3)}`,
+                  transition: CONTROL_TRANSITION,
+                  "&:hover": {
+                    transform: "scale(1.05)",
+                    boxShadow: `0 16px 36px ${alpha(theme.palette.error.main, 0.4)}`,
+                  },
+                  "&:active": { transform: "scale(0.95)" },
                 }}
               >
                 <StopCircleIcon />
@@ -211,9 +237,17 @@ export default function RealtimeToolbar({
                 aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
                 sx={{
                   color: cameraEnabled ? theme.palette.primary.main : theme.palette.text.secondary,
-                  bgcolor: alpha(theme.palette.background.default, 0.84),
+                  bgcolor: alpha(theme.palette.background.default, 0.8),
+                  backdropFilter: "blur(12px)",
                   border: "1px solid",
-                  borderColor: alpha(theme.palette.common.white, 0.08),
+                  borderColor: alpha(theme.palette.common.white, 0.1),
+                  transition: CONTROL_TRANSITION,
+                  "&:hover": {
+                    bgcolor: alpha(theme.palette.background.default, 0.95),
+                    transform: "translateY(-1px)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                  },
+                  "&:active": { transform: "translateY(0)" },
                 }}
               >
                 {cameraEnabled ? <VideocamRoundedIcon /> : <VideocamOffRoundedIcon />}

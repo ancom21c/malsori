@@ -63,6 +63,18 @@ export default function RealtimeStatusBanner({
   const showConnectionBanner =
     sessionState !== "idle" && connectionUxState.phase !== "normal";
   const bufferedSeconds = Math.max(1, Math.ceil(streamingBufferMetrics.bufferedAudioMs / 1000));
+  const bannerTone =
+    connectionUxState.phase === "failed"
+      ? "error"
+      : connectionUxState.phase === "reconnecting" || streamingBufferMetrics.degraded
+        ? "warning"
+        : "primary";
+  const bannerBorderColor =
+    connectionUxState.phase === "failed"
+      ? "error.main"
+      : connectionUxState.phase === "reconnecting" || streamingBufferMetrics.degraded
+        ? "warning.main"
+        : "transparent";
   const statusChipItems: StatusChipItem[] = [];
 
   if (sessionState === "countdown") {
@@ -106,23 +118,12 @@ export default function RealtimeStatusBanner({
         sx={{
           position: "relative",
           overflow: "hidden",
-          borderColor:
-            connectionUxState.phase === "failed"
-              ? "error.main"
-              : connectionUxState.phase === "reconnecting"
-                ? "warning.main"
-                : streamingBufferMetrics.degraded
-                  ? "warning.main"
-                : "divider",
+          borderColor: bannerBorderColor,
           backgroundImage: (theme) =>
-            connectionUxState.phase === "failed"
-              ? `linear-gradient(145deg, ${alpha(theme.palette.error.main, 0.16)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
-              : connectionUxState.phase === "reconnecting"
-                ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.17)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 62%)`
-                : streamingBufferMetrics.degraded
-                  ? `linear-gradient(145deg, ${alpha(theme.palette.warning.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`
-                : `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 64%)`,
-          transition: "border-color 200ms ease, background-color 200ms ease",
+            `linear-gradient(135deg, ${alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.15 : 0.2)} 0%, ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
+          backdropFilter: "blur(16px) saturate(150%)",
+          boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+          transition: "border-color .3s ease, box-shadow .3s ease",
         }}
       >
         <CardContent sx={{ position: "relative", "&:last-child": { pb: 2 } }}>
@@ -159,14 +160,13 @@ export default function RealtimeStatusBanner({
                                 : "text.disabled",
                         boxShadow: (theme) =>
                           sessionState === "recording" ||
-                          connectionUxState.phase !== "normal"
-                            ? `0 0 12px ${
-                                connectionUxState.phase === "failed"
-                                  ? alpha(theme.palette.error.main, 0.4)
-                                  : connectionUxState.phase === "reconnecting"
-                                    ? alpha(theme.palette.warning.main, 0.4)
-                                    : alpha(theme.palette.success.main, 0.4)
-                              }`
+                            connectionUxState.phase !== "normal"
+                            ? `0 0 12px ${connectionUxState.phase === "failed"
+                              ? alpha(theme.palette.error.main, 0.4)
+                              : connectionUxState.phase === "reconnecting"
+                                ? alpha(theme.palette.warning.main, 0.4)
+                                : alpha(theme.palette.success.main, 0.4)
+                            }`
                             : "none",
                       }}
                     />
@@ -206,66 +206,66 @@ export default function RealtimeStatusBanner({
             {(microphonePermissionState === "denied" ||
               (storagePermissionSupported && storagePermissionState === "denied") ||
               connectionUxState.phase === "failed") && (
-              <Box
-                sx={{
-                  p: 1.5,
-                  borderRadius: 2,
-                  bgcolor: alpha("#000", 0.4),
-                  border: "1px solid rgba(255, 255, 255, 0.05)",
-                }}
-              >
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {microphonePermissionState === "denied" && (
-                    <Button
-                      size="small"
-                      variant="outlined"
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    bgcolor: alpha("#000", 0.4),
+                    border: "1px solid rgba(255, 255, 255, 0.05)",
+                  }}
+                >
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {microphonePermissionState === "denied" && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<MicIcon />}
+                        onClick={onRetryMicrophonePermission}
+                        disabled={retryingMicrophonePermission}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        {t("reRequestPermission")}
+                      </Button>
+                    )}
+                    {storagePermissionSupported && storagePermissionState === "denied" && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<StorageIcon />}
+                        onClick={onRetryStoragePermission}
+                        disabled={retryingStoragePermission}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        {t("storagePermissions")}
+                      </Button>
+                    )}
+                    {connectionUxState.phase === "failed" && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        startIcon={<RefreshIcon />}
+                        onClick={onManualRetryConnection}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        {t("retryConnection")}
+                      </Button>
+                    )}
+                  </Stack>
+                  {connectionBannerMessage && (
+                    <Typography
+                      variant="body2"
                       color="error"
-                      startIcon={<MicIcon />}
-                      onClick={onRetryMicrophonePermission}
-                      disabled={retryingMicrophonePermission}
-                      sx={{ borderRadius: 2 }}
+                      sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.5 }}
                     >
-                      {t("reRequestPermission")}
-                    </Button>
+                      <ErrorOutlineIcon fontSize="inherit" />
+                      {connectionBannerMessage}
+                    </Typography>
                   )}
-                  {storagePermissionSupported && storagePermissionState === "denied" && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<StorageIcon />}
-                      onClick={onRetryStoragePermission}
-                      disabled={retryingStoragePermission}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      {t("storagePermissions")}
-                    </Button>
-                  )}
-                  {connectionUxState.phase === "failed" && (
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="primary"
-                      startIcon={<RefreshIcon />}
-                      onClick={onManualRetryConnection}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      {t("retryConnection")}
-                    </Button>
-                  )}
-                </Stack>
-                {connectionBannerMessage && (
-                  <Typography
-                    variant="body2"
-                    color="error"
-                    sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.5 }}
-                  >
-                    <ErrorOutlineIcon fontSize="inherit" />
-                    {connectionBannerMessage}
-                  </Typography>
-                )}
-              </Box>
-            )}
+                </Box>
+              )}
           </Stack>
         </CardContent>
       </Card>
@@ -290,6 +290,7 @@ export default function RealtimeStatusBanner({
             borderRadius: 3,
             border: "1px solid",
             borderColor: (theme) => alpha(theme.palette.info.main, 0.2),
+            bgcolor: (theme) => alpha(theme.palette.info.main, 0.05),
           }}
         >
           {t("bufferedAudioWillReplayWhenConnectionReturns", {

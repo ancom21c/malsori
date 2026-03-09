@@ -1580,13 +1580,13 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "不安定",
   },
   realTimeTranscription: {
-    ko: "실시간 전사",
-    en: "Real-time Transcription",
+    ko: "실시간",
+    en: "Realtime",
     ja: "リアルタイム文字起こし",
   },
   realTimeTranscriptionAutoSaveCycleSeconds: {
-    ko: "실시간 전사 자동 저장 주기(초)",
-    en: "Real-time transcription auto-save cycle (seconds)",
+    ko: "실시간 자동저장(초)",
+    en: "Realtime autosave (s)",
     ja: "リアルタイム文字起こし自動保存サイクル (秒)",
   },
   realTimeTranscriptionBeginsAfterA3SecondCountdown: {
@@ -1960,8 +1960,8 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "ブラウザがストレージを自動管理するため、追加の権限は必要ありません。",
   },
   streamTranscriptionSettings: {
-    ko: "스트리밍 전사 설정",
-    en: "Stream Transcription Settings",
+    ko: "스트리밍 설정",
+    en: "Streaming settings",
     ja: "ストリーム文字起こし設定",
   },
   followLive: {

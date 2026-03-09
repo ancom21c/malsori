@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { StudioJsonEditor } from "../studio";
 import { useI18n } from "../../i18n";
 import TranscriptionConfigQuickOptions from "../TranscriptionConfigQuickOptions";
@@ -51,42 +52,42 @@ const RUNTIME_SETTING_FIELDS: Array<{
   helperText: string;
   step?: string;
 }> = [
-  {
-    key: "maxUtterDuration",
-    label: "runtimeSettingMaxUtterDurationLabel",
-    placeholder: "runtimeSettingMaxUtterDurationPlaceholder",
-    helperText: "runtimeSettingMaxUtterDurationHelper",
-    step: "1",
-  },
-  {
-    key: "noiseThreshold",
-    label: "runtimeSettingNoiseThresholdLabel",
-    placeholder: "runtimeSettingNoiseThresholdPlaceholder",
-    helperText: "runtimeSettingNoiseThresholdHelper",
-    step: "0.01",
-  },
-  {
-    key: "epdTime",
-    label: "runtimeSettingEpdTimeLabel",
-    placeholder: "runtimeSettingEpdTimePlaceholder",
-    helperText: "runtimeSettingEpdTimeHelper",
-    step: "0.1",
-  },
-  {
-    key: "activeThreshold",
-    label: "runtimeSettingActiveThresholdLabel",
-    placeholder: "runtimeSettingActiveThresholdPlaceholder",
-    helperText: "runtimeSettingActiveThresholdHelper",
-    step: "0.01",
-  },
-  {
-    key: "acousticScale",
-    label: "runtimeSettingAcousticScaleLabel",
-    placeholder: "runtimeSettingAcousticScalePlaceholder",
-    helperText: "runtimeSettingAcousticScaleHelper",
-    step: "0.01",
-  },
-];
+    {
+      key: "maxUtterDuration",
+      label: "runtimeSettingMaxUtterDurationLabel",
+      placeholder: "runtimeSettingMaxUtterDurationPlaceholder",
+      helperText: "runtimeSettingMaxUtterDurationHelper",
+      step: "1",
+    },
+    {
+      key: "noiseThreshold",
+      label: "runtimeSettingNoiseThresholdLabel",
+      placeholder: "runtimeSettingNoiseThresholdPlaceholder",
+      helperText: "runtimeSettingNoiseThresholdHelper",
+      step: "0.01",
+    },
+    {
+      key: "epdTime",
+      label: "runtimeSettingEpdTimeLabel",
+      placeholder: "runtimeSettingEpdTimePlaceholder",
+      helperText: "runtimeSettingEpdTimeHelper",
+      step: "0.1",
+    },
+    {
+      key: "activeThreshold",
+      label: "runtimeSettingActiveThresholdLabel",
+      placeholder: "runtimeSettingActiveThresholdPlaceholder",
+      helperText: "runtimeSettingActiveThresholdHelper",
+      step: "0.01",
+    },
+    {
+      key: "acousticScale",
+      label: "runtimeSettingAcousticScaleLabel",
+      placeholder: "runtimeSettingAcousticScalePlaceholder",
+      helperText: "runtimeSettingAcousticScaleHelper",
+      step: "0.01",
+    },
+  ];
 
 export default function RealtimeSettingsDialog({
   open,
@@ -105,6 +106,8 @@ export default function RealtimeSettingsDialog({
   portalContainer,
 }: RealtimeSettingsDialogProps) {
   const { t } = useI18n();
+  const jsonSectionId = "realtime-settings-json-editor";
+  const streamConfigSectionId = "realtime-settings-stream-config";
 
   return (
     <Dialog
@@ -139,8 +142,9 @@ export default function RealtimeSettingsDialog({
                 sx={{
                   border: 1,
                   borderColor: "divider",
-                  borderRadius: 2,
+                  borderRadius: 3,
                   overflow: "hidden",
+                  bgcolor: (theme) => alpha(theme.palette.background.default, 0.3),
                 }}
               >
                 {streamingPresets.map((preset) => (
@@ -148,6 +152,12 @@ export default function RealtimeSettingsDialog({
                     key={preset.id}
                     selected={activeStreamingPreset?.id === preset.id}
                     onClick={() => onSelectPreset(preset.id)}
+                    sx={{
+                      py: 1.5,
+                      borderBottom: 1,
+                      borderColor: "divider",
+                      "&:last-child": { borderBottom: 0 },
+                    }}
                   >
                     <ListItemText
                       primary={preset.name}
@@ -173,10 +183,19 @@ export default function RealtimeSettingsDialog({
           />
 
           <Box>
-            <Button size="small" variant="text" onClick={() => setJsonEditorOpen(!jsonEditorOpen)}>
-              {jsonEditorOpen ? t("hideJson") : t("editJsonDirectly")}
-            </Button>
-            <Collapse in={jsonEditorOpen} sx={{ mt: 1 }}>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setJsonEditorOpen(!jsonEditorOpen)}
+                aria-expanded={jsonEditorOpen}
+                aria-controls={jsonSectionId}
+                sx={{ fontWeight: 600 }}
+              >
+                {jsonEditorOpen ? t("hideJson") : t("editJsonDirectly")}
+              </Button>
+            </Stack>
+            <Collapse in={jsonEditorOpen} id={jsonSectionId}>
               <StudioJsonEditor
                 label={t("runtimeRequestConfig")}
                 value={streamingRequestJson}
@@ -216,11 +235,17 @@ export default function RealtimeSettingsDialog({
                   </Typography>
                 )}
               </Box>
-              <Button size="small" variant="text" onClick={() => setStreamConfigOpen(!streamConfigOpen)}>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setStreamConfigOpen(!streamConfigOpen)}
+                aria-expanded={streamConfigOpen}
+                aria-controls={streamConfigSectionId}
+              >
                 {streamConfigOpen ? t("hideSettings") : t("viewSettings")}
               </Button>
             </Stack>
-            <Collapse in={streamConfigOpen} sx={{ mt: 1 }}>
+            <Collapse in={streamConfigOpen} id={streamConfigSectionId} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {t("runtimeStreamConfigWebsocketHelper")}
               </Typography>
@@ -252,8 +277,8 @@ export default function RealtimeSettingsDialog({
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} variant="contained" sx={{ borderRadius: 2, px: 4 }}>
+      <DialogActions sx={{ p: 2.5, px: 3, bgcolor: (theme) => alpha(theme.palette.background.default, 0.4) }}>
+        <Button onClick={onClose} variant="contained" sx={{ borderRadius: 3, px: 5, py: 1 }}>
           {t("close")}
         </Button>
       </DialogActions>

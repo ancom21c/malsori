@@ -1,31 +1,35 @@
 import { alpha, createTheme } from "@mui/material/styles";
 
 // V3 Studio Console Design Tokens
-const CONSOLE_RADIUS_LG = 18;
+const CONSOLE_RADIUS_LG = 20;
 const CONSOLE_RADIUS_PILL = 999;
-const CONSOLE_ELEV_SOFT = "0 12px 28px rgba(0,0,0,0.32)";
-const CONSOLE_BORDER_GLASS = "1px solid rgba(255, 255, 255, 0.06)";
-const CONSOLE_BORDER_BEVEL = "inset 0 1px 0 0 rgba(255, 255, 255, 0.05)";
-const FROSTED_GLASS_OPACITY = 0.78;
+const CONSOLE_ELEV_SOFT = "0 16px 40px rgba(0,0,0,0.4)";
+const CONSOLE_BORDER_GLASS = "1px solid rgba(255, 255, 255, 0.08)";
+const CONSOLE_BORDER_BEVEL = "inset 0 1px 0 0 rgba(255, 255, 255, 0.07)";
+const FROSTED_GLASS_OPACITY = 0.72;
 
 export const appTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: "#2ac9b5", // brighter teal for dark bg readability
+      main: "#00E5FF", // vibrant cyan for premium tech feel
+      light: "#66FFFF",
+      dark: "#00B3CC",
     },
     secondary: {
-      main: "#f5a37f", // punchy peach
+      main: "#FF6B6B", // vibrant coral/peach
+      light: "#FF9999",
+      dark: "#CC5555",
     },
     background: {
-      default: "#101415",
-      paper: "#171d1d",
+      default: "#0A0D0E", // deeper rich dark
+      paper: "#121617", // distinct modern paper
     },
     text: {
-      primary: "rgba(255, 255, 255, 0.9)",
-      secondary: "rgba(255, 255, 255, 0.64)",
+      primary: "rgba(255, 255, 255, 0.92)",
+      secondary: "rgba(255, 255, 255, 0.6)",
     },
-    divider: "rgba(255, 255, 255, 0.12)",
+    divider: "rgba(255, 255, 255, 0.08)",
   },
   shape: {
     borderRadius: CONSOLE_RADIUS_LG,
@@ -33,27 +37,27 @@ export const appTheme = createTheme({
   typography: {
     fontFamily: '"IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif',
     h4: {
-      fontWeight: 820,
-      letterSpacing: -0.8,
+      fontWeight: 800,
+      letterSpacing: "-0.02em",
       textWrap: "balance",
     },
     h5: {
-      fontWeight: 820,
-      letterSpacing: -0.6,
+      fontWeight: 700,
+      letterSpacing: "-0.015em",
       textWrap: "balance",
     },
     h6: {
-      fontWeight: 850,
-      letterSpacing: -0.4,
+      fontWeight: 700,
+      letterSpacing: "-0.01em",
     },
     subtitle1: {
-      fontWeight: 750,
-      letterSpacing: -0.2,
+      fontWeight: 600,
+      letterSpacing: "-0.01em",
     },
     // Used for metrics, latency, timecodes
     subtitle2: {
-      fontFamily: '"Roboto Mono", "IBM Plex Mono", monospace',
-      fontWeight: 600,
+      fontFamily: '"JetBrains Mono", "Roboto Mono", "IBM Plex Mono", monospace',
+      fontWeight: 500,
       letterSpacing: "0.02em",
       fontSize: "0.8125rem",
       textTransform: "uppercase",
@@ -68,9 +72,9 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: ({ theme }) => ({
           backgroundColor: alpha(theme.palette.background.default, FROSTED_GLASS_OPACITY),
-          backdropFilter: "blur(18px)",
-          borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.05)}`,
-          boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+          backdropFilter: "blur(24px) saturate(180%)",
+          borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.06)}`,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.24)",
         }),
       },
     },
@@ -78,11 +82,11 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: ({ theme }) => ({
           borderRadius: CONSOLE_RADIUS_LG,
-          backgroundColor: alpha(theme.palette.background.paper, 0.92),
-          backdropFilter: "blur(14px)",
+          backgroundColor: alpha(theme.palette.background.paper, 0.85),
+          backdropFilter: "blur(20px) saturate(150%)",
           border: CONSOLE_BORDER_GLASS,
           boxShadow: `${CONSOLE_ELEV_SOFT}, ${CONSOLE_BORDER_BEVEL}`,
-          transition: "box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease",
+          transition: "box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease",
         }),
       },
     },
@@ -118,29 +122,38 @@ export const appTheme = createTheme({
       },
       styleOverrides: {
         root: ({ theme }) => ({
-          borderRadius: 12, // internal buttons
-          fontWeight: 700,
-          letterSpacing: 0,
-          paddingInline: theme.spacing(2),
-          transition: "box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease",
+          borderRadius: 14, // slightly rounder premium internal buttons
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
+          paddingInline: theme.spacing(2.5),
+          transition:
+            "background-color .2s ease, box-shadow .2s ease, border-color .2s ease, transform .2s ease",
         }),
         containedPrimary: ({ theme }) => ({
           backgroundColor: theme.palette.primary.main,
-          color: "#0a1917", // inverted for readability on bright button
-          boxShadow: `0 10px 22px ${alpha(theme.palette.primary.main, 0.18)}`,
+          color: "#051A1D", // custom dark for primary button text
+          boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
           "&:hover": {
             backgroundColor: theme.palette.primary.light,
-            boxShadow: `0 12px 28px ${alpha(theme.palette.primary.main, 0.24)}`,
+            boxShadow: `0 12px 32px ${alpha(theme.palette.primary.main, 0.5)}, inset 0 1px 0 rgba(255,255,255,0.4)`,
+            transform: "translateY(-1px)",
           },
+          "&:active": {
+            transform: "translateY(1px)",
+          }
         }),
         containedSecondary: ({ theme }) => ({
           backgroundColor: theme.palette.secondary.main,
-          color: "#1a0b06",
-          boxShadow: `0 10px 22px ${alpha(theme.palette.secondary.main, 0.18)}`,
+          color: "#1A0505",
+          boxShadow: `0 8px 24px ${alpha(theme.palette.secondary.main, 0.25)}`,
           "&:hover": {
             backgroundColor: theme.palette.secondary.light,
-            boxShadow: `0 12px 28px ${alpha(theme.palette.secondary.main, 0.24)}`,
+            boxShadow: `0 12px 32px ${alpha(theme.palette.secondary.main, 0.5)}, inset 0 1px 0 rgba(255,255,255,0.4)`,
+            transform: "translateY(-1px)",
           },
+          "&:active": {
+            transform: "translateY(1px)",
+          }
         }),
         outlined: ({ theme }) => ({
           borderColor: alpha(theme.palette.text.primary, 0.2),
@@ -155,15 +168,20 @@ export const appTheme = createTheme({
     MuiFab: {
       styleOverrides: {
         root: ({ theme }) => ({
-          transition: "box-shadow 0.2s ease, background-color 0.2s ease",
+          transition:
+            "background-color .2s ease, box-shadow .2s ease, transform .2s ease",
           "&.MuiFab-primary": {
             backgroundColor: theme.palette.primary.main,
-            color: "#0a1917",
-            boxShadow: `0 12px 24px ${alpha(theme.palette.primary.main, 0.24)}`,
+            color: "#051A1D",
+            boxShadow: `0 12px 32px ${alpha(theme.palette.primary.main, 0.35)}`,
             "&:hover": {
               backgroundColor: theme.palette.primary.light,
-              boxShadow: `0 14px 30px ${alpha(theme.palette.primary.main, 0.28)}`,
+              boxShadow: `0 16px 40px ${alpha(theme.palette.primary.main, 0.5)}, inset 0 1px 0 rgba(255,255,255,0.4)`,
+              transform: "translateY(-2px)",
             },
+            "&:active": {
+              transform: "translateY(1px)",
+            }
           },
         }),
       },
@@ -172,11 +190,12 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: ({ theme }) => ({
           borderRadius: CONSOLE_RADIUS_PILL,
-          fontWeight: 650,
-          borderColor: alpha(theme.palette.text.primary, 0.2),
-          backgroundColor: alpha(theme.palette.background.default, 0.78),
-          backdropFilter: "blur(8px)",
-          boxShadow: "inset 0 1px 0 0 rgba(255, 255, 255, 0.05)",
+          fontWeight: 600,
+          borderColor: alpha(theme.palette.text.primary, 0.15),
+          backgroundColor: alpha(theme.palette.background.paper, 0.5),
+          backdropFilter: "blur(12px) saturate(180%)",
+          boxShadow: "inset 0 1px 0 0 rgba(255, 255, 255, 0.08)",
+          transition: "background-color .2s ease, border-color .2s ease, box-shadow .2s ease",
         }),
         outlined: () => ({
           backgroundColor: "transparent",
@@ -204,23 +223,24 @@ export const appTheme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: ({ theme }) => ({
-          backgroundColor: alpha(theme.palette.background.default, 0.56),
+          backgroundColor: alpha(theme.palette.background.default, 0.4),
+          borderRadius: 12,
           transition: theme.transitions.create(["box-shadow", "border-color", "background-color"], {
             duration: theme.transitions.duration.shorter,
           }),
           "& .MuiOutlinedInput-notchedOutline": {
-            borderColor: alpha(theme.palette.text.primary, 0.2),
+            borderColor: alpha(theme.palette.text.primary, 0.15),
           },
           "&:hover .MuiOutlinedInput-notchedOutline": {
-            borderColor: alpha(theme.palette.text.primary, 0.4),
+            borderColor: alpha(theme.palette.text.primary, 0.3),
           },
           "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
             borderColor: theme.palette.primary.main,
-            borderWidth: 1,
+            borderWidth: 1.5,
           },
           "&.Mui-focused": {
-            backgroundColor: alpha(theme.palette.background.paper, 0.88),
-            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.18)}`,
+            backgroundColor: alpha(theme.palette.background.paper, 0.95),
+            boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.2)}`,
           },
         }),
       },
@@ -228,13 +248,14 @@ export const appTheme = createTheme({
     MuiTooltip: {
       styleOverrides: {
         tooltip: ({ theme }) => ({
-          borderRadius: 8,
-          padding: theme.spacing(1, 1.25),
-          fontSize: 12,
-          lineHeight: 1.2,
-          backgroundColor: alpha(theme.palette.common.white, 0.9),
+          borderRadius: 10,
+          padding: theme.spacing(1, 1.5),
+          fontSize: 13,
+          lineHeight: 1.4,
+          backgroundColor: alpha(theme.palette.common.white, 0.95),
           color: theme.palette.common.black,
           fontWeight: 600,
+          boxShadow: "0 8px 16px rgba(0,0,0,0.15)",
         }),
       },
     },
