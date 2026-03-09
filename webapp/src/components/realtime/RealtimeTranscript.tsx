@@ -69,17 +69,18 @@ export default function RealtimeTranscript({
   const isEmpty = segments.length === 0 && !partialText && sessionState === "idle";
 
   return (
-    <Card sx={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
+    <Card sx={{ minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}>
       <CardContent
         sx={{
           flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           p: compactLayout ? 1.5 : 2,
           "&:last-child": { pb: compactLayout ? 1.5 : 2 },
         }}
       >
-        <Stack spacing={compactLayout ? 1.25 : 2} sx={{ flex: 1 }}>
+        <Stack spacing={compactLayout ? 1.25 : 2} sx={{ flex: 1, minHeight: 0 }}>
           <Stack
             direction={compactLayout ? "row" : { xs: "column", sm: "row" }}
             justifyContent="space-between"
@@ -151,7 +152,7 @@ export default function RealtimeTranscript({
             />
           ) : (
             <Box
-              sx={{ flex: 1 }}
+              sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}
               role="log"
               aria-live={liveAnnouncementsEnabled ? "polite" : "off"}
               aria-relevant="additions text"

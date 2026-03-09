@@ -1968,7 +1968,7 @@ export default function RealtimeSessionPage() {
           <Box
             sx={{
               flex: "1 1 auto",
-              overflowY: "auto",
+              overflowY: compactRealtimeLayout ? "hidden" : "auto",
               p: 2,
               display: "flex",
               flexDirection: "column",
