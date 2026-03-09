@@ -54,3 +54,6 @@ infra/deploy/run-malsori-docker.sh
 
 # local codex skills
 .codex/skills/malsori-local-deployer/
+
+# local agent execution docs / workloops
+.codex/workloops/
