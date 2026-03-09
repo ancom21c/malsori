@@ -1970,8 +1970,8 @@ export default function RealtimeSessionPage() {
               flexDirection: "column",
               gap: 2,
               pb: {
-                xs: "calc(220px + var(--malsori-bottom-inset))",
-                sm: "calc(180px + var(--malsori-bottom-inset))",
+                xs: "calc(220px + var(--malsori-bottom-clearance))",
+                sm: "calc(180px + var(--malsori-bottom-clearance))",
               },
               minHeight: 0,
               "@media (orientation: landscape)": showVideoSection

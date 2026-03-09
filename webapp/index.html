@@ -21,14 +21,16 @@
 
         const applyViewportMetrics = () => {
           const viewport = window.visualViewport;
+          const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
           const viewportHeight = viewport?.height ?? window.innerHeight;
           const offsetTop = viewport?.offsetTop ?? 0;
-          const extraBottomInset = isStandalone()
-            ? Math.max(0, window.innerHeight - (viewportHeight + offsetTop))
+          const bottomClearance = isStandalone()
+            ? Math.max(0, layoutHeight - (offsetTop + viewportHeight))
             : 0;
 
           document.documentElement.style.setProperty("--malsori-app-height", `${viewportHeight}px`);
-          document.documentElement.style.setProperty("--malsori-system-bottom-inset", `${extraBottomInset}px`);
+          document.documentElement.style.setProperty("--malsori-viewport-top", `${offsetTop}px`);
+          document.documentElement.style.setProperty("--malsori-viewport-bottom", `${bottomClearance}px`);
         };
 
         applyViewportMetrics();

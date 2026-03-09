@@ -3,8 +3,9 @@
 :root {
   --malsori-app-height: 100dvh;
   --malsori-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --malsori-system-bottom-inset: 0px;
-  --malsori-bottom-inset: calc(var(--malsori-safe-bottom) + var(--malsori-system-bottom-inset));
+  --malsori-viewport-top: 0px;
+  --malsori-viewport-bottom: 0px;
+  --malsori-bottom-clearance: max(var(--malsori-safe-bottom), var(--malsori-viewport-bottom));
 }
 
 html {

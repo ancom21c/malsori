@@ -104,12 +104,12 @@ export default function RealtimeToolbar({
     <Box
       sx={{
         position: "fixed",
-        bottom: 0,
+        bottom: "var(--malsori-bottom-clearance)",
         left: 0,
         right: 0,
         px: 2,
         pt: 2,
-        pb: "calc(24px + var(--malsori-bottom-inset))",
+        pb: 3,
         background: `linear-gradient(to top, ${alpha(theme.palette.background.default, 0.94)} 18%, ${alpha(theme.palette.background.default, 0.72)} 54%, transparent 100%)`,
         zIndex: 1000,
         display: "flex",
