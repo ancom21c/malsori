@@ -1,0 +1,18 @@
+{{- if and .Values.pythonApi.storage.enabled (not .Values.pythonApi.storage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "malsori.fullname" . }}-python-storage
+  labels:
+    {{- include "malsori.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.pythonApi.storage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.pythonApi.storage.size | quote }}
+  {{- if .Values.pythonApi.storage.storageClassName }}
+  storageClassName: {{ .Values.pythonApi.storage.storageClassName | quote }}
+  {{- end }}
+{{- end }}
+

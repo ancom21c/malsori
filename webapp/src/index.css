@@ -1,0 +1,139 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Sans:wght@400;600&display=swap");
+
+html {
+  color-scheme: dark;
+  background-color: #101415;
+}
+
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif;
+  min-height: 100vh;
+  background-color: #101415;
+  color: rgba(255, 255, 255, 0.9);
+  background-attachment: fixed;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: rgba(42, 201, 181, 0.18);
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+select {
+  color-scheme: dark;
+  background-color: #121616;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.95);
+}
+
+/* Animated Mesh Gradient Background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(42, 201, 181, 0.12) 0%, transparent 42%),
+    radial-gradient(circle at 88% 16%, rgba(245, 163, 127, 0.08) 0%, transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 28%);
+  animation: malsori-shell-drift 42s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes malsori-shell-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(0, -2%, 0) scale(1.03);
+  }
+}
+
+
+.malsori-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -64px;
+  z-index: 1600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #103f39;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  transition: top 160ms ease;
+}
+
+.malsori-skip-link:focus-visible {
+  top: 12px;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@keyframes malsori-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.malsori-page {
+  animation: malsori-fade-up 240ms ease-out both;
+}
+
+@media (max-width: 900px),
+(hover: none) and (pointer: coarse) {
+  body {
+    background-color: #101415;
+  }
+
+  body::before {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(42, 201, 181, 0.1) 0%, transparent 48%),
+      radial-gradient(circle at 90% 8%, rgba(245, 163, 127, 0.07) 0%, transparent 40%);
+    animation: malsori-shell-drift-mobile 50s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes malsori-shell-drift-mobile {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(0, -1.5%, 0) scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  body {
+    background-color: #101415;
+  }
+
+  body::before {
+    background:
+      radial-gradient(circle at 18% 0%, rgba(42, 201, 181, 0.08) 0%, transparent 50%);
+    animation: none;
+    transform: none;
+  }
+
+  .malsori-page {
+    animation: none;
+  }
+}

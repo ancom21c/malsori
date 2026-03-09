@@ -1,0 +1,96 @@
+replicaCount: 1
+
+image:
+  pythonApi:
+    repository: registry.example.com/malsori/api-server
+    tag: dev
+    pullPolicy: Always
+  webapp:
+    repository: registry.example.com/malsori/webapp
+    tag: dev
+    pullPolicy: Always
+
+service:
+  type: ClusterIP
+  pythonPort: 8000
+  webPort: 80
+
+pythonApi:
+  deployment: cloud
+  verifySsl: true
+  debug: false
+  # Optional: point to an existing Secret in the `malsori` namespace.
+  # Recommended keys:
+  # - PRONAIA_API_BASE
+  # - PRONAIA_CLIENT_ID
+  # - PRONAIA_CLIENT_SECRET
+  #
+  # Optional (Drive auth broker):
+  # - GOOGLE_OAUTH_CLIENT_ID
+  # - GOOGLE_OAUTH_CLIENT_SECRET
+  # - GOOGLE_OAUTH_REDIRECT_URI
+  # - GOOGLE_OAUTH_SCOPES
+  #
+  # If unset, you can configure the RTZR endpoint + credentials from the webapp Settings UI,
+  # which persists to STT_STORAGE_BASE_DIR on the API server.
+  existingSecret: "malsori-python-api-secret"
+  env:
+    STT_STORAGE_BASE_DIR: /data
+    BACKEND_ADMIN_ENABLED: "false"
+  # For Drive auth broker (refresh token) and persistent server-side state, use a PVC by default.
+  storage:
+    enabled: true
+    size: 1Gi
+  resources: {}
+  secretEnv: {}
+
+webapp:
+  apiBaseUrl: https://malsori.example.com
+  adminApiBaseUrl: ""
+  # Runtime error telemetry endpoint is internal-only in production.
+  runtimeErrorReportingEnabled: false
+  env: {}
+  resources: {}
+
+ingress:
+  public:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: example-cluster-issuer
+    hosts:
+      - host: malsori.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+            servicePort: web
+          - path: /v1/health
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/transcribe
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/streaming
+            pathType: Prefix
+            servicePort: python
+          - path: /v1/cloud/google
+            pathType: Prefix
+            servicePort: python
+    tls:
+      - hosts:
+          - malsori.example.com
+        secretName: malsori-example-com-tls
+  internal:
+    # Enable and configure this surface for internal networks only.
+    enabled: false
+    ingressClassName: traefik
+    annotations: {}
+    hosts: []
+    paths:
+      - path: /v1/backend
+        pathType: Prefix
+        servicePort: python
+      - path: /v1/observability/runtime-error
+        pathType: Prefix
+        servicePort: python
+    tls: []

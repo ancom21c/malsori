@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "malsori.webappConfigName" . }}
+  labels:
+    {{- include "malsori.labels" . | nindent 4 }}
+data:
+  malsori-config.js: |
+    window.__MALSORI_CONFIG__ = Object.assign(
+      {},
+      window.__MALSORI_CONFIG__,
+      {
+        apiBaseUrl: "{{ .Values.webapp.apiBaseUrl }}",
+        adminApiBaseUrl: "{{ .Values.webapp.adminApiBaseUrl }}",
+        {{- if .Values.webapp.driveAuthMode }}
+        driveAuthMode: "{{ .Values.webapp.driveAuthMode }}",
+        {{- end }}
+        {{- if .Values.webapp.googleClientId }}
+        googleClientId: "{{ .Values.webapp.googleClientId }}",
+        {{- end }}
+        runtimeErrorReportingEnabled: {{- if .Values.webapp.runtimeErrorReportingEnabled }} true {{- else }} false {{- end }},
+      }
+    );

@@ -1,0 +1,21 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+  {{- range .Values.ingress.hosts }}
+    {{- $host := "" }}
+    {{- if kindIs "map" . }}
+      {{- $host = .host | default "" }}
+    {{- else }}
+      {{- $host = . | default "" }}
+    {{- end }}
+    {{- if $host }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host }}
+    {{- end }}
+  {{- end }}
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  export SERVICE_IP=$(kubectl get svc {{ include "malsori.fullname" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  echo "Python API: http://$SERVICE_IP:{{ .Values.service.pythonPort }}"
+  echo "Webapp: http://$SERVICE_IP:{{ .Values.service.webPort }}"
+{{- else }}
+  echo "Python API: http://127.0.0.1:{{ .Values.service.pythonPort }}"
+  echo "Webapp: http://127.0.0.1:{{ .Values.service.webPort }}"
+{{- end }}

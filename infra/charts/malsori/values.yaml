@@ -1,0 +1,72 @@
+replicaCount: 1
+
+image:
+  pythonApi:
+    repository: malsori/api-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  webapp:
+    repository: malsori/webapp
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  pythonPort: 8000
+  webPort: 80
+
+pythonApi:
+  deployment: cloud
+  verifySsl: true
+  debug: false
+  existingSecret: ""
+  env:
+    STT_STORAGE_BASE_DIR: /data
+  storage:
+    enabled: false
+    existingClaim: ""
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+  secretEnv: {}
+  resources: {}
+
+webapp:
+  # Public API base for SPA runtime config. "/" keeps same-origin /v1/* routing.
+  apiBaseUrl: "/"
+  # Optional internal-only base for admin APIs and runtime telemetry.
+  adminApiBaseUrl: ""
+  driveAuthMode: ""
+  googleClientId: ""
+  runtimeErrorReportingEnabled: false
+  env: {}
+  resources: {}
+
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+  hosts: []
+  paths:
+    - path: /
+      pathType: Prefix
+      servicePort: web
+  tls: []
+  # Preferred mode: split public/internal ingress surfaces.
+  # If either ingress.public.enabled or ingress.internal.enabled is true,
+  # the legacy ingress.* fields above are ignored.
+  public:
+    enabled: false
+    ingressClassName: ""
+    annotations: {}
+    hosts: []
+    paths: []
+    tls: []
+  internal:
+    enabled: false
+    ingressClassName: ""
+    annotations: {}
+    hosts: []
+    paths: []
+    tls: []

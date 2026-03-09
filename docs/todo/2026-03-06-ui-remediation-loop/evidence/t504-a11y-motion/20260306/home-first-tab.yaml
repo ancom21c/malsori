@@ -1,0 +1,73 @@
+- generic [ref=e3]:
+  - link "Skip to main content" [active] [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - button "Open menu" [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+      - link "MalSori" [ref=e16] [cursor=pointer]:
+        - /url: /
+      - button "Select language" [ref=e17] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e21]:
+          - img "United States flag" [ref=e22]: 🇺🇸
+          - text: English
+  - main [ref=e23]:
+    - generic [ref=e35]:
+      - generic [ref=e39]:
+        - heading "Transcription List" [level=1] [ref=e40]
+        - paragraph [ref=e41]: Check file transcription and real-time transcription results in chronological order.
+      - generic [ref=e44]:
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic: Title Search
+              - generic [ref=e49]:
+                - textbox "Title Search" [ref=e50]:
+                  - /placeholder: "Example: March meeting"
+                - group:
+                  - generic: Title Search
+            - generic [ref=e51]:
+              - generic: Search for utterance content
+              - generic [ref=e52]:
+                - textbox "Search for utterance content" [ref=e53]:
+                  - /placeholder: "Example: \"Meeting Minutes\" -Error OR Update"
+                - group:
+                  - generic: Search for utterance content
+              - paragraph [ref=e54]: You can use quotation marks (""), -exclusion, and the OR operator.
+          - generic [ref=e55]:
+            - generic [ref=e56]:
+              - generic [ref=e57] [cursor=pointer]:
+                - generic [ref=e58]:
+                  - checkbox "File Transcription" [checked] [ref=e59]
+                  - img [ref=e60]
+                - generic [ref=e62]: File Transcription
+              - generic [ref=e63] [cursor=pointer]:
+                - generic [ref=e64]:
+                  - checkbox "Real-time Transcription" [checked] [ref=e65]
+                  - img [ref=e66]
+                - generic [ref=e68]: Real-time Transcription
+            - generic [ref=e69]:
+              - button "View advanced settings" [ref=e70] [cursor=pointer]:
+                - img [ref=e72]
+                - text: View advanced settings
+                - img [ref=e75]
+              - button "Filter reset" [disabled]
+        - separator [ref=e77]
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - paragraph [ref=e81]: There are no transcription records yet.
+            - paragraph [ref=e82]: Use the buttons below to request file transcription or start real-time transcription.
+          - link "Manage transcription settings" [ref=e83] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e85]
+            - text: Manage transcription settings
+          - group "Quick actions" [ref=e87]:
+            - generic [ref=e88]:
+              - button "File Transcription Request" [ref=e89] [cursor=pointer]:
+                - img [ref=e91]
+                - text: File Transcription Request
+              - link "Real-time Transcription" [ref=e93] [cursor=pointer]:
+                - /url: /realtime
+                - img [ref=e95]
+                - text: Real-time Transcription
