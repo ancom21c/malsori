@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from playwright.sync_api import Browser, BrowserContext, Error, Page, sync_playwright
 
@@ -16,6 +16,7 @@ from playwright.sync_api import Browser, BrowserContext, Error, Page, sync_playw
 class PageLoadResult:
     path: str
     status: int
+    final_path: str
     root_text_length: int
     page_errors: list[str]
     console_errors: list[str]
@@ -77,6 +78,7 @@ def _open_page_in_context(
     result = PageLoadResult(
         path=path,
         status=response.status if response is not None else 0,
+        final_path=urlsplit(page.url).path,
         root_text_length=len(root_text),
         page_errors=page_errors,
         console_errors=console_errors,
@@ -105,6 +107,7 @@ def _assert_detail_empty_state(page: Page, result: PageLoadResult) -> Dict[str, 
     return {
         "mode": "empty",
         "status": result.status,
+        "final_path": result.final_path,
         "root_text_length": result.root_text_length,
         "page_error_count": len(result.page_errors),
         "console_error_count": len(result.console_errors),
@@ -122,10 +125,72 @@ def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, 
     return {
         "mode": "ready",
         "status": result.status,
+        "final_path": result.final_path,
         "root_text_length": result.root_text_length,
         "page_error_count": len(result.page_errors),
         "console_error_count": len(result.console_errors),
         "card_count": card_count,
+    }
+
+
+def _assert_translate_route(page: Page, result: PageLoadResult, mode: str) -> Dict[str, Any]:
+    _assert_page_health(result, min_root_text_length=40)
+
+    if mode == "redirect":
+        if result.final_path != "/capture/realtime":
+            raise RuntimeError(
+                f"{result.path}: expected translate route redirect to /capture/realtime, got {result.final_path}"
+            )
+        return {
+            "mode": "redirect",
+            "status": result.status,
+            "final_path": result.final_path,
+            "root_text_length": result.root_text_length,
+            "page_error_count": len(result.page_errors),
+            "console_error_count": len(result.console_errors),
+        }
+
+    if mode == "enabled":
+        heading_count = page.get_by_role("heading", name="Real-time Translate").count()
+        if heading_count < 1:
+            raise RuntimeError(f"{result.path}: translate heading was not found")
+        return {
+            "mode": "enabled",
+            "status": result.status,
+            "final_path": result.final_path,
+            "root_text_length": result.root_text_length,
+            "page_error_count": len(result.page_errors),
+            "console_error_count": len(result.console_errors),
+        }
+
+    return {
+        "mode": "skipped",
+        "status": result.status,
+        "final_path": result.final_path,
+        "root_text_length": result.root_text_length,
+        "page_error_count": len(result.page_errors),
+        "console_error_count": len(result.console_errors),
+    }
+
+
+def _assert_route_redirect(
+    result: PageLoadResult,
+    *,
+    expected_path: str,
+    label: str,
+) -> Dict[str, Any]:
+    _assert_page_health(result, min_root_text_length=40)
+    if result.final_path != expected_path:
+        raise RuntimeError(
+            f"{result.path}: expected {label} redirect to {expected_path}, got {result.final_path}"
+        )
+    return {
+        "mode": "redirect",
+        "status": result.status,
+        "final_path": result.final_path,
+        "root_text_length": result.root_text_length,
+        "page_error_count": len(result.page_errors),
+        "console_error_count": len(result.console_errors),
     }
 
 
@@ -324,7 +389,12 @@ def _check_mobile_overlap(page: Page) -> Dict[str, Any]:
     return result
 
 
-def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Dict[str, Any]:
+def run(
+    base_url: str,
+    screenshot_dir: Path,
+    detail_id: str | None = None,
+    translate_route_mode: str = "redirect",
+) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         "base_url": base_url,
         "desktop_routes": {},
@@ -332,8 +402,10 @@ def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Di
         "checks": {},
     }
     detail_empty_path = "/transcriptions/smoke-detail-empty"
+    detail_empty_session_path = "/sessions/smoke-detail-empty"
     detail_ready_id = detail_id or "smoke-detail-ready"
     detail_ready_path = f"/transcriptions/{quote(detail_ready_id, safe='')}"
+    detail_ready_session_path = f"/sessions/{quote(detail_ready_id, safe='')}"
     summary["checks"]["detail_smoke_mode"] = (
         "empty+ready(external-id)" if detail_id else "empty+ready(seed-indexeddb)"
     )
@@ -353,7 +425,20 @@ def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Di
                 finally:
                     seed_page.close()
 
-                desktop_paths = ["/", "/settings", "/realtime", detail_empty_path, detail_ready_path]
+                desktop_paths = [
+                    "/",
+                    "/sessions",
+                    "/settings",
+                    "/realtime",
+                    "/capture",
+                    "/capture/realtime",
+                    "/capture/file",
+                    "/translate",
+                    detail_empty_path,
+                    detail_empty_session_path,
+                    detail_ready_path,
+                    detail_ready_session_path,
+                ]
                 for path in desktop_paths:
                     page, result = _open_page_in_context(desktop_context, base_url, path)
                     try:
@@ -361,14 +446,33 @@ def run(base_url: str, screenshot_dir: Path, detail_id: str | None = None) -> Di
                             summary["desktop_routes"][path] = _assert_detail_empty_state(
                                 page, result
                             )
+                        elif path == detail_empty_session_path:
+                            summary["desktop_routes"][path] = _assert_detail_empty_state(
+                                page, result
+                            )
                         elif path == detail_ready_path:
                             summary["desktop_routes"][path] = _assert_detail_ready_state(
                                 page, result
+                            )
+                        elif path == detail_ready_session_path:
+                            summary["desktop_routes"][path] = _assert_detail_ready_state(
+                                page, result
+                            )
+                        elif path == "/capture":
+                            summary["desktop_routes"][path] = _assert_route_redirect(
+                                result,
+                                expected_path="/capture/realtime",
+                                label="capture hub",
+                            )
+                        elif path == "/translate":
+                            summary["desktop_routes"][path] = _assert_translate_route(
+                                page, result, translate_route_mode
                             )
                         else:
                             _assert_page_health(result, min_root_text_length=40)
                             summary["desktop_routes"][path] = {
                                 "status": result.status,
+                                "final_path": result.final_path,
                                 "root_text_length": result.root_text_length,
                                 "page_error_count": len(result.page_errors),
                                 "console_error_count": len(result.console_errors),
@@ -442,11 +546,22 @@ def main() -> int:
         default="",
         help="Optional transcription id for detail ready-state smoke.",
     )
+    parser.add_argument(
+        "--translate-route-mode",
+        choices=["redirect", "enabled", "skip"],
+        default="redirect",
+        help="How the smoke should validate /translate.",
+    )
     args = parser.parse_args()
 
     try:
         detail_id = args.detail_id.strip() or None
-        summary = run(args.base_url.rstrip("/"), Path(args.screenshot_dir), detail_id)
+        summary = run(
+            args.base_url.rstrip("/"),
+            Path(args.screenshot_dir),
+            detail_id,
+            args.translate_route_mode,
+        )
     except Error as exc:
         print(f"[FAIL] Playwright error: {exc}", file=sys.stderr)
         return 1

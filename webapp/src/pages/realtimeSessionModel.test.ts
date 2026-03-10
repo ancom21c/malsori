@@ -45,7 +45,7 @@ describe("resolveRealtimeStreamingConfigString", () => {
 });
 
 describe("buildTranscriptionDetailPath", () => {
-  it("returns the canonical transcription detail route without extra spaces", () => {
-    expect(buildTranscriptionDetailPath("abc-123")).toBe("/transcriptions/abc-123");
+  it("returns the canonical session detail route without extra spaces", () => {
+    expect(buildTranscriptionDetailPath("abc-123")).toBe("/sessions/abc-123");
   });
 });

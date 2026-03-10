@@ -11,6 +11,7 @@ ALLOW_INSECURE_TLS="${ALLOW_INSECURE_TLS:-0}"
 RUN_UI_SMOKE="${RUN_UI_SMOKE:-auto}"
 UI_SMOKE_SCREENSHOT_DIR="${UI_SMOKE_SCREENSHOT_DIR:-/tmp/malsori-ui-smoke}"
 EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED="${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED:-1}"
+EXPECT_TRANSLATE_ROUTE_MODE="${EXPECT_TRANSLATE_ROUTE_MODE:-redirect}"
 DETAIL_SMOKE_ID="${DETAIL_SMOKE_ID:-}"
 
 for cmd in curl kubectl helm python3 rg; do
@@ -193,7 +194,7 @@ helm -n "${NAMESPACE}" status "${RELEASE_NAME}" >/dev/null
 kubectl -n "${NAMESPACE}" get pods,svc,ingress
 
 echo "[3/8] Verify SPA routes"
-for route in / /settings /realtime; do
+for route in / /sessions /settings /realtime /capture /capture/realtime /capture/file /translate; do
   body_file="$(http_get_expect_200 "${route}" "SPA route ${route}")"
   if ! rg -q 'id="root"' "${body_file}"; then
     echo "[FAIL] SPA route ${route}: root container not found in HTML" >&2
@@ -365,6 +366,7 @@ if [[ "${RUN_UI_SMOKE}" != "0" ]]; then
   ui_smoke_args=(
     --base-url "${BASE_URL}"
     --screenshot-dir "${UI_SMOKE_SCREENSHOT_DIR}"
+    --translate-route-mode "${EXPECT_TRANSLATE_ROUTE_MODE}"
   )
   if [[ -n "${DETAIL_SMOKE_ID}" ]]; then
     ui_smoke_args+=(--detail-id "${DETAIL_SMOKE_ID}")

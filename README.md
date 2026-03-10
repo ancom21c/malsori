@@ -14,6 +14,7 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 Current canonical/UI references:
 
 - `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
+- `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - No active remediation loop is currently registered.
 - `docs/plan-review-remediation-2026-03-08.md` - latest completed execution plan
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` - latest completed execution board
@@ -109,7 +110,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `npm test` – Vitest unit tests (repositories, hooks, audio utilities).
 - `npm --prefix webapp run bundle:check` – web bundle gate (chunk/entry/total size thresholds + chunk import cycle detection).
 - `node scripts/check-todo-board-consistency.mjs` – todo board 상태와 task 문서 체크리스트 정합성 게이트.
-- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes and `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion. UI smoke now verifies detail empty/ready states by default (seeded fixture); set `DETAIL_SMOKE_ID=<id>` to override with a real record id.
+- `./scripts/post-deploy-smoke.sh` – deployment smoke checks (rollout + SPA routes + cache/service-worker contract + API contract + optional UI smoke). Use `INTERNAL_BASE_URL` to validate internal admin routes, `EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED=1` (default) to enforce public block policy for runtime-error ingestion, and `EXPECT_TRANSLATE_ROUTE_MODE=redirect|enabled|skip` to validate `/translate` rollout mode. UI smoke verifies detail empty/ready states for both legacy and additive routes by default (seeded fixture); set `DETAIL_SMOKE_ID=<id>` to override with a real record id.
 
 ## QA & CI
 
@@ -128,6 +129,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `webapp/README.md` – application overview and local usage instructions.
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
 - `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
+- `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - No active remediation loop is currently registered.
 - `docs/plan-review-remediation-2026-03-08.md` – latest completed execution plan.
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` – latest completed execution board.
