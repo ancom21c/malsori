@@ -166,6 +166,25 @@ flag는 UI surface visibility를, capability는 실제 backend/provider enableme
 - health/runtime-error/backend policy smoke
 - bundle/lint/build/test gate
 
+## Backend Binding Rollout Gate
+
+binding runtime을 도입하는 단계에서는 feature visibility와 provider readiness를 분리해서 확인한다.
+
+1. shell/route visibility는 feature flag로 제어한다.
+2. backend readiness는 binding/profile resolution으로 제어한다.
+3. rollout 전에는 `npm --prefix webapp run bindings:check`로 JSON contract를 검증한다.
+4. rollout 중 required feature가 있다면 `--require-feature`로 ready/fallback 상태를 강제한다.
+
+예시:
+
+```bash
+VITE_BACKEND_PROFILES_JSON='[...]' \
+VITE_FEATURE_BINDINGS_JSON='[...]' \
+npm --prefix webapp run bindings:check -- --require-feature artifact.summary
+```
+
+이 검사는 provider 호출이 아니라 binding/profile contract만 검증한다. 즉, core STT smoke를 대체하지 않고 additive rollout 전 가드레일로 사용한다.
+
 ## Rollback Levers
 
 1. `VITE_FEATURE_SESSION_ARTIFACTS=false`
@@ -184,6 +203,7 @@ rollback은 신규 route/model을 제거하는 것이 아니라 additive surface
 - `npm --prefix webapp run i18n:check`
 - `npm --prefix webapp run build`
 - `npm --prefix webapp run bundle:check`
+- `npm --prefix webapp run bindings:check`
 - `npm --prefix webapp run test`
 - `python3 -m py_compile scripts/post-deploy-ui-smoke.py`
 - `bash -n scripts/post-deploy-smoke.sh`

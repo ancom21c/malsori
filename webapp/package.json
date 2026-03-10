@@ -8,6 +8,7 @@
     "build": "vite build --config vite.share-embed.config.ts && tsc -b && vite build",
     "build:share-embed": "vite build --config vite.share-embed.config.ts",
     "bundle:check": "node ./scripts/check-bundle-budget.mjs",
+    "bindings:check": "node ./scripts/check-feature-bindings.mjs",
     "i18n:check": "node ./scripts/check-i18n-keys.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
