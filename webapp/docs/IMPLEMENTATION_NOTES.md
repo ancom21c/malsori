@@ -17,6 +17,7 @@
 
 ## Current References
 - Canonical UI/spec baseline: `docs/plan-ui-remediation-2026-03-06.md`
+- STT value preservation baseline: `docs/plan-stt-value-preservation-baseline-2026-03-10.md`
 - Additive platform rollout baseline: `docs/plan-platform-expansion-rollout-2026-03-10.md`
 - Feature/backend binding architecture baseline: `docs/plan-feature-backend-binding-2026-03-10.md`
 - No active remediation loop is currently registered.

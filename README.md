@@ -14,6 +14,7 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 Current canonical/UI references:
 
 - `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
+- `docs/plan-stt-value-preservation-baseline-2026-03-10.md` - no-regression baseline for file/realtime/detail/settings while workspace features expand
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - No active remediation loop is currently registered.
@@ -130,6 +131,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `webapp/README.md` – application overview and local usage instructions.
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
 - `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
+- `docs/plan-stt-value-preservation-baseline-2026-03-10.md` – no-regression baseline for core file/realtime/detail/settings flows.
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
 - No active remediation loop is currently registered.
