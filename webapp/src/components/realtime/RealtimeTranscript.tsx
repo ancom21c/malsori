@@ -4,10 +4,7 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
-  FormControlLabel,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -66,6 +63,7 @@ export default function RealtimeTranscript({
     const end = (segment.endMs / 1000).toFixed(1);
     return `${start}s ~ ${end}s`;
   };
+  const followLiveLabel = `${t("followLive")} · ${t(followLive ? "enabled" : "disabled")}`;
 
   const isEmpty = segments.length === 0 && !partialText && sessionState === "idle";
 
@@ -90,45 +88,48 @@ export default function RealtimeTranscript({
             useFlexGap
             flexWrap="wrap"
           >
-            <Stack direction="row" spacing={1} useFlexGap>
-              <Button
-                size="small"
-                variant={noteMode ? "text" : "contained"}
-                color={noteMode ? "inherit" : "primary"}
-                onClick={() => onNoteModeChange(false)}
-                sx={{ borderRadius: 999 }}
-              >
-                {t("transcript")}
-              </Button>
-              <Button
-                size="small"
-                variant={noteMode ? "contained" : "text"}
-                color={noteMode ? "primary" : "inherit"}
-                onClick={() => onNoteModeChange(true)}
-                sx={{ borderRadius: 999 }}
-              >
-                {t("noteMode")}
-              </Button>
+            <Stack spacing={0.5}>
+              <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1 }}>
+                {noteMode ? t("noteMode") : t("transcript")}
+              </Typography>
+              <Stack direction="row" spacing={1} useFlexGap>
+                <Button
+                  size="small"
+                  variant={noteMode ? "text" : "contained"}
+                  color={noteMode ? "inherit" : "primary"}
+                  onClick={() => onNoteModeChange(false)}
+                  sx={{ borderRadius: 999, minWidth: compactLayout ? 84 : 96 }}
+                >
+                  {t("transcript")}
+                </Button>
+                <Button
+                  size="small"
+                  variant={noteMode ? "contained" : "text"}
+                  color={noteMode ? "primary" : "inherit"}
+                  onClick={() => onNoteModeChange(true)}
+                  sx={{ borderRadius: 999, minWidth: compactLayout ? 84 : 96 }}
+                >
+                  {t("noteMode")}
+                </Button>
+              </Stack>
             </Stack>
-            <FormControlLabel
-              sx={{ m: 0 }}
-              control={
-                <Switch
-                  size={compactLayout ? "small" : "medium"}
-                  checked={followLive}
-                  onChange={(event) => onFollowLiveChange(event.target.checked)}
-                />
-              }
-              label={t("followLive")}
-            />
+            <Button
+              size="small"
+              variant={followLive ? "contained" : "outlined"}
+              color={followLive ? "secondary" : "inherit"}
+              onClick={() => onFollowLiveChange(!followLive)}
+              sx={{ borderRadius: 999 }}
+            >
+              {followLiveLabel}
+            </Button>
           </Stack>
 
-          <Divider />
+          <Box sx={{ borderBottom: "1px solid", borderColor: "divider" }} />
 
           {noteMode ? (
             <TextField
               multiline
-              minRows={compactLayout ? 8 : 10}
+              minRows={compactLayout ? 6 : 10}
               fullWidth
               variant="outlined"
               label={t("noteModeTextAreaLabel")}
@@ -164,13 +165,13 @@ export default function RealtimeTranscript({
                       <Card
                         variant="outlined"
                         sx={{
-                          borderRadius: 3,
+                          borderRadius: compactLayout ? 2.5 : 3,
                           bgcolor: "background.paper",
                           "&:hover": { borderColor: "primary.main" },
                         }}
                       >
-                        <CardContent sx={{ p: compactLayout ? 1.5 : 2, "&:last-child": { pb: compactLayout ? 1.5 : 2 } }}>
-                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                        <CardContent sx={{ p: compactLayout ? 1.25 : 2, "&:last-child": { pb: compactLayout ? 1.25 : 2 } }}>
+                          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.75 }}>
                             <Chip
                               label={formatTimeRange(segment)}
                               color="success"
@@ -194,11 +195,11 @@ export default function RealtimeTranscript({
                         sx={{
                           borderColor: "secondary.main",
                           bgcolor: (theme) => alpha(theme.palette.secondary.main, 0.05),
-                          borderRadius: 3,
+                          borderRadius: compactLayout ? 2.5 : 3,
                         }}
                       >
-                        <CardContent sx={{ p: compactLayout ? 1.5 : 2, "&:last-child": { pb: compactLayout ? 1.5 : 2 } }}>
-                          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                        <CardContent sx={{ p: compactLayout ? 1.25 : 2, "&:last-child": { pb: compactLayout ? 1.25 : 2 } }}>
+                          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.75 }}>
                             <Chip
                               label={t("realTimeRecognition")}
                               color="secondary"

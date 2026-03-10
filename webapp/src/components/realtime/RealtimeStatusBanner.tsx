@@ -116,7 +116,7 @@ export default function RealtimeStatusBanner({
           : null;
 
   return (
-    <Stack spacing={compactLayout ? 1.25 : 2}>
+    <Stack spacing={compactLayout ? 1 : 1.5}>
       {sessionState !== "idle" &&
         (sessionState === "connecting" ||
           sessionState === "stopping" ||
@@ -129,14 +129,14 @@ export default function RealtimeStatusBanner({
           overflow: "hidden",
           border: 1,
           borderColor: bannerBorderColor,
-          borderRadius: 3,
+          borderRadius: compactLayout ? 2.5 : 3,
           bgcolor: (theme) =>
             alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.08 : 0.12),
-          px: compactLayout ? 1.5 : 2,
-          py: compactLayout ? 1.25 : 1.5,
+          px: compactLayout ? 1.25 : 1.75,
+          py: compactLayout ? 1 : 1.25,
         }}
       >
-        <Stack spacing={1}>
+        <Stack spacing={compactLayout ? 0.75 : 1}>
           <Stack
             direction="row"
             spacing={compactLayout ? 1 : 1.5}
@@ -169,22 +169,23 @@ export default function RealtimeStatusBanner({
 
             <Stack
               direction="row"
-              spacing={compactLayout ? 1 : 1.25}
+              spacing={compactLayout ? 0.75 : 1.25}
               alignItems="center"
               flexWrap="wrap"
               useFlexGap
             >
               <Typography
-                variant="caption"
+                variant={compactLayout ? "body2" : "caption"}
                 color={
                   latencyChipColor === "default"
                     ? "text.secondary"
                     : `${latencyChipColor}.main`
                 }
+                sx={{ fontWeight: compactLayout ? 600 : undefined }}
               >
                 {latencyLevelLabel} · {latencyValueLabel}
               </Typography>
-              <StatusChipSet items={statusChipItems} />
+              {statusChipItems.length > 0 ? <StatusChipSet items={statusChipItems} /> : null}
             </Stack>
           </Stack>
 

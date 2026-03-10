@@ -1969,12 +1969,12 @@ export default function RealtimeSessionPage() {
             sx={{
               flex: "1 1 auto",
               overflowY: compactRealtimeLayout ? "hidden" : "auto",
-              p: 2,
+              p: compactRealtimeLayout ? 1.5 : 2,
               display: "flex",
               flexDirection: "column",
-              gap: 2,
+              gap: compactRealtimeLayout ? 1.25 : 2,
               pb: {
-                xs: compactRealtimeLayout ? 2 : "calc(220px + var(--malsori-bottom-clearance))",
+                xs: compactRealtimeLayout ? 1.5 : "calc(220px + var(--malsori-bottom-clearance))",
                 sm: "calc(180px + var(--malsori-bottom-clearance))",
               },
               minHeight: 0,
@@ -2030,8 +2030,8 @@ export default function RealtimeSessionPage() {
         {compactRealtimeLayout && (
           <Box
             sx={{
-              px: 2,
-              pt: 1,
+              px: 1.5,
+              pt: 0.75,
               pb: "calc(12px + var(--malsori-bottom-clearance))",
             }}
           >
