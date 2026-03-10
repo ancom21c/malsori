@@ -55,6 +55,13 @@ import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusChipSet } from "../components/studio";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import {
+  buildSessionWorkspaceView,
+  filterLocalSegmentsBySessionQuery,
+  getArtifactStatusKey,
+  getArtifactTitleKey,
+  getSessionModeLabelKey,
+} from "./sessionWorkspaceModel";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -436,6 +443,7 @@ export default function TranscriptionDetailPage() {
   const audioReady = Boolean(audioUrl || audioBlobRef.current) && !audioLoading;
   const shareAudioAvailable = Boolean(audioUrl || audioBlobRef.current);
   const [noteMode, setNoteMode] = useState(false);
+  const [transcriptSearchQuery, setTranscriptSearchQuery] = useState("");
   const [wordDetailsVisibility, setWordDetailsVisibility] = useState<Record<string, boolean>>({});
   const segmentsRef = useRef<LocalSegment[]>([]);
   const activeSegmentIdRef = useRef<string | null>(null);
@@ -559,6 +567,19 @@ export default function TranscriptionDetailPage() {
     return fallback && fallback.length > 0 ? fallback : "";
   }, [segments, transcription]);
 
+  const workspaceView = useMemo(
+    () =>
+      transcription
+        ? buildSessionWorkspaceView(transcription, segments ?? [])
+        : null,
+    [segments, transcription]
+  );
+
+  const filteredTranscriptSegments = useMemo(
+    () => filterLocalSegmentsBySessionQuery(segments ?? [], transcriptSearchQuery),
+    [segments, transcriptSearchQuery]
+  );
+
   const timelineDurationSeconds = useMemo(() => {
     if (Number.isFinite(mediaDurationSeconds) && mediaDurationSeconds > 0) {
       return mediaDurationSeconds;
@@ -599,6 +620,8 @@ export default function TranscriptionDetailPage() {
     };
   }, [segments]);
 
+  const transcriptMatchCount = filteredTranscriptSegments.length;
+
   const loopRange = useMemo(() => {
     if (loopStartSeconds === null || loopEndSeconds === null) {
       return null;
@@ -623,6 +646,7 @@ export default function TranscriptionDetailPage() {
 
   useEffect(() => {
     setNoteMode(false);
+    setTranscriptSearchQuery("");
   }, [transcriptionId]);
 
   useEffect(() => {
@@ -1655,9 +1679,12 @@ export default function TranscriptionDetailPage() {
     overviewTitle: t("detailConsoleOverview"),
     analysisTitle: t("analysisWorkspace"),
     analysisSubheader: t("analysisWorkspaceSubheader"),
+    sessionWorkspaceTitle: t("sessionWorkspace"),
+    sessionWorkspaceSubheader: t("sessionWorkspaceSubheader"),
     transcriptTitle: t("transcriptWorkspace"),
     transcriptSubheader: t("transcriptWorkspaceSubheader"),
     status: t("status"),
+    mode: t("mode"),
     segments: t("segments"),
     timed: t("timed"),
     speakers: t("speakers"),
@@ -1670,6 +1697,9 @@ export default function TranscriptionDetailPage() {
     mediaReadyAudio: t("mediaReadyAudio"),
     mediaLoading: t("mediaLoading"),
     mediaPending: t("mediaPending"),
+    searchTranscript: t("searchTranscript"),
+    searchTranscriptPlaceholder: t("searchTranscriptPlaceholder"),
+    noTranscriptMatches: t("noTranscriptMatches"),
   };
   const mediaStatusLabel = audioReady
     ? videoReady
@@ -1856,212 +1886,345 @@ export default function TranscriptionDetailPage() {
       <Stack spacing={2.25}>
         <Card variant="outlined">
           <CardContent sx={{ py: 2 }}>
-              <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1}
-                justifyContent="space-between"
-                alignItems={{ xs: "flex-start", md: "center" }}
-              >
-                <Typography variant="subtitle1">{detailCopy.overviewTitle}</Typography>
-                <StatusChipSet
-                  items={[
-                    {
-                      key: "detail-status",
-                      label: `${detailCopy.status}: ${detailStatusLabel}`,
-                    },
-                    ...(transcription.upstreamStatusRaw
-                      ? [
-                          {
-                            key: "detail-upstream-status",
-                            label: `${t("upstreamStatus")}: ${transcription.upstreamStatusRaw}`,
-                          },
-                        ]
-                      : []),
-                    {
-                      key: "detail-segments",
-                      label: `${detailCopy.segments}: ${segmentStats.segmentCount}`,
-                    },
-                    {
-                      key: "detail-timed",
-                      label: `${detailCopy.timed}: ${segmentStats.timedCount}`,
-                    },
-                    {
-                      key: "detail-speakers",
-                      label: `${detailCopy.speakers}: ${segmentStats.speakerCount}`,
-                    },
-                    {
-                      key: "detail-corrections",
-                      label: `${detailCopy.corrections}: ${segmentStats.correctedCount}`,
-                    },
-                    {
-                      key: "detail-media",
-                      label: mediaStatusLabel,
-                      color: mediaStatusColor,
-                    },
-                  ]}
-                />
-              </Stack>
-          </CardContent>
-        </Card>
-
-        <Card
-          variant="outlined"
-          sx={{
-            backgroundImage: (theme) =>
-              `linear-gradient(165deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
-                theme.palette.background.paper,
-                0.96
-              )} 58%)`,
-          }}
-        >
-          <CardHeader
-            title={detailCopy.analysisTitle}
-            subheader={detailCopy.analysisSubheader}
-          />
-          <CardContent>
-            <Stack spacing={2}>
-              <SegmentWaveformTimeline
-                audioSourceUrl={audioUrl}
-                segments={segments ?? []}
-                activeSegmentId={activeSegmentId}
-                currentTimeSeconds={mediaCurrentTimeSeconds}
-                durationSeconds={timelineDurationSeconds}
-                loopEnabled={loopEnabled}
-                loopStartSeconds={loopStartSeconds}
-                loopEndSeconds={loopEndSeconds}
-                onSeek={handleSeekToPlaybackTime}
-                onSelectSegment={handleSelectSegmentForTimeline}
-                onSetLoopStart={handleSetLoopStartAtCurrent}
-                onSetLoopEnd={handleSetLoopEndAtCurrent}
-                onSetLoopFromActiveSegment={handleSetLoopFromActiveSegment}
-                onClearLoop={handleClearLoopRange}
-                onToggleLoop={setLoopEnabled}
-                t={t}
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "center" }}
+            >
+              <Typography variant="subtitle1">{detailCopy.overviewTitle}</Typography>
+              <StatusChipSet
+                items={[
+                  {
+                    key: "detail-status",
+                    label: `${detailCopy.status}: ${detailStatusLabel}`,
+                  },
+                  {
+                    key: "detail-mode",
+                    label: `${detailCopy.mode}: ${t(
+                      getSessionModeLabelKey(
+                        workspaceView?.record.mode ??
+                          (transcription.kind === "realtime"
+                            ? "capture_realtime"
+                            : "capture_file")
+                      )
+                    )}`,
+                  },
+                  ...(transcription.upstreamStatusRaw
+                    ? [
+                        {
+                          key: "detail-upstream-status",
+                          label: `${t("upstreamStatus")}: ${transcription.upstreamStatusRaw}`,
+                        },
+                      ]
+                    : []),
+                  {
+                    key: "detail-segments",
+                    label: `${detailCopy.segments}: ${segmentStats.segmentCount}`,
+                  },
+                  {
+                    key: "detail-timed",
+                    label: `${detailCopy.timed}: ${segmentStats.timedCount}`,
+                  },
+                  {
+                    key: "detail-speakers",
+                    label: `${detailCopy.speakers}: ${segmentStats.speakerCount}`,
+                  },
+                  {
+                    key: "detail-corrections",
+                    label: `${detailCopy.corrections}: ${segmentStats.correctedCount}`,
+                  },
+                  {
+                    key: "detail-media",
+                    label: mediaStatusLabel,
+                    color: mediaStatusColor,
+                  },
+                ]}
               />
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  label={`${detailCopy.duration}: ${timelineDurationSeconds > 0 ? `${timelineDurationSeconds.toFixed(1)}s` : "--"}`}
-                />
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  color={loopEnabled && loopRange ? "primary" : "default"}
-                  label={
-                    loopEnabled && loopRange
-                      ? `${detailCopy.loop}: ${loopRange.startSeconds.toFixed(1)}s ~ ${loopRange.endSeconds.toFixed(1)}s`
-                      : `${detailCopy.loop}: ${detailCopy.off}`
-                  }
-                />
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  label={`${detailCopy.cursor}: ${mediaCurrentTimeSeconds.toFixed(1)}s`}
-                />
-              </Stack>
             </Stack>
           </CardContent>
         </Card>
 
-        <Card
-          ref={transcriptWorkspaceRef}
-          variant="outlined"
-          onKeyDown={handleTranscriptWorkspaceKeyDown}
+        <Box
           sx={{
-            backgroundImage: (theme) =>
-              `linear-gradient(170deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(
-                theme.palette.background.paper,
-                0.98
-              )} 62%)`,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 320px" },
+            gap: 2.25,
+            alignItems: "start",
           }}
         >
-          <CardHeader
-            title={detailCopy.transcriptTitle}
-            subheader={detailCopy.transcriptSubheader}
-          />
-          <CardContent>
-            <Stack spacing={1.5}>
-              <Stack spacing={0.5}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={noteMode}
-                      onChange={(event) => setNoteMode(event.target.checked)}
+          <Stack spacing={2.25}>
+            <Card
+              variant="outlined"
+              sx={{
+                backgroundImage: (theme) =>
+                  `linear-gradient(165deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+                    theme.palette.background.paper,
+                    0.96
+                  )} 58%)`,
+              }}
+            >
+              <CardHeader
+                title={detailCopy.analysisTitle}
+                subheader={detailCopy.analysisSubheader}
+              />
+              <CardContent>
+                <Stack spacing={2}>
+                  <SegmentWaveformTimeline
+                    audioSourceUrl={audioUrl}
+                    segments={segments ?? []}
+                    activeSegmentId={activeSegmentId}
+                    currentTimeSeconds={mediaCurrentTimeSeconds}
+                    durationSeconds={timelineDurationSeconds}
+                    loopEnabled={loopEnabled}
+                    loopStartSeconds={loopStartSeconds}
+                    loopEndSeconds={loopEndSeconds}
+                    onSeek={handleSeekToPlaybackTime}
+                    onSelectSegment={handleSelectSegmentForTimeline}
+                    onSetLoopStart={handleSetLoopStartAtCurrent}
+                    onSetLoopEnd={handleSetLoopEndAtCurrent}
+                    onSetLoopFromActiveSegment={handleSetLoopFromActiveSegment}
+                    onClearLoop={handleClearLoopRange}
+                    onToggleLoop={setLoopEnabled}
+                    t={t}
+                  />
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`${detailCopy.duration}: ${timelineDurationSeconds > 0 ? `${timelineDurationSeconds.toFixed(1)}s` : "--"}`}
                     />
-                  }
-                  label={t("noteMode")}
-                />
-                <Typography variant="caption" color="text.secondary">
-                  {t("noteModeHelper")}
-                </Typography>
-              </Stack>
-              <Divider />
-              {noteMode ? (
-                <TextField
-                  multiline
-                  minRows={8}
-                  fullWidth
-                  label={t("noteModeTextAreaLabel")}
-                  placeholder={t("noteModePlaceholder")}
-                  value={noteModeText}
-                  InputProps={{ readOnly: true }}
-                />
-              ) : segments === undefined ? (
-                <Box
-                  sx={{ py: 6, display: "flex", justifyContent: "center" }}
-                  role="status"
-                  aria-label={t("loading")}
-                >
-                  <CircularProgress />
-                </Box>
-              ) : segments.length === 0 ? (
-                <Alert severity="info">
-                  {t(
-                    "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
-                  )}
-                </Alert>
-              ) : (
-                <TranscriptionView
-                  segments={segments}
-                  activeSegmentId={activeSegmentId}
-                  activeWordHighlight={activeWordHighlight}
-                  wordDetailsVisibility={wordDetailsVisibility}
-                  editingSegmentId={editingSegmentId}
-                  editingValue={editingValue}
-                  editingWordInputs={editingWordInputs}
-                  editingWordTimings={editingWordTimings}
-                  savingEdit={savingEdit}
-                  audioReady={audioReady}
-                  onSpeakerClick={handleSpeakerClick}
-                  onSelectSegment={handleSelectSegmentForTimeline}
-                  onPlaySegment={handlePlaySegment}
-                  onStartEdit={handleStartEdit}
-                  onWordInputChange={handleWordInputChange}
-                  onEditValueChange={setEditingValue}
-                  onCancelEdit={handleCancelEdit}
-                  onSaveEdit={() => void handleSaveEdit()}
-                  onWordDetailsToggle={(segmentId) => {
-                    setWordDetailsVisibility((prev) => {
-                      const nextVisible = !(prev[segmentId] ?? false);
-                      if (!nextVisible && activeWordHighlightRef.current?.segmentId === segmentId) {
-                        setActiveWordHighlight(null);
-                        activeWordHighlightRef.current = null;
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color={loopEnabled && loopRange ? "primary" : "default"}
+                      label={
+                        loopEnabled && loopRange
+                          ? `${detailCopy.loop}: ${loopRange.startSeconds.toFixed(1)}s ~ ${loopRange.endSeconds.toFixed(1)}s`
+                          : `${detailCopy.loop}: ${detailCopy.off}`
                       }
-                      return {
-                        ...prev,
-                        [segmentId]: nextVisible,
-                      };
-                    });
-                  }}
-                  onKeyDown={handleEditKeyDown}
-                  segmentCardRefs={segmentCardRefs}
-                  t={t}
-                />
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`${detailCopy.cursor}: ${mediaCurrentTimeSeconds.toFixed(1)}s`}
+                    />
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Card
+              ref={transcriptWorkspaceRef}
+              variant="outlined"
+              onKeyDown={handleTranscriptWorkspaceKeyDown}
+              sx={{
+                backgroundImage: (theme) =>
+                  `linear-gradient(170deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(
+                    theme.palette.background.paper,
+                    0.98
+                  )} 62%)`,
+              }}
+            >
+              <CardHeader
+                title={detailCopy.transcriptTitle}
+                subheader={detailCopy.transcriptSubheader}
+              />
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1.5}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "stretch", md: "center" }}
+                  >
+                    <Stack spacing={0.5}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={noteMode}
+                            onChange={(event) => setNoteMode(event.target.checked)}
+                          />
+                        }
+                        label={t("noteMode")}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {t("noteModeHelper")}
+                      </Typography>
+                    </Stack>
+                    <TextField
+                      size="small"
+                      label={detailCopy.searchTranscript}
+                      placeholder={detailCopy.searchTranscriptPlaceholder}
+                      value={transcriptSearchQuery}
+                      onChange={(event) => setTranscriptSearchQuery(event.target.value)}
+                      sx={{ width: { xs: "100%", md: 280 } }}
+                    />
+                  </Stack>
+                  <Divider />
+                  {noteMode ? (
+                    <TextField
+                      multiline
+                      minRows={8}
+                      fullWidth
+                      label={t("noteModeTextAreaLabel")}
+                      placeholder={t("noteModePlaceholder")}
+                      value={noteModeText}
+                      InputProps={{ readOnly: true }}
+                    />
+                  ) : segments === undefined ? (
+                    <Box
+                      sx={{ py: 6, display: "flex", justifyContent: "center" }}
+                      role="status"
+                      aria-label={t("loading")}
+                    >
+                      <CircularProgress />
+                    </Box>
+                  ) : segments.length === 0 ? (
+                    <Alert severity="info">
+                      {t(
+                        "thereAreNoSavedTranscriptionSectionsForFileTranscriptionTheSectionIsDisplayedAfterSynchronizingTheApiResults"
+                      )}
+                    </Alert>
+                  ) : transcriptSearchQuery.trim().length > 0 && transcriptMatchCount === 0 ? (
+                    <Alert severity="info">{detailCopy.noTranscriptMatches}</Alert>
+                  ) : (
+                    <>
+                      {transcriptSearchQuery.trim().length > 0 ? (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          sx={{ alignSelf: "flex-start" }}
+                          label={t("matchingSegments", {
+                            values: {
+                              count: transcriptMatchCount,
+                              total: segmentStats.segmentCount,
+                            },
+                          })}
+                        />
+                      ) : null}
+                      <TranscriptionView
+                        segments={filteredTranscriptSegments}
+                        activeSegmentId={activeSegmentId}
+                        activeWordHighlight={activeWordHighlight}
+                        wordDetailsVisibility={wordDetailsVisibility}
+                        editingSegmentId={editingSegmentId}
+                        editingValue={editingValue}
+                        editingWordInputs={editingWordInputs}
+                        editingWordTimings={editingWordTimings}
+                        savingEdit={savingEdit}
+                        audioReady={audioReady}
+                        onSpeakerClick={handleSpeakerClick}
+                        onSelectSegment={handleSelectSegmentForTimeline}
+                        onPlaySegment={handlePlaySegment}
+                        onStartEdit={handleStartEdit}
+                        onWordInputChange={handleWordInputChange}
+                        onEditValueChange={setEditingValue}
+                        onCancelEdit={handleCancelEdit}
+                        onSaveEdit={() => void handleSaveEdit()}
+                        onWordDetailsToggle={(segmentId) => {
+                          setWordDetailsVisibility((prev) => {
+                            const nextVisible = !(prev[segmentId] ?? false);
+                            if (
+                              !nextVisible &&
+                              activeWordHighlightRef.current?.segmentId === segmentId
+                            ) {
+                              setActiveWordHighlight(null);
+                              activeWordHighlightRef.current = null;
+                            }
+                            return {
+                              ...prev,
+                              [segmentId]: nextVisible,
+                            };
+                          });
+                        }}
+                        onKeyDown={handleEditKeyDown}
+                        segmentCardRefs={segmentCardRefs}
+                        t={t}
+                      />
+                    </>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
+
+          <Card
+            variant="outlined"
+            sx={{
+              position: { xl: "sticky" },
+              top: { xl: 96 },
+              backgroundImage: (theme) =>
+                `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+                  theme.palette.background.paper,
+                  0.98
+                )} 48%)`,
+            }}
+          >
+            <CardHeader
+              title={detailCopy.sessionWorkspaceTitle}
+              subheader={detailCopy.sessionWorkspaceSubheader}
+            />
+            <CardContent>
+              <Stack spacing={1.5}>
+                {workspaceView?.summaryPreview ? (
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2.5,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {t("preview", { values: { text: workspaceView.summaryPreview } })}
+                    </Typography>
+                  </Box>
+                ) : null}
+
+                {workspaceView?.artifacts.map((artifact) => (
+                  <Card key={artifact.type} variant="outlined">
+                    <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                      <Stack spacing={1}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          justifyContent="space-between"
+                          useFlexGap
+                          flexWrap="wrap"
+                        >
+                          <Typography variant="subtitle2" fontWeight={700}>
+                            {t(getArtifactTitleKey(artifact.type))}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            color={
+                              artifact.status === "ready"
+                                ? "success"
+                                : artifact.status === "pending"
+                                  ? "warning"
+                                  : artifact.status === "failed"
+                                    ? "error"
+                                    : "default"
+                            }
+                            label={t(getArtifactStatusKey(artifact.status))}
+                          />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {artifact.content?.trim().length
+                            ? artifact.content
+                            : t("artifactNotRequestedHelper")}
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
       </Stack>
     </Box >
   );

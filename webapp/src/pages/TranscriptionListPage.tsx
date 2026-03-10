@@ -73,6 +73,10 @@ import {
   buildSessionDetailPath,
   resolveRealtimeCapturePath,
 } from "../app/platformRoutes";
+import {
+  formatSessionDurationLabel,
+  getSessionModeLabelKey,
+} from "./sessionWorkspaceModel";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 type FilterHistoryMode = "replace" | "push";
@@ -196,6 +200,19 @@ function getDownloadStatusLabel(
     return t("downloaded");
   }
   return t("notDownloaded");
+}
+
+function getPreviewText(value: string | undefined) {
+  const preview = value
+    ?.split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  if (!preview) {
+    return null;
+  }
+
+  return preview.length > 140 ? `${preview.slice(0, 137)}...` : preview;
 }
 
 export default function TranscriptionListPage() {
@@ -902,6 +919,8 @@ export default function TranscriptionListPage() {
               <List disablePadding>
                 {visibleTranscriptions.map((item, index) => {
                   const endpointLabel = getEndpointLabel(item, t);
+                  const durationLabel = formatSessionDurationLabel(item.durationMs);
+                  const previewText = getPreviewText(item.transcriptText);
                   return (
                     <ListItem
                       key={item.id}
@@ -962,21 +981,51 @@ export default function TranscriptionListPage() {
                         <ListItemAvatar>{getKindAvatar(item.kind)}</ListItemAvatar>
                         <ListItemText
                           primary={
-                            <Stack direction="row" spacing={2} alignItems="center">
-                              <Typography variant="subtitle1" fontWeight={600}>
-                                {item.title}
-                              </Typography>
-                              {getStatusChip(item, t)}
+                            <Stack spacing={1}>
+                              <Stack
+                                direction="row"
+                                spacing={2}
+                                alignItems="center"
+                                useFlexGap
+                                flexWrap="wrap"
+                              >
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                  {item.title}
+                                </Typography>
+                                {getStatusChip(item, t)}
+                              </Stack>
+                              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  label={`${t("mode")}: ${t(
+                                    getSessionModeLabelKey(
+                                      item.kind === "realtime"
+                                        ? "capture_realtime"
+                                        : "capture_file"
+                                    )
+                                  )}`}
+                                />
+                                {durationLabel ? (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={`${t("duration")}: ${durationLabel}`}
+                                  />
+                                ) : null}
+                              </Stack>
                             </Stack>
                           }
                           secondary={
                             <Stack spacing={0.5} mt={1}>
                               <Typography variant="body2" color="text.secondary">
-                                {t("type")}: {t(KIND_LABEL[item.kind])}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
                                 {t("creationTime")}: {formatDateTimeLabel(item.createdAt)}
                               </Typography>
+                              {item.sourceFileName ? (
+                                <Typography variant="body2" color="text.secondary">
+                                  {t("sourceFile")}: {item.sourceFileName}
+                                </Typography>
+                              ) : null}
                               {item.modelName ? (
                                 <Typography variant="body2" color="text.secondary">
                                   {t("model")}: {item.modelName}
@@ -1018,6 +1067,21 @@ export default function TranscriptionListPage() {
                               {item.errorMessage ? (
                                 <Typography variant="body2" color="error">
                                   {t("error")}: {item.errorMessage}
+                                </Typography>
+                              ) : null}
+                              {previewText ? (
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    mt: 0.5,
+                                    color: "text.primary",
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {t("preview", { values: { text: previewText } })}
                                 </Typography>
                               ) : null}
                             </Stack>

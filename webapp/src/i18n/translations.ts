@@ -3144,6 +3144,96 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Media Pending",
     ja: "メディア待機",
   },
+  sessionWorkspace: {
+    ko: "세션 워크스페이스",
+    en: "Session Workspace",
+    ja: "セッションワークスペース",
+  },
+  sessionWorkspaceSubheader: {
+    ko: "후처리 결과 슬롯과 전사 검색 진입점을 이 영역에 모읍니다.",
+    en: "Keep transcript search and future artifacts grouped in one operator-friendly rail.",
+    ja: "文字起こし検索と今後の成果물スロットをここにまとめます。",
+  },
+  mode: {
+    ko: "모드",
+    en: "Mode",
+    ja: "モード",
+  },
+  realTimeTranslation: {
+    ko: "실시간 번역",
+    en: "Real-time Translation",
+    ja: "リアルタイム翻訳",
+  },
+  summary: {
+    ko: "요약",
+    en: "Summary",
+    ja: "要約",
+  },
+  actionItems: {
+    ko: "액션 아이템",
+    en: "Action items",
+    ja: "アクションアイテム",
+  },
+  keyTerms: {
+    ko: "핵심 용어",
+    en: "Key terms",
+    ja: "重要用語",
+  },
+  askTranscript: {
+    ko: "전사에 질문하기",
+    en: "Ask transcript",
+    ja: "文字起こしに質問する",
+  },
+  artifactNotRequested: {
+    ko: "미요청",
+    en: "Not requested",
+    ja: "未リクエスト",
+  },
+  artifactPending: {
+    ko: "생성 대기",
+    en: "Pending",
+    ja: "生成待ち",
+  },
+  artifactReady: {
+    ko: "준비됨",
+    en: "Ready",
+    ja: "準備完了",
+  },
+  artifactFailed: {
+    ko: "실패",
+    en: "Failed",
+    ja: "失敗",
+  },
+  artifactNotRequestedHelper: {
+    ko: "아직 provider가 연결되지 않았습니다. 이 슬롯은 후속 요약/키워드/QA 기능을 수용하기 위한 자리입니다.",
+    en: "No provider is attached yet. This slot is reserved so summaries, terms, and QA can be added without reshaping the workspace.",
+    ja: "まだ provider は接続されていません。要約、用語、QA を追加してもワークスペースの形を変えないためのスロットです。",
+  },
+  searchTranscript: {
+    ko: "전사 검색",
+    en: "Search transcript",
+    ja: "文字起こし検索",
+  },
+  searchTranscriptPlaceholder: {
+    ko: "발화, 화자, 언어를 검색",
+    en: "Search by utterance, speaker, or language",
+    ja: "発話、話者、言語で検索",
+  },
+  sourceFile: {
+    ko: "원본 파일",
+    en: "Source file",
+    ja: "元ファイル",
+  },
+  noTranscriptMatches: {
+    ko: "검색 조건과 일치하는 세그먼트가 없습니다.",
+    en: "No transcript segments match this search.",
+    ja: "この検索条件に一致するセグメントはありません。",
+  },
+  matchingSegments: {
+    ko: "일치 세그먼트 {{count}} / {{total}}",
+    en: "Matching segments {{count}} / {{total}}",
+    ja: "一致セグメント {{count}} / {{total}}",
+  },
   automaticCopyFailedPleaseCopyManually: {
     ko: "자동 복사에 실패했습니다. 수동으로 복사해 주세요.",
     en: "Automatic copy failed. Please copy manually.",
