@@ -15,6 +15,7 @@ Current canonical/UI references:
 
 - `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
+- `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - No active remediation loop is currently registered.
 - `docs/plan-review-remediation-2026-03-08.md` - latest completed execution plan
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` - latest completed execution board
@@ -130,6 +131,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
 - `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
+- `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
 - No active remediation loop is currently registered.
 - `docs/plan-review-remediation-2026-03-08.md` – latest completed execution plan.
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` – latest completed execution board.
