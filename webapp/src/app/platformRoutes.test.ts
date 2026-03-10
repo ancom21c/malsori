@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSessionDetailPath,
   getCoreExperiencePaths,
+  resolveCaptureHubPath,
   resolveFileCapturePath,
   resolveRealtimeCapturePath,
   resolveSessionsPath,
@@ -24,6 +25,7 @@ const expandedFlags: PlatformFeatureFlags = {
 describe("platform route preservation baseline", () => {
   it("keeps the current STT-first route contract when expansion flags are disabled", () => {
     expect(resolveSessionsPath(legacyFlags)).toBe("/");
+    expect(resolveCaptureHubPath(legacyFlags)).toBe("/realtime");
     expect(resolveRealtimeCapturePath(legacyFlags)).toBe("/realtime");
     expect(resolveFileCapturePath(legacyFlags)).toBe("/");
     expect(buildSessionDetailPath("abc-123", legacyFlags)).toBe("/transcriptions/abc-123");
@@ -38,6 +40,7 @@ describe("platform route preservation baseline", () => {
 
   it("can resolve additive IA routes without dropping compatibility helpers", () => {
     expect(resolveSessionsPath(expandedFlags)).toBe("/sessions");
+    expect(resolveCaptureHubPath(expandedFlags)).toBe("/capture");
     expect(resolveRealtimeCapturePath(expandedFlags)).toBe("/capture/realtime");
     expect(resolveFileCapturePath(expandedFlags)).toBe("/capture/file");
     expect(buildSessionDetailPath("xyz", expandedFlags)).toBe("/sessions/xyz");

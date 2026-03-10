@@ -814,6 +814,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "File Upload",
     ja: "ファイルのアップロード",
   },
+  capture: {
+    ko: "캡처",
+    en: "Capture",
+    ja: "キャプチャ",
+  },
   filterReset: {
     ko: "필터 초기화",
     en: "Filter reset",
@@ -2278,6 +2283,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "음성기록 목록",
     en: "Voice record list",
     ja: "ボイスレコードリスト",
+  },
+  sessions: {
+    ko: "세션",
+    en: "Sessions",
+    ja: "セッション",
   },
   waiting: {
     ko: "대기 중",

@@ -69,6 +69,10 @@ import {
   getOptimizedTranscriptionListVisibleCount,
   getTranscriptionListRenderMode,
 } from "./transcriptionListRenderingModel";
+import {
+  buildSessionDetailPath,
+  resolveRealtimeCapturePath,
+} from "../app/platformRoutes";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 type FilterHistoryMode = "replace" | "push";
@@ -566,7 +570,7 @@ export default function TranscriptionListPage() {
       <Tooltip title={t("startRealTimeTranscription")}>
         <IconButton
           component={RouterLink}
-          to="/realtime"
+          to={resolveRealtimeCapturePath()}
           color="secondary"
           size="small"
           aria-label={t("startRealTimeTranscription")}
@@ -834,7 +838,7 @@ export default function TranscriptionListPage() {
                     color="secondary"
                     startIcon={<GraphicEqIcon />}
                     component={RouterLink}
-                    to="/realtime"
+                    to={resolveRealtimeCapturePath()}
                     sx={{
                       minWidth: { sm: 240 },
                       width: { xs: "100%", sm: "auto" },
@@ -869,7 +873,7 @@ export default function TranscriptionListPage() {
                     color="secondary"
                     startIcon={<GraphicEqIcon />}
                     component={RouterLink}
-                    to="/realtime"
+                    to={resolveRealtimeCapturePath()}
                     sx={{ flex: 1, minWidth: 0 }}
                   >
                     {t("startRealTimeTranscription")}
@@ -951,7 +955,7 @@ export default function TranscriptionListPage() {
                     >
                       <ListItemButton
                         component={RouterLink}
-                        to={`/transcriptions/${item.id}`}
+                        to={buildSessionDetailPath(item.id)}
                         state={{ fromList: true }}
                         sx={{ py: 1.5 }}
                       >

@@ -39,6 +39,12 @@ import type { Locale } from "../i18n/translations";
 import TranslateIcon from "@mui/icons-material/Translate";
 import { CloudSyncStatus } from "../components/CloudSyncStatus";
 import ScienceIcon from "@mui/icons-material/Science";
+import {
+  platformFeatureFlags,
+  resolveCaptureHubPath,
+  resolveRealtimeCapturePath,
+  resolveSessionsPath,
+} from "../app/platformRoutes";
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -67,7 +73,11 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
     };
   }
 
-  if (pathname.startsWith("/settings") || pathname.startsWith("/transcriptions/")) {
+  if (
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/transcriptions/") ||
+    pathname.startsWith("/sessions/")
+  ) {
     return {
       mobileActionOwner: "page-owned",
       defaultFloatingActionsVisible: false,
@@ -137,29 +147,46 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   const menuItems = useMemo(
     () => [
-      {
-        key: "upload",
-        label: t("fileUpload"),
-        icon: <CloudUploadIcon fontSize="small" />,
-        action: () => openUploadDialog(),
-      },
-      {
-        key: "realtime",
-        label: t("realTimeTranscription"),
-        path: "/realtime",
-        icon: <GraphicEqIcon fontSize="small" />,
-      },
+      ...(platformFeatureFlags.modeSplitNavigation
+        ? [
+            {
+              key: "capture",
+              label: t("capture"),
+              path: resolveCaptureHubPath(),
+              icon: <CloudUploadIcon fontSize="small" />,
+            },
+            {
+              key: "sessions",
+              label: t("sessions"),
+              path: resolveSessionsPath(),
+              icon: <ListAltIcon fontSize="small" />,
+            },
+          ]
+        : [
+            {
+              key: "upload",
+              label: t("fileUpload"),
+              icon: <CloudUploadIcon fontSize="small" />,
+              action: () => openUploadDialog(),
+            },
+            {
+              key: "realtime",
+              label: t("realTimeTranscription"),
+              path: resolveRealtimeCapturePath(),
+              icon: <GraphicEqIcon fontSize="small" />,
+            },
+            {
+              key: "history",
+              label: t("voiceRecordList"),
+              path: resolveSessionsPath(),
+              icon: <ListAltIcon fontSize="small" />,
+            },
+          ]),
       {
         key: "lab",
         label: t("lab"),
         path: "/lab",
         icon: <ScienceIcon fontSize="small" />,
-      },
-      {
-        key: "history",
-        label: t("voiceRecordList"),
-        path: "/",
-        icon: <ListAltIcon fontSize="small" />,
       },
       {
         key: "settings",
@@ -187,14 +214,36 @@ export default function MainLayout({ children }: MainLayoutProps) {
     [canInstall, handleInstallClick, openUploadDialog, t]
   );
 
+  const normalizedNavPath = useMemo(() => {
+    if (!platformFeatureFlags.modeSplitNavigation) {
+      return location.pathname;
+    }
+
+    if (location.pathname === "/" || location.pathname.startsWith("/sessions/")) {
+      return resolveSessionsPath();
+    }
+
+    if (
+      location.pathname.startsWith("/transcriptions/") ||
+      location.pathname === "/realtime" ||
+      location.pathname.startsWith("/capture/")
+    ) {
+      return location.pathname.startsWith("/transcriptions/")
+        ? resolveSessionsPath()
+        : resolveCaptureHubPath();
+    }
+
+    return location.pathname;
+  }, [location.pathname]);
+
   const activePath = useMemo(() => {
     const navigableItems = menuItems.filter((item) => item.path);
     const item = navigableItems.find(({ path }) => {
       if (!path) return false;
-      return location.pathname === "/" ? path === "/" : location.pathname.startsWith(path);
+      return normalizedNavPath === "/" ? path === "/" : normalizedNavPath.startsWith(path);
     });
     return item?.path ?? "/";
-  }, [location.pathname, menuItems]);
+  }, [menuItems, normalizedNavPath]);
   const isRealtimeRoute = useMemo(() => {
     return location.pathname.startsWith("/realtime");
   }, [location.pathname]);
@@ -286,7 +335,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           <Typography
             variant="h6"
             component={RouterLink}
-            to="/"
+            to={resolveSessionsPath()}
             sx={{
               flexGrow: 1,
               color: "inherit",
@@ -534,7 +583,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 fullWidth
                 size="large"
                 startIcon={<GraphicEqIcon />}
-                onClick={() => navigate("/realtime")}
+                onClick={() => navigate(resolveRealtimeCapturePath())}
                 sx={{ borderRadius: "16px", py: 1.5 }}
               >
                 {t("realTimeTranscription")}
@@ -545,7 +594,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           <>
             <UploadFab onClick={handleUploadFabClick} ref={uploadFabRef} />
             {routeChromePolicy.mobileActionOwner === "global-fallback" && !isRealtimeRoute ? (
-              <MicFab onClick={() => navigate("/realtime")} />
+              <MicFab onClick={() => navigate(resolveRealtimeCapturePath())} />
             ) : null}
           </>
         )

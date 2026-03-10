@@ -72,4 +72,17 @@ describe("AppRouter smoke", () => {
       expect(window.location.pathname).toBe("/");
     });
   });
+
+  it("renders additive session and capture routes", async () => {
+    renderAt("/sessions");
+    expect(await screen.findByText("TranscriptionListPageMock")).toBeTruthy();
+
+    cleanup();
+    renderAt("/capture/realtime");
+    expect(await screen.findByText("RealtimeSessionPageMock")).toBeTruthy();
+
+    cleanup();
+    renderAt("/capture/file");
+    expect(await screen.findByText("TranscriptionListPageMock")).toBeTruthy();
+  });
 });

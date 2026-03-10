@@ -4,18 +4,33 @@ export interface PlatformFeatureFlags {
   realtimeTranslate: boolean;
 }
 
-function isEnabled(value: string | undefined): boolean {
+function resolveFlag(value: string | undefined, defaultValue: boolean): boolean {
   if (!value) {
-    return false;
+    return defaultValue;
   }
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
 export const platformFeatureFlags: PlatformFeatureFlags = {
-  modeSplitNavigation: isEnabled(import.meta.env.VITE_FEATURE_MODE_SPLIT_NAVIGATION),
-  sessionArtifacts: isEnabled(import.meta.env.VITE_FEATURE_SESSION_ARTIFACTS),
-  realtimeTranslate: isEnabled(import.meta.env.VITE_FEATURE_REALTIME_TRANSLATE),
+  modeSplitNavigation: resolveFlag(
+    import.meta.env.VITE_FEATURE_MODE_SPLIT_NAVIGATION,
+    true
+  ),
+  sessionArtifacts: resolveFlag(
+    import.meta.env.VITE_FEATURE_SESSION_ARTIFACTS,
+    false
+  ),
+  realtimeTranslate: resolveFlag(
+    import.meta.env.VITE_FEATURE_REALTIME_TRANSLATE,
+    false
+  ),
 };
+
+export function resolveCaptureHubPath(
+  flags: PlatformFeatureFlags = platformFeatureFlags
+): string {
+  return flags.modeSplitNavigation ? "/capture" : resolveRealtimeCapturePath(flags);
+}
 
 export function resolveSessionsPath(
   flags: PlatformFeatureFlags = platformFeatureFlags

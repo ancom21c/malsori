@@ -58,12 +58,20 @@ function createAppRouter() {
     createRoutesFromElements(
       <Route element={<RootLayout />}>
         <Route path="/" element={<TranscriptionListPage />} />
+        <Route path="/sessions" element={<TranscriptionListPage />} />
         <Route
           path="/transcriptions/:transcriptionId"
           element={<TranscriptionDetailPage />}
         />
+        <Route
+          path="/sessions/:transcriptionId"
+          element={<TranscriptionDetailPage />}
+        />
+        <Route path="/capture" element={<Navigate to="/capture/realtime" replace />} />
+        <Route path="/capture/file" element={<TranscriptionListPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/realtime" element={<RealtimeSessionPage />} />
+        <Route path="/capture/realtime" element={<RealtimeSessionPage />} />
         <Route path="/lab" element={<LabPage />} />
         {devOnlyUiConceptsEnabled && UiConceptsPage ? (
           <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />
