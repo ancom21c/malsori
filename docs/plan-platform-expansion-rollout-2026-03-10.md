@@ -110,6 +110,16 @@ flag는 UI surface visibility를, capability는 실제 backend/provider enableme
 - feature flag + capability 둘 다 충족할 때만 활성화
 - failure는 해당 artifact/mode에 한정하고 core capture/session은 유지
 
+## Stage Gates and Exit Criteria
+
+| Stage | Entry gate | Exit criteria | Immediate fallback |
+|---|---|---|---|
+| Stage 0. Compatibility Baseline | legacy STT smoke green | `/`, `/realtime`, `/settings`, `/transcriptions/:id` no-regression 확인 | additive route/flags 전부 hidden 유지 |
+| Stage 1. IA Split | route alias/build gate green | `/sessions`, `/capture/*`가 legacy flow를 깨지 않고 열림 | `VITE_FEATURE_MODE_SPLIT_NAVIGATION=false` |
+| Stage 2. Session Workspace Foundation | detail empty/ready smoke green | artifact rail이 visible/hidden mode 둘 다 예측 가능 | `VITE_FEATURE_SESSION_ARTIFACTS=false` |
+| Stage 3. Translate Shell | realtime capture smoke green | `/translate`가 `enabled` 또는 `redirect` contract 중 하나를 정확히 만족 | `VITE_FEATURE_REALTIME_TRANSLATE=false` |
+| Stage 4. Provider-Backed Features | bindings/profile contract green | provider readiness failure가 core capture/session failure로 전이되지 않음 | capability flags off + compatibility path 유지 |
+
 ## Migration Rules
 
 1. IndexedDB schema는 additive migration만 허용한다.
@@ -153,6 +163,24 @@ flag는 UI surface visibility를, capability는 실제 backend/provider enableme
 
 `./scripts/post-deploy-smoke.sh`는 `EXPECT_TRANSLATE_ROUTE_MODE`로 이 모드를 선택한다.
 
+### Session Artifact Modes
+
+- `hidden`: detail route에서 `Session Workspace` artifact rail이 노출되지 않아야 한다.
+- `visible`: detail route에서 `Session Workspace`와 `Ask transcript` shell이 보여야 한다.
+- `skip`: rollout 단계상 검증을 생략한다.
+
+`./scripts/post-deploy-smoke.sh`는 `EXPECT_SESSION_ARTIFACTS_MODE`로 이 모드를 선택한다.
+
+### Internal Operator Surface
+
+feature binding/operator rollout에서는 다음 internal admin endpoints도 smoke 대상에 포함한다.
+
+- `/v1/backend/profiles`
+- `/v1/backend/bindings`
+- `/v1/backend/capabilities`
+
+`BACKEND_ADMIN_ENABLED=1`이면 internal ingress에서 token-auth contract를 만족해야 하고, public ingress에서는 여전히 blocked 상태여야 한다.
+
 ## Observability Signals
 
 현재와 향후 rollout에서 다음 신호를 본다.
@@ -164,6 +192,26 @@ flag는 UI surface visibility를, capability는 실제 backend/provider enableme
 5. detail load failure / blank-screen rate
 6. artifact request success/failure rate
 7. translate shell fallback rate
+
+## Measurement Anchors
+
+| Surface | Primary success signal | Failure signal | Measurement anchor | Fallback UX |
+|---|---|---|---|---|
+| Core capture | realtime session start/stop succeeds | session start failure, reconnect storm | `/realtime` smoke + page/console error 0 | existing realtime capture workspace 유지 |
+| Sessions/detail | list/detail open, transcript readable | blank screen, detail load failure | `/`, `/sessions`, legacy/additive detail empty+ready smoke | legacy detail path 유지, artifact rail hidden |
+| Session artifacts | artifact rail visibility follows flag/capability | artifact shell visible at wrong time, provider unavailable leakage | `EXPECT_SESSION_ARTIFACTS_MODE=hidden|visible` | rail hidden or helper-only shell |
+| Translate | `/translate` follows route mode contract | wrong redirect, blank shell, provider unavailable leakage | `EXPECT_TRANSLATE_ROUTE_MODE=redirect|enabled|skip` | redirect to `/capture/realtime` |
+| Operator binding surface | internal admin API shape + auth contract | public exposure, missing token guard, malformed profile/binding payload | `/v1/backend/profiles`, `/bindings`, `/capabilities` smoke | keep feature hidden and use STT compatibility binding only |
+
+## Fallback UX Contract
+
+| Condition | User-facing behavior | Operator action |
+|---|---|---|
+| feature flag off | route hidden or redirected; no additive chrome | keep rollout off |
+| capability off | shell may stay hidden or helper-only; no broken controls | enable backend/provider first |
+| binding misconfigured | helper text and non-destructive warning only | fix profile/binding and retry |
+| provider unavailable | artifact/translate surface stays pending/disabled without breaking transcript | disable capability or switch binding |
+| rollback triggered | additive surface disappears, legacy STT route remains | flip feature flag/capability and redeploy |
 
 현재 repository 기준 즉시 검증 가능한 contract는 다음이다.
 

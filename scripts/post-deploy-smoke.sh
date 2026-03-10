@@ -12,6 +12,7 @@ RUN_UI_SMOKE="${RUN_UI_SMOKE:-auto}"
 UI_SMOKE_SCREENSHOT_DIR="${UI_SMOKE_SCREENSHOT_DIR:-/tmp/malsori-ui-smoke}"
 EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED="${EXPECT_RUNTIME_ERROR_PUBLIC_BLOCKED:-1}"
 EXPECT_TRANSLATE_ROUTE_MODE="${EXPECT_TRANSLATE_ROUTE_MODE:-redirect}"
+EXPECT_SESSION_ARTIFACTS_MODE="${EXPECT_SESSION_ARTIFACTS_MODE:-hidden}"
 DETAIL_SMOKE_ID="${DETAIL_SMOKE_ID:-}"
 
 for cmd in curl kubectl helm python3 rg; do
@@ -291,7 +292,7 @@ else
   echo "runtime-error: publicly reachable (202)"
 fi
 
-echo "[7/8] Verify backend endpoint contract"
+echo "[7/9] Verify backend endpoint contract"
 ADMIN_BASE_URL="${INTERNAL_BASE_URL:-${BASE_URL}}"
 if [[ "${backend_admin_enabled}" == "1" ]]; then
   if [[ -n "${INTERNAL_BASE_URL}" ]]; then
@@ -321,7 +322,7 @@ PY
     echo "backend-endpoint: protected (401 without BACKEND_ADMIN_TOKEN)"
   fi
 
-  echo "[8/8] Verify backend state alias contract"
+  echo "[8/9] Verify backend state alias contract"
   if [[ -n "${BACKEND_ADMIN_TOKEN}" ]]; then
     backend_state_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
     python3 - "${backend_state_file}" <<'PY'
@@ -340,14 +341,85 @@ PY
     rm -f "${unauthorized_state_file}"
     echo "backend-state: protected (401 without BACKEND_ADMIN_TOKEN)"
   fi
+
+  echo "[9/9] Verify backend binding admin contract"
+  if [[ -n "${INTERNAL_BASE_URL}" ]]; then
+    for path in /v1/backend/profiles /v1/backend/bindings /v1/backend/capabilities; do
+      backend_binding_public_file="$(http_get_expect_blocked "${BASE_URL}" "${path}" "API ${path} (public blocked)")"
+      rm -f "${backend_binding_public_file}"
+    done
+    echo "backend-bindings: blocked on public ingress"
+  fi
+
+  if [[ -n "${BACKEND_ADMIN_TOKEN}" ]]; then
+    backend_profiles_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/profiles" "API /v1/backend/profiles (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
+    python3 - "${backend_profiles_file}" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+profiles = payload.get("profiles")
+assert isinstance(profiles, list), payload
+for profile in profiles:
+    assert {"id", "label", "kind", "base_url", "capabilities", "enabled", "health"} <= profile.keys(), profile
+print(f"backend-profiles: count={len(profiles)}")
+PY
+    rm -f "${backend_profiles_file}"
+
+    backend_bindings_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/bindings" "API /v1/backend/bindings (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
+    python3 - "${backend_bindings_file}" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+bindings = payload.get("bindings")
+assert isinstance(bindings, list), payload
+for binding in bindings:
+    assert {"feature_key", "primary_backend_profile_id", "enabled"} <= binding.keys(), binding
+print(f"backend-bindings: count={len(bindings)}")
+PY
+    rm -f "${backend_bindings_file}"
+
+    backend_capabilities_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "/v1/backend/capabilities" "API /v1/backend/capabilities (admin)" "200" "X-Malsori-Admin-Token: ${BACKEND_ADMIN_TOKEN}")"
+    python3 - "${backend_capabilities_file}" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert isinstance(payload.get("capability_keys"), list), payload
+assert isinstance(payload.get("feature_keys"), list), payload
+compatibility = payload.get("compatibility")
+assert isinstance(compatibility, dict), payload
+assert compatibility.get("legacy_source") in {"default", "override"}, payload
+print(
+    "backend-capabilities: "
+    f"capability_count={len(payload['capability_keys'])} "
+    f"feature_count={len(payload['feature_keys'])} "
+    f"legacy_source={compatibility['legacy_source']}"
+)
+PY
+    rm -f "${backend_capabilities_file}"
+  else
+    for path in /v1/backend/profiles /v1/backend/bindings /v1/backend/capabilities; do
+      backend_binding_unauthorized_file="$(http_get_expect_status_base "${ADMIN_BASE_URL}" "${path}" "API ${path} (unauthorized)" "401")"
+      rm -f "${backend_binding_unauthorized_file}"
+    done
+    echo "backend-bindings: protected (401 without BACKEND_ADMIN_TOKEN)"
+  fi
 else
   backend_file_disabled="$(http_get_expect_blocked "${ADMIN_BASE_URL}" "/v1/backend/endpoint" "API /v1/backend/endpoint (disabled)")"
   rm -f "${backend_file_disabled}"
   echo "backend-endpoint: disabled or blocked"
-  echo "[8/8] Verify backend state alias contract"
+  echo "[8/9] Verify backend state alias contract"
   backend_state_file_disabled="$(http_get_expect_blocked "${ADMIN_BASE_URL}" "/v1/backend/state" "API /v1/backend/state (disabled)")"
   rm -f "${backend_state_file_disabled}"
   echo "backend-state: disabled or blocked"
+  echo "[9/9] Verify backend binding admin contract"
+  for path in /v1/backend/profiles /v1/backend/bindings /v1/backend/capabilities; do
+    backend_binding_disabled_file="$(http_get_expect_blocked "${ADMIN_BASE_URL}" "${path}" "API ${path} (disabled)")"
+    rm -f "${backend_binding_disabled_file}"
+  done
+  echo "backend-bindings: disabled or blocked"
 fi
 
 echo "Smoke checks passed for ${BASE_URL}"
@@ -362,11 +434,12 @@ if [[ "${RUN_UI_SMOKE}" != "0" ]]; then
     exit 1
   fi
 
-  echo "[9/9] Verify UI runtime contract"
+  echo "[10/10] Verify UI runtime contract"
   ui_smoke_args=(
     --base-url "${BASE_URL}"
     --screenshot-dir "${UI_SMOKE_SCREENSHOT_DIR}"
     --translate-route-mode "${EXPECT_TRANSLATE_ROUTE_MODE}"
+    --session-artifacts-mode "${EXPECT_SESSION_ARTIFACTS_MODE}"
   )
   if [[ -n "${DETAIL_SMOKE_ID}" ]]; then
     ui_smoke_args+=(--detail-id "${DETAIL_SMOKE_ID}")

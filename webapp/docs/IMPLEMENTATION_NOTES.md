@@ -14,6 +14,7 @@
 - Settings & presets: CRUD backed by Dexie with single-default enforcement, environment values (API base URL, token, client id/secret, autosave cadence).
 - Audio utilities: PCM resampler, recorder manager, WAV builder for stitching PCM chunks, and UI playback controls for individual transcript segments.
 - QA & Tooling: Vitest coverage for repositories & hooks, jsdom + `fake-indexeddb` test harness, ESLint flat config, and CI workflow running lint/i18n/build/bundle/test on push/PR.
+- Rollout guardrails: additive workspace features use route/feature flags plus capability gates, and post-deploy smoke now validates translate route mode, session artifact rail mode, and internal backend-binding admin endpoints separately from core STT smoke.
 
 ## Current References
 - Canonical UI/spec baseline: `docs/plan-ui-remediation-2026-03-06.md`

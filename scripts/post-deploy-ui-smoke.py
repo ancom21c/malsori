@@ -115,13 +115,36 @@ def _assert_detail_empty_state(page: Page, result: PageLoadResult) -> Dict[str, 
     }
 
 
-def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, Any]:
+def _assert_detail_ready_state(
+    page: Page,
+    result: PageLoadResult,
+    *,
+    session_artifacts_mode: str = "hidden",
+) -> Dict[str, Any]:
     _assert_page_health(result, min_root_text_length=80)
     card_count = page.locator(".MuiCard-root").count()
     if card_count < 3:
         raise RuntimeError(
             f"{result.path}: expected >=3 cards in detail workspace, got {card_count}"
         )
+    root_text = page.locator("#root").inner_text()
+    has_session_workspace = "Session Workspace" in root_text
+    has_ask_transcript = "Ask transcript" in root_text
+
+    if session_artifacts_mode == "visible":
+        if not has_session_workspace:
+            raise RuntimeError(
+                f"{result.path}: expected session artifact rail to be visible, but 'Session Workspace' text was not found"
+            )
+        if not has_ask_transcript:
+            raise RuntimeError(
+                f"{result.path}: expected artifact shell to expose 'Ask transcript' prompt"
+            )
+    elif session_artifacts_mode == "hidden" and has_session_workspace:
+        raise RuntimeError(
+            f"{result.path}: expected session artifact rail to stay hidden, but 'Session Workspace' text was found"
+        )
+
     return {
         "mode": "ready",
         "status": result.status,
@@ -130,6 +153,9 @@ def _assert_detail_ready_state(page: Page, result: PageLoadResult) -> Dict[str, 
         "page_error_count": len(result.page_errors),
         "console_error_count": len(result.console_errors),
         "card_count": card_count,
+        "session_artifacts_mode": session_artifacts_mode,
+        "has_session_workspace": has_session_workspace,
+        "has_ask_transcript": has_ask_transcript,
     }
 
 
@@ -394,6 +420,7 @@ def run(
     screenshot_dir: Path,
     detail_id: str | None = None,
     translate_route_mode: str = "redirect",
+    session_artifacts_mode: str = "hidden",
 ) -> Dict[str, Any]:
     summary: Dict[str, Any] = {
         "base_url": base_url,
@@ -452,11 +479,15 @@ def run(
                             )
                         elif path == detail_ready_path:
                             summary["desktop_routes"][path] = _assert_detail_ready_state(
-                                page, result
+                                page,
+                                result,
+                                session_artifacts_mode=session_artifacts_mode,
                             )
                         elif path == detail_ready_session_path:
                             summary["desktop_routes"][path] = _assert_detail_ready_state(
-                                page, result
+                                page,
+                                result,
+                                session_artifacts_mode=session_artifacts_mode,
                             )
                         elif path == "/capture":
                             summary["desktop_routes"][path] = _assert_route_redirect(
@@ -552,6 +583,12 @@ def main() -> int:
         default="redirect",
         help="How the smoke should validate /translate.",
     )
+    parser.add_argument(
+        "--session-artifacts-mode",
+        choices=["hidden", "visible", "skip"],
+        default="hidden",
+        help="How the smoke should validate the additive session artifact rail on detail routes.",
+    )
     args = parser.parse_args()
 
     try:
@@ -561,6 +598,7 @@ def main() -> int:
             Path(args.screenshot_dir),
             detail_id,
             args.translate_route_mode,
+            args.session_artifacts_mode,
         )
     except Error as exc:
         print(f"[FAIL] Playwright error: {exc}", file=sys.stderr)
