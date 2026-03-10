@@ -2,6 +2,10 @@
 
 > Status: current architecture baseline for expanding `malsori` from STT-only backend configuration to feature-scoped backend binding without regressing the shipped STT value.
 
+Primary no-regression reference:
+
+- `docs/plan-stt-value-preservation-baseline-2026-03-10.md`
+
 ## Problem
 
 현재 codebase에서 실제 backend surface는 사실상 STT에만 존재한다.
@@ -33,6 +37,8 @@
 이를 위해 `BackendProfile + FeatureBinding + CapabilityResolution` 구조를 canonical contract로 정의한다.
 
 ## Preservation Constraints
+
+이 문서의 architecture rule은 `docs/plan-stt-value-preservation-baseline-2026-03-10.md`를 침범하지 않는 범위에서만 유효하다.
 
 다음은 훼손되면 안 된다.
 

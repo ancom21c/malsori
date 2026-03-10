@@ -2,11 +2,17 @@
 
 > Status: current additive rollout baseline for expanding `malsori` beyond core STT while preserving the existing shipped value.
 
+Primary no-regression reference:
+
+- `docs/plan-stt-value-preservation-baseline-2026-03-10.md`
+
 ## Goal
 
 기존 파일 전사, 실시간 전사, 세션 저장/조회, 모바일 realtime 작업성을 훼손하지 않으면서 `malsori`를 `session-based conversation workspace`로 확장한다.
 
 ## Preservation Contract
+
+이 섹션은 `docs/plan-stt-value-preservation-baseline-2026-03-10.md`의 rollout 관점 요약이다. 구현/리뷰 시에는 preservation baseline을 source of truth로 본다.
 
 다음 가치는 모든 확장 단계에서 유지되어야 한다.
 
