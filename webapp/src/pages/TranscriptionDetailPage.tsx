@@ -1707,7 +1707,6 @@ export default function TranscriptionDetailPage() {
     mediaLoading: t("mediaLoading"),
     mediaPending: t("mediaPending"),
     searchTranscript: t("searchTranscript"),
-    searchTranscriptPlaceholder: t("searchTranscriptPlaceholder"),
     noTranscriptMatches: t("noTranscriptMatches"),
   };
   const mediaStatusLabel = audioReady
@@ -2061,14 +2060,6 @@ export default function TranscriptionDetailPage() {
                         {t("noteModeHelper")}
                       </Typography>
                     </Stack>
-                    <TextField
-                      size="small"
-                      label={detailCopy.searchTranscript}
-                      placeholder={detailCopy.searchTranscriptPlaceholder}
-                      value={transcriptSearchQuery}
-                      onChange={(event) => setTranscriptSearchQuery(event.target.value)}
-                      sx={{ width: { xs: "100%", md: 280 } }}
-                    />
                   </Stack>
                   <Divider />
                   {noteMode ? (
@@ -2177,6 +2168,14 @@ export default function TranscriptionDetailPage() {
               />
               <CardContent>
                 <Stack spacing={1.5}>
+                  <TextField
+                    size="small"
+                    label={detailCopy.searchTranscript}
+                    value={transcriptSearchQuery}
+                    onChange={(event) => setTranscriptSearchQuery(event.target.value)}
+                    fullWidth
+                  />
+
                   {workspaceView?.summaryPreview ? (
                     <Box
                       sx={{

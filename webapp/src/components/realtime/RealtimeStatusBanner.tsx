@@ -104,8 +104,13 @@ export default function RealtimeStatusBanner({
     });
   }
 
-  const compactSupplementaryMessage =
-    connectionUxState.phase !== "failed" && showConnectionBanner && connectionBannerMessage
+  const compactSupplementaryMessage = compactLayout
+    ? connectionUxState.phase === "failed"
+      ? connectionBannerMessage
+      : streamingBufferMetrics.degraded
+        ? t("someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete")
+        : null
+    : connectionUxState.phase !== "failed" && showConnectionBanner && connectionBannerMessage
       ? connectionBannerMessage
       : streamingBufferMetrics.degraded
         ? t("someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete")
@@ -116,7 +121,7 @@ export default function RealtimeStatusBanner({
           : null;
 
   return (
-    <Stack spacing={compactLayout ? 1 : 1.5}>
+    <Stack spacing={compactLayout ? 0.5 : 1.5}>
       {sessionState !== "idle" &&
         (sessionState === "connecting" ||
           sessionState === "stopping" ||
@@ -129,14 +134,14 @@ export default function RealtimeStatusBanner({
           overflow: "hidden",
           border: 1,
           borderColor: bannerBorderColor,
-          borderRadius: compactLayout ? 2.5 : 3,
+          borderRadius: compactLayout ? 2 : 3,
           bgcolor: (theme) =>
             alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.08 : 0.12),
-          px: compactLayout ? 1.25 : 1.75,
-          py: compactLayout ? 1 : 1.25,
+          px: compactLayout ? 1 : 1.75,
+          py: compactLayout ? 0.75 : 1.25,
         }}
       >
-        <Stack spacing={compactLayout ? 0.75 : 1}>
+        <Stack spacing={compactLayout ? 0.5 : 1}>
           <Stack
             direction="row"
             spacing={compactLayout ? 1 : 1.5}
@@ -162,7 +167,7 @@ export default function RealtimeStatusBanner({
                           : "text.disabled",
                 }}
               />
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              <Typography variant={compactLayout ? "caption" : "body2"} sx={{ fontWeight: 700 }}>
                 {sessionStateLabel}
               </Typography>
             </Stack>
@@ -190,7 +195,7 @@ export default function RealtimeStatusBanner({
           </Stack>
 
           {compactSupplementaryMessage && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
               {compactSupplementaryMessage}
             </Typography>
           )}
@@ -198,7 +203,7 @@ export default function RealtimeStatusBanner({
           {(microphonePermissionState === "denied" ||
             (storagePermissionSupported && storagePermissionState === "denied") ||
             connectionUxState.phase === "failed") && (
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
                 {microphonePermissionState === "denied" && (
                   <Button
                     size="small"
@@ -207,7 +212,7 @@ export default function RealtimeStatusBanner({
                     startIcon={<MicIcon />}
                     onClick={onRetryMicrophonePermission}
                     disabled={retryingMicrophonePermission}
-                    sx={{ borderRadius: 2 }}
+                    sx={{ borderRadius: 2, py: 0.25 }}
                   >
                     {t("reRequestPermission")}
                   </Button>
@@ -220,7 +225,7 @@ export default function RealtimeStatusBanner({
                     startIcon={<StorageIcon />}
                     onClick={onRetryStoragePermission}
                     disabled={retryingStoragePermission}
-                    sx={{ borderRadius: 2 }}
+                    sx={{ borderRadius: 2, py: 0.25 }}
                   >
                     {t("storagePermissions")}
                   </Button>
@@ -232,7 +237,7 @@ export default function RealtimeStatusBanner({
                     color="primary"
                     startIcon={<RefreshIcon />}
                     onClick={onManualRetryConnection}
-                    sx={{ borderRadius: 2 }}
+                    sx={{ borderRadius: 2, py: 0.25 }}
                   >
                     {t("retryConnection")}
                   </Button>
