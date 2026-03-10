@@ -23,7 +23,7 @@ import {
   ToggleButtonGroup,
   useMediaQuery,
 } from "@mui/material";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, SyntheticEvent } from "react";
 import type { ChipProps } from "@mui/material/Chip";
 import { useBeforeUnload, useSearchParams } from "react-router-dom";
@@ -67,7 +67,10 @@ import {
   ensureDefaultBackendEndpointPresets,
 } from "../services/data/backendEndpointRepository";
 import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
-import type { BackendEndpointState } from "../services/api/types";
+import type {
+  BackendCapabilitiesState,
+  BackendEndpointState,
+} from "../services/api/types";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -94,6 +97,25 @@ import {
   SETTINGS_SECTION_IDS,
   type SettingsSection,
 } from "./settingsSectionModel";
+import {
+  ADDITIVE_FEATURE_KEYS,
+  buildEmptyBackendProfileEditorValue,
+  buildEmptyFeatureBindingEditorValue,
+  formatBackendProfileEditorValue,
+  formatFeatureBindingEditorValue,
+  parseBackendProfileEditorValue,
+  parseFeatureBindingEditorValue,
+} from "./settingsBackendBindingModel";
+import type { BackendProfile } from "../domain/backendProfile";
+import type { FeatureBinding, FeatureKey } from "../domain/featureBinding";
+
+const operatorBackendBindingsEnabled = ["1", "true", "yes", "on"].includes(
+  (import.meta.env.VITE_FEATURE_OPERATOR_BACKEND_BINDINGS ?? "").toLowerCase()
+);
+
+const BackendBindingOperatorPanel = operatorBackendBindingsEnabled
+  ? (lazy(() => import("../components/BackendBindingOperatorPanel")) as typeof import("../components/BackendBindingOperatorPanel").default)
+  : null;
 
 type SettingsTab = "file" | "streaming";
 
@@ -287,6 +309,27 @@ export default function SettingsPage() {
   const [backendStateLastSuccessAt, setBackendStateLastSuccessAt] = useState<string | null>(null);
   const [backendAdminEnabled, setBackendAdminEnabled] = useState(false);
   const [backendAdminToken, setBackendAdminToken] = useState("");
+  const [backendBindingState, setBackendBindingState] = useState<BackendCapabilitiesState | null>(
+    null
+  );
+  const [backendBindingStateLoading, setBackendBindingStateLoading] = useState(false);
+  const [backendBindingStateError, setBackendBindingStateError] = useState<string | null>(null);
+  const [backendBindingStateLastSuccessAt, setBackendBindingStateLastSuccessAt] =
+    useState<string | null>(null);
+  const [backendProfiles, setBackendProfiles] = useState<BackendProfile[]>([]);
+  const [featureBindings, setFeatureBindings] = useState<FeatureBinding[]>([]);
+  const [selectedBackendProfileId, setSelectedBackendProfileId] = useState<string | null>(null);
+  const [selectedFeatureBindingKey, setSelectedFeatureBindingKey] = useState<FeatureKey | null>(
+    null
+  );
+  const [backendProfileEditorValue, setBackendProfileEditorValue] = useState(
+    buildEmptyBackendProfileEditorValue()
+  );
+  const [backendProfileEditorError, setBackendProfileEditorError] = useState<string | null>(null);
+  const [featureBindingEditorValue, setFeatureBindingEditorValue] = useState(
+    buildEmptyFeatureBindingEditorValue()
+  );
+  const [featureBindingEditorError, setFeatureBindingEditorError] = useState<string | null>(null);
   const backendImportInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptionImportInputRef = useRef<HTMLInputElement | null>(null);
   const visibleSections = SETTINGS_SECTIONS;
@@ -581,6 +624,275 @@ export default function SettingsPage() {
       setBackendStateLoading(false);
     }
   }, [adminApiBaseUrl, apiBaseUrl, apiClient, backendAdminToken, t]);
+
+  const handleRefreshBackendBindingState = useCallback(async () => {
+    if (!apiBaseUrl.trim()) {
+      setBackendBindingState(null);
+      setBackendBindingStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
+      return;
+    }
+    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    if (!normalizedAdminApiBaseUrl) {
+      setBackendBindingState(null);
+      setBackendBindingStateError(t("internalAdminApiBaseUrlRequired"));
+      return;
+    }
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      setBackendBindingState(null);
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+      return;
+    }
+
+    setBackendBindingStateLoading(true);
+    setBackendBindingStateError(null);
+    try {
+      const [capabilities, profiles, bindings] = await Promise.all([
+        apiClient.getBackendCapabilities({ adminToken }),
+        apiClient.getBackendProfiles({ adminToken }),
+        apiClient.getFeatureBindings({ adminToken }),
+      ]);
+      setBackendBindingState(capabilities);
+      setBackendProfiles(profiles);
+      setFeatureBindings(bindings);
+      setBackendBindingStateLastSuccessAt(new Date().toISOString());
+      setBackendProfileEditorError(null);
+      setFeatureBindingEditorError(null);
+
+      const nextSelectedProfileId =
+        (selectedBackendProfileId && profiles.some((profile) => profile.id === selectedBackendProfileId)
+          ? selectedBackendProfileId
+          : profiles[0]?.id) ?? null;
+      setSelectedBackendProfileId(nextSelectedProfileId);
+      setBackendProfileEditorValue(
+        nextSelectedProfileId
+          ? formatBackendProfileEditorValue(
+              profiles.find((profile) => profile.id === nextSelectedProfileId) ?? profiles[0]
+            )
+          : buildEmptyBackendProfileEditorValue()
+      );
+
+      const nextSelectedBindingKey =
+        (selectedFeatureBindingKey &&
+        bindings.some((binding) => binding.featureKey === selectedFeatureBindingKey)
+          ? selectedFeatureBindingKey
+          : bindings[0]?.featureKey ?? ADDITIVE_FEATURE_KEYS[0]) ?? null;
+      setSelectedFeatureBindingKey(nextSelectedBindingKey);
+      setFeatureBindingEditorValue(
+        nextSelectedBindingKey
+          ? formatFeatureBindingEditorValue(
+              bindings.find((binding) => binding.featureKey === nextSelectedBindingKey) ??
+                ({
+                  featureKey: nextSelectedBindingKey,
+                  primaryBackendProfileId: "profile-id",
+                  fallbackBackendProfileId: null,
+                  enabled: true,
+                  modelOverride: null,
+                  timeoutMs: undefined,
+                  retryPolicy: undefined,
+                  degradedBehavior: "disable",
+                } as FeatureBinding)
+            )
+          : buildEmptyFeatureBindingEditorValue()
+      );
+    } catch (error) {
+      setBackendBindingStateError(
+        error instanceof Error ? error.message : t("failedToLoadBackendState")
+      );
+    } finally {
+      setBackendBindingStateLoading(false);
+    }
+  }, [
+    adminApiBaseUrl,
+    apiBaseUrl,
+    apiClient,
+    backendAdminToken,
+    t,
+    selectedBackendProfileId,
+    selectedFeatureBindingKey,
+  ]);
+
+  const handleSelectBackendProfile = useCallback(
+    (profileId: string | null) => {
+      setSelectedBackendProfileId(profileId);
+      setBackendProfileEditorError(null);
+      if (!profileId) {
+        setBackendProfileEditorValue(buildEmptyBackendProfileEditorValue());
+        return;
+      }
+      const profile = backendProfiles.find((entry) => entry.id === profileId);
+      setBackendProfileEditorValue(
+        profile ? formatBackendProfileEditorValue(profile) : buildEmptyBackendProfileEditorValue()
+      );
+    },
+    [backendProfiles]
+  );
+
+  const handleSelectFeatureBinding = useCallback(
+    (featureKey: FeatureKey | null) => {
+      setSelectedFeatureBindingKey(featureKey);
+      setFeatureBindingEditorError(null);
+      if (!featureKey) {
+        setFeatureBindingEditorValue(buildEmptyFeatureBindingEditorValue());
+        return;
+      }
+      const binding = featureBindings.find((entry) => entry.featureKey === featureKey);
+      setFeatureBindingEditorValue(
+        binding
+          ? formatFeatureBindingEditorValue(binding)
+          : buildEmptyFeatureBindingEditorValue(featureKey)
+      );
+    },
+    [featureBindings]
+  );
+
+  const formatJsonEditorValue = useCallback((value: string) => {
+    const parsed = JSON.parse(value);
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  }, []);
+
+  const handleFormatBackendProfileEditor = useCallback(() => {
+    try {
+      setBackendProfileEditorValue((current) => formatJsonEditorValue(current));
+      setBackendProfileEditorError(null);
+    } catch (error) {
+      setBackendProfileEditorError(
+        error instanceof Error ? error.message : t("pleaseCheckTheSettingsJson")
+      );
+    }
+  }, [formatJsonEditorValue, t]);
+
+  const handleFormatFeatureBindingEditor = useCallback(() => {
+    try {
+      setFeatureBindingEditorValue((current) => formatJsonEditorValue(current));
+      setFeatureBindingEditorError(null);
+    } catch (error) {
+      setFeatureBindingEditorError(
+        error instanceof Error ? error.message : t("pleaseCheckTheSettingsJson")
+      );
+    }
+  }, [formatJsonEditorValue, t]);
+
+  const handleCopyJsonText = useCallback(
+    async (value: string) => {
+      try {
+        await navigator.clipboard.writeText(value);
+        enqueueSnackbar(t("copiedToClipboard"), { variant: "success" });
+      } catch (error) {
+        enqueueSnackbar(
+          error instanceof Error ? error.message : t("failedToCopyJson"),
+          { variant: "error" }
+        );
+      }
+    },
+    [enqueueSnackbar, t]
+  );
+
+  const handleSaveBackendProfileRecord = useCallback(async () => {
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+      return;
+    }
+    try {
+      const profile = parseBackendProfileEditorValue(backendProfileEditorValue);
+      await apiClient.upsertBackendProfile(profile, { adminToken });
+      setBackendProfileEditorError(null);
+      enqueueSnackbar(t("backendProfileSaved"), { variant: "success" });
+      setSelectedBackendProfileId(profile.id);
+      await handleRefreshBackendBindingState();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("pleaseCheckTheSettingsJson");
+      setBackendProfileEditorError(message);
+      enqueueSnackbar(message, { variant: "error" });
+    }
+  }, [
+    apiClient,
+    backendAdminToken,
+    backendProfileEditorValue,
+    enqueueSnackbar,
+    handleRefreshBackendBindingState,
+    t,
+  ]);
+
+  const handleDeleteBackendProfileRecord = useCallback(async () => {
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken || !selectedBackendProfileId) {
+      return;
+    }
+    try {
+      await apiClient.deleteBackendProfile(selectedBackendProfileId, { adminToken });
+      enqueueSnackbar(t("backendProfileDeleted"), { variant: "success" });
+      setSelectedBackendProfileId(null);
+      setBackendProfileEditorValue(buildEmptyBackendProfileEditorValue());
+      await handleRefreshBackendBindingState();
+    } catch (error) {
+      enqueueSnackbar(
+        error instanceof Error ? error.message : t("failedToDeleteBackendProfile"),
+        { variant: "error" }
+      );
+    }
+  }, [
+    apiClient,
+    backendAdminToken,
+    enqueueSnackbar,
+    handleRefreshBackendBindingState,
+    selectedBackendProfileId,
+    t,
+  ]);
+
+  const handleSaveFeatureBindingRecord = useCallback(async () => {
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+      return;
+    }
+    try {
+      const binding = parseFeatureBindingEditorValue(featureBindingEditorValue);
+      await apiClient.upsertFeatureBinding(binding, { adminToken });
+      setFeatureBindingEditorError(null);
+      enqueueSnackbar(t("featureBindingSaved"), { variant: "success" });
+      setSelectedFeatureBindingKey(binding.featureKey);
+      await handleRefreshBackendBindingState();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("pleaseCheckTheSettingsJson");
+      setFeatureBindingEditorError(message);
+      enqueueSnackbar(message, { variant: "error" });
+    }
+  }, [
+    apiClient,
+    backendAdminToken,
+    enqueueSnackbar,
+    featureBindingEditorValue,
+    handleRefreshBackendBindingState,
+    t,
+  ]);
+
+  const handleDeleteFeatureBindingRecord = useCallback(async () => {
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken || !selectedFeatureBindingKey) {
+      return;
+    }
+    try {
+      await apiClient.deleteFeatureBinding(selectedFeatureBindingKey, { adminToken });
+      enqueueSnackbar(t("featureBindingDeleted"), { variant: "success" });
+      setSelectedFeatureBindingKey(null);
+      setFeatureBindingEditorValue(buildEmptyFeatureBindingEditorValue());
+      await handleRefreshBackendBindingState();
+    } catch (error) {
+      enqueueSnackbar(
+        error instanceof Error ? error.message : t("failedToDeleteFeatureBinding"),
+        { variant: "error" }
+      );
+    }
+  }, [
+    apiClient,
+    backendAdminToken,
+    enqueueSnackbar,
+    handleRefreshBackendBindingState,
+    selectedFeatureBindingKey,
+    t,
+  ]);
 
   useEffect(() => {
     const nextSearchParams = normalizeSettingsSectionSearchParams(searchParams, activeSection);
@@ -2540,6 +2852,60 @@ export default function SettingsPage() {
                         </Stack>
                       </Box>
                     </Stack>
+
+                    {operatorBackendBindingsEnabled && BackendBindingOperatorPanel ? (
+                      <>
+                        <Divider />
+                        <Suspense fallback={null}>
+                          <BackendBindingOperatorPanel
+                            locale={locale}
+                            disabled={
+                              backendBindingStateLoading ||
+                              !adminApiConfigured ||
+                              !backendAdminTokenPresent ||
+                              operatorActionsBlockedByDraft
+                            }
+                            loading={backendBindingStateLoading}
+                            error={backendBindingStateError}
+                            lastSuccessAt={backendBindingStateLastSuccessAt}
+                            capabilitiesState={backendBindingState}
+                            profiles={backendProfiles}
+                            bindings={featureBindings}
+                            selectedProfileId={selectedBackendProfileId}
+                            selectedBindingKey={selectedFeatureBindingKey}
+                            profileEditorValue={backendProfileEditorValue}
+                            profileEditorError={backendProfileEditorError}
+                            bindingEditorValue={featureBindingEditorValue}
+                            bindingEditorError={featureBindingEditorError}
+                            onRefresh={() => void handleRefreshBackendBindingState()}
+                            onNewProfile={() => handleSelectBackendProfile(null)}
+                            onSelectProfile={handleSelectBackendProfile}
+                            onProfileEditorChange={(value) => {
+                              setBackendProfileEditorValue(value);
+                              setBackendProfileEditorError(null);
+                            }}
+                            onFormatProfileEditor={handleFormatBackendProfileEditor}
+                            onCopyProfileEditor={() => void handleCopyJsonText(backendProfileEditorValue)}
+                            onSaveProfile={() => void handleSaveBackendProfileRecord()}
+                            onDeleteProfile={() => void handleDeleteBackendProfileRecord()}
+                            onNewBinding={() => {
+                              setSelectedFeatureBindingKey(null);
+                              setFeatureBindingEditorError(null);
+                              setFeatureBindingEditorValue(buildEmptyFeatureBindingEditorValue());
+                            }}
+                            onSelectBinding={handleSelectFeatureBinding}
+                            onBindingEditorChange={(value) => {
+                              setFeatureBindingEditorValue(value);
+                              setFeatureBindingEditorError(null);
+                            }}
+                            onFormatBindingEditor={handleFormatFeatureBindingEditor}
+                            onCopyBindingEditor={() => void handleCopyJsonText(featureBindingEditorValue)}
+                            onSaveBinding={() => void handleSaveFeatureBindingRecord()}
+                            onDeleteBinding={() => void handleDeleteFeatureBindingRecord()}
+                          />
+                        </Suspense>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </Stack>

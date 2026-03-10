@@ -1,3 +1,6 @@
+import type { BackendCapability, BackendProfile } from "../../domain/backendProfile";
+import type { FeatureBinding, FeatureKey } from "../../domain/featureBinding";
+
 export type TranscriptionStatus =
   | "queued"
   | "processing"
@@ -124,4 +127,68 @@ export interface BackendEndpointUpdatePayload {
   clientId?: string | null;
   clientSecret?: string | null;
   verifySsl?: boolean;
+}
+
+export interface BackendBindingCompatibilityState {
+  legacySource: "default" | "override";
+  endpointState: BackendEndpointState | null;
+  legacyProfiles: BackendProfile[];
+  legacyBindings: FeatureBinding[];
+}
+
+export interface BackendCapabilitiesState {
+  capabilityKeys: BackendCapability[];
+  featureKeys: FeatureKey[];
+  compatibility: BackendBindingCompatibilityState;
+}
+
+export interface BackendProfileUpsertPayload {
+  id: string;
+  label: string;
+  kind: "stt" | "llm" | "translate" | "tts" | "multimodal";
+  baseUrl: string;
+  transport: "http" | "websocket" | "grpc";
+  authStrategy: {
+    type: "none" | "bearer_secret_ref" | "oauth_broker" | "header_token" | "provider_native";
+    credentialRef?: {
+      kind: "kubernetes_secret" | "server_env" | "operator_token";
+      id: string;
+      field?: string | null;
+    } | null;
+  };
+  capabilities: Array<
+    | "stt.realtime"
+    | "stt.file"
+    | "artifact.summary"
+    | "artifact.qa"
+    | "translate.turn_final"
+    | "translate.turn_partial"
+    | "tts.speak"
+    | "tts.stream"
+  >;
+  defaultModel?: string | null;
+  enabled: boolean;
+  metadata?: Record<string, string>;
+}
+
+export interface FeatureBindingUpsertPayload {
+  featureKey:
+    | "capture.realtime"
+    | "capture.file"
+    | "artifact.summary"
+    | "artifact.qa"
+    | "translate.turn_final"
+    | "translate.turn_partial"
+    | "tts.speak"
+    | "tts.stream";
+  primaryBackendProfileId: string;
+  fallbackBackendProfileId?: string | null;
+  enabled: boolean;
+  modelOverride?: string | null;
+  timeoutMs?: number | null;
+  degradedBehavior?: "hide" | "disable" | "source_only" | "transcript_only" | "retry" | null;
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs: number;
+  } | null;
 }

@@ -1,4 +1,5 @@
 import type {
+  BackendCapabilitiesState,
   BackendEndpointState,
   BackendEndpointUpdatePayload,
   FileTranscriptionRequest,
@@ -11,6 +12,18 @@ import type {
   TranscriptionStatus,
   WordTimestamp,
 } from "./types";
+import {
+  denormalizeBackendProfileRecord,
+  denormalizeFeatureBindingRecord,
+  normalizeBackendCapabilitiesState,
+  normalizeBackendProfileRecord,
+  normalizeFeatureBindingRecord,
+  type RawBackendCapabilitiesState,
+  type RawBackendProfileRecord,
+  type RawFeatureBindingRecord,
+} from "./backendBindingContracts";
+import type { BackendProfile } from "../../domain/backendProfile";
+import type { FeatureBinding } from "../../domain/featureBinding";
 import { tStatic } from "../../i18n/static";
 import { joinBaseUrl } from "../../utils/baseUrl";
 
@@ -69,6 +82,14 @@ type ParsedApiError = {
   code?: string;
   message?: string;
 };
+
+type RawBackendProfilesResponse =
+  | RawBackendProfileRecord[]
+  | { profiles?: RawBackendProfileRecord[] };
+
+type RawFeatureBindingsResponse =
+  | RawFeatureBindingRecord[]
+  | { bindings?: RawFeatureBindingRecord[] };
 
 const TRANSCRIPTION_STATUSES: TranscriptionStatus[] = [
   "queued",
@@ -504,5 +525,102 @@ export class RtzrApiClient {
     });
     const raw = (await (await this.ensureOk(response)).json()) as RawBackendEndpointState;
     return this.normalizeBackendState(raw);
+  }
+
+  async getBackendProfiles(options?: { adminToken?: string }): Promise<BackendProfile[]> {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/profiles"), {
+      method: "GET",
+      headers: this.withAdminHeaders({ Accept: "application/json" }, options?.adminToken),
+    });
+    const raw = (await (await this.ensureOk(response)).json()) as RawBackendProfilesResponse;
+    const records = Array.isArray(raw) ? raw : raw.profiles ?? [];
+    return records.map((record) => normalizeBackendProfileRecord(record));
+  }
+
+  async upsertBackendProfile(
+    profile: BackendProfile,
+    options?: { adminToken?: string }
+  ): Promise<BackendProfile> {
+    const rawProfile = denormalizeBackendProfileRecord(profile);
+    const response = await fetch(this.buildAdminUrl(`/v1/backend/profiles/${encodeURIComponent(profile.id)}`), {
+      method: "PUT",
+      headers: this.withAdminHeaders(
+        {
+          "Content-Type": "application/json",
+        },
+        options?.adminToken
+      ),
+      body: JSON.stringify(rawProfile),
+    });
+    const raw = (await (await this.ensureOk(response)).json()) as RawBackendProfileRecord;
+    return normalizeBackendProfileRecord(raw);
+  }
+
+  async deleteBackendProfile(profileId: string, options?: { adminToken?: string }): Promise<void> {
+    const response = await fetch(
+      this.buildAdminUrl(`/v1/backend/profiles/${encodeURIComponent(profileId)}`),
+      {
+        method: "DELETE",
+        headers: this.withAdminHeaders({ Accept: "application/json" }, options?.adminToken),
+      }
+    );
+    await this.ensureOk(response);
+  }
+
+  async getFeatureBindings(options?: { adminToken?: string }): Promise<FeatureBinding[]> {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/bindings"), {
+      method: "GET",
+      headers: this.withAdminHeaders({ Accept: "application/json" }, options?.adminToken),
+    });
+    const raw = (await (await this.ensureOk(response)).json()) as RawFeatureBindingsResponse;
+    const records = Array.isArray(raw) ? raw : raw.bindings ?? [];
+    return records.map((record) => normalizeFeatureBindingRecord(record));
+  }
+
+  async upsertFeatureBinding(
+    binding: FeatureBinding,
+    options?: { adminToken?: string }
+  ): Promise<FeatureBinding> {
+    const rawBinding = denormalizeFeatureBindingRecord(binding);
+    const response = await fetch(
+      this.buildAdminUrl(`/v1/backend/bindings/${encodeURIComponent(binding.featureKey)}`),
+      {
+        method: "PUT",
+        headers: this.withAdminHeaders(
+          {
+            "Content-Type": "application/json",
+          },
+          options?.adminToken
+        ),
+        body: JSON.stringify(rawBinding),
+      }
+    );
+    const raw = (await (await this.ensureOk(response)).json()) as RawFeatureBindingRecord;
+    return normalizeFeatureBindingRecord(raw);
+  }
+
+  async deleteFeatureBinding(
+    featureKey: FeatureBinding["featureKey"],
+    options?: { adminToken?: string }
+  ): Promise<void> {
+    const response = await fetch(
+      this.buildAdminUrl(`/v1/backend/bindings/${encodeURIComponent(featureKey)}`),
+      {
+        method: "DELETE",
+        headers: this.withAdminHeaders({ Accept: "application/json" }, options?.adminToken),
+      }
+    );
+    await this.ensureOk(response);
+  }
+
+  async getBackendCapabilities(
+    options?: { adminToken?: string }
+  ): Promise<BackendCapabilitiesState> {
+    const response = await fetch(this.buildAdminUrl("/v1/backend/capabilities"), {
+      method: "GET",
+      headers: this.withAdminHeaders({ Accept: "application/json" }, options?.adminToken),
+    });
+    const raw = (await (await this.ensureOk(response)).json()) as RawBackendCapabilitiesState;
+    return normalizeBackendCapabilitiesState(raw);
   }
 }

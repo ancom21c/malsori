@@ -349,6 +349,141 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Backend settings",
     ja: "バックエンド設定",
   },
+  additiveFeatureBackends: {
+    ko: "부가 기능 백엔드",
+    en: "Additive feature backends",
+    ja: "追加機能バックエンド",
+  },
+  additiveFeatureBackendsHelper: {
+    ko: "요약, QA, 번역, TTS 같은 부가 기능이 어떤 backend profile을 쓰는지 operator 전용 surface에서 관리합니다.",
+    en: "Manage which backend profiles power additive features such as summary, QA, translation, and TTS from an operator-only surface.",
+    ja: "summary、QA、translation、TTS などの追加機能がどの backend profile を使うかを operator 専用 surface で管理します。",
+  },
+  backendProfiles: {
+    ko: "백엔드 프로파일",
+    en: "Backend profiles",
+    ja: "バックエンドプロファイル",
+  },
+  featureBindings: {
+    ko: "기능 바인딩",
+    en: "Feature bindings",
+    ja: "機能バインディング",
+  },
+  bindingCompatibility: {
+    ko: "호환성 브리지",
+    en: "Compatibility bridge",
+    ja: "互換ブリッジ",
+  },
+  legacyBackendSource: {
+    ko: "레거시 백엔드 소스",
+    en: "Legacy backend source",
+    ja: "レガシーバックエンドソース",
+  },
+  legacyCaptureBridgeHelper: {
+    ko: "기존 capture STT endpoint override는 유지되고, additive feature binding은 별도 store에서 관리됩니다.",
+    en: "The existing capture STT endpoint override stays intact, while additive feature bindings are managed in a separate store.",
+    ja: "既存の capture STT endpoint override は維持し、追加機能 binding は別 store で管理します。",
+  },
+  availableCapabilities: {
+    ko: "사용 가능한 capability",
+    en: "Available capabilities",
+    ja: "利用可能な capability",
+  },
+  newProfile: {
+    ko: "새 프로파일",
+    en: "New profile",
+    ja: "新しいプロファイル",
+  },
+  saveProfile: {
+    ko: "프로파일 저장",
+    en: "Save profile",
+    ja: "プロファイルを保存",
+  },
+  deleteProfile: {
+    ko: "프로파일 삭제",
+    en: "Delete profile",
+    ja: "プロファイルを削除",
+  },
+  profileRecordJson: {
+    ko: "프로파일 레코드 JSON",
+    en: "Profile record JSON",
+    ja: "プロファイルレコード JSON",
+  },
+  profileRecordJsonHelper: {
+    ko: "internal API contract와 동일한 shape로 backend profile을 편집합니다.",
+    en: "Edit a backend profile using the same shape as the internal API contract.",
+    ja: "internal API contract と同じ shape で backend profile を編集します。",
+  },
+  thereAreNoRegisteredProfiles: {
+    ko: "등록된 backend profile이 없습니다.",
+    en: "There are no registered backend profiles.",
+    ja: "登録された backend profile はありません。",
+  },
+  backendProfileSaved: {
+    ko: "backend profile을 저장했습니다.",
+    en: "Saved the backend profile.",
+    ja: "backend profile を保存しました。",
+  },
+  backendProfileDeleted: {
+    ko: "backend profile을 삭제했습니다.",
+    en: "Deleted the backend profile.",
+    ja: "backend profile を削除しました。",
+  },
+  failedToDeleteBackendProfile: {
+    ko: "backend profile을 삭제하지 못했습니다.",
+    en: "Failed to delete the backend profile.",
+    ja: "backend profile を削除できませんでした。",
+  },
+  newBinding: {
+    ko: "새 바인딩",
+    en: "New binding",
+    ja: "新しいバインディング",
+  },
+  saveBinding: {
+    ko: "바인딩 저장",
+    en: "Save binding",
+    ja: "バインディングを保存",
+  },
+  deleteBinding: {
+    ko: "바인딩 삭제",
+    en: "Delete binding",
+    ja: "バインディングを削除",
+  },
+  bindingRecordJson: {
+    ko: "바인딩 레코드 JSON",
+    en: "Binding record JSON",
+    ja: "バインディングレコード JSON",
+  },
+  bindingRecordJsonHelper: {
+    ko: "feature-to-backend binding을 internal API contract shape로 편집합니다.",
+    en: "Edit the feature-to-backend binding using the internal API contract shape.",
+    ja: "feature-to-backend binding を internal API contract shape で編集します。",
+  },
+  thereAreNoFeatureBindings: {
+    ko: "등록된 기능 바인딩이 없습니다.",
+    en: "There are no registered feature bindings.",
+    ja: "登録された機能バインディングはありません。",
+  },
+  featureBindingSaved: {
+    ko: "기능 바인딩을 저장했습니다.",
+    en: "Saved the feature binding.",
+    ja: "機能バインディングを保存しました。",
+  },
+  featureBindingDeleted: {
+    ko: "기능 바인딩을 삭제했습니다.",
+    en: "Deleted the feature binding.",
+    ja: "機能バインディングを削除しました。",
+  },
+  failedToDeleteFeatureBinding: {
+    ko: "기능 바인딩을 삭제하지 못했습니다.",
+    en: "Failed to delete the feature binding.",
+    ja: "機能バインディングを削除できませんでした。",
+  },
+  failedToCopyJson: {
+    ko: "JSON을 복사하지 못했습니다.",
+    en: "Failed to copy the JSON.",
+    ja: "JSON をコピーできませんでした。",
+  },
   backendpresetselectorApplysuccess: {
     ko: "\"{{name}}\" 프리셋을 적용했습니다.",
     en: "Applied \"{{name}}\" preset.",

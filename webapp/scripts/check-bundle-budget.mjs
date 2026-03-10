@@ -10,7 +10,7 @@ const distAssetsDir = join(webappRoot, "dist", "assets");
 const shareEmbedFile = join(webappRoot, "public", "share-embed", "share-embed.js");
 
 const BUDGET = {
-  totalJsBytes: 1_270_000,
+  totalJsBytes: 1_285_000,
   maxJsChunkBytes: 368_000,
   maxCssChunkBytes: 50_000,
   mainEntryJsBytes: 90_000,
@@ -29,6 +29,9 @@ function resolveFlag(value, defaultValue) {
 const EXCLUDED_JS_CHUNK_PATTERNS = [
   !resolveFlag(process.env.VITE_FEATURE_REALTIME_TRANSLATE, false)
     ? /^TranslatePage-.*\.js$/
+    : null,
+  !resolveFlag(process.env.VITE_FEATURE_OPERATOR_BACKEND_BINDINGS, false)
+    ? /^BackendBindingOperatorPanel-.*\.js$/
     : null,
 ].filter(Boolean);
 
