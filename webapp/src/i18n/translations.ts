@@ -1045,9 +1045,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "DecoderConfig とストリーミング STT API (WebSocket) のセッション設定を管理します。",
   },
   managesTheLocalPythonApiAndSttEndpointsThatTheServerWillLookAt: {
-    ko: "로컬 Python API와 서버가 바라볼 STT 엔드포인트를 관리합니다.",
-    en: "Manages the local Python API and STT endpoints that the server will look at.",
-    ja: "サーバーが参照するローカルの Python API と STT エンドポイントを管理します。",
+    ko: "로컬 Python API와 STT 백엔드 프로필을 관리합니다.",
+    en: "Manage the local Python API and STT backend profiles.",
+    ja: "ローカルの Python API と STT バックエンドプロファイルを管理します。",
   },
   managesTheRequestconfigJsonToBePassedToTheRegularSttApiV1Transcribe: {
     ko: "일반 STT API(/v1/transcribe)에 전달할 RequestConfig JSON을 관리합니다.",
