@@ -3079,6 +3079,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Transcript Workspace",
     ja: "文字起こしワークスペース",
   },
+  transcript: {
+    ko: "전사",
+    en: "Transcript",
+    ja: "文字起こし",
+  },
   transcriptWorkspaceSubheader: {
     ko: "세그먼트 교정/탐색/노트 모드를 한 레이어에서 처리합니다.",
     en: "Review, correct, and navigate transcript segments with keyboard and waveform sync.",

@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -82,53 +83,44 @@ export default function RealtimeTranscript({
       >
         <Stack spacing={compactLayout ? 1.25 : 2} sx={{ flex: 1, minHeight: 0 }}>
           <Stack
-            direction={compactLayout ? "row" : { xs: "column", sm: "row" }}
+            direction="row"
             justifyContent="space-between"
-            alignItems={compactLayout ? "center" : { xs: "stretch", sm: "flex-start" }}
+            alignItems="center"
             spacing={compactLayout ? 1 : 1.5}
-            useFlexGap={compactLayout}
-            flexWrap={compactLayout ? "wrap" : "nowrap"}
+            useFlexGap
+            flexWrap="wrap"
           >
-            <Stack spacing={compactLayout ? 0 : 0.5} sx={compactLayout ? { minWidth: 0 } : undefined}>
-              <FormControlLabel
-                sx={{ m: 0 }}
-                control={
-                  <Switch
-                    size={compactLayout ? "small" : "medium"}
-                    checked={noteMode}
-                    onChange={(event) => onNoteModeChange(event.target.checked)}
-                  />
-                }
-                label={t("noteMode")}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: compactLayout ? "none" : "block" }}
+            <Stack direction="row" spacing={1} useFlexGap>
+              <Button
+                size="small"
+                variant={noteMode ? "text" : "contained"}
+                color={noteMode ? "inherit" : "primary"}
+                onClick={() => onNoteModeChange(false)}
+                sx={{ borderRadius: 999 }}
               >
-                {t("noteModeHelper")}
-              </Typography>
-            </Stack>
-            <Stack spacing={compactLayout ? 0 : 0.5} sx={compactLayout ? { minWidth: 0 } : undefined}>
-              <FormControlLabel
-                sx={{ m: 0 }}
-                control={
-                  <Switch
-                    size={compactLayout ? "small" : "medium"}
-                    checked={followLive}
-                    onChange={(event) => onFollowLiveChange(event.target.checked)}
-                  />
-                }
-                label={t("followLive")}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: compactLayout ? "none" : "block" }}
+                {t("transcript")}
+              </Button>
+              <Button
+                size="small"
+                variant={noteMode ? "contained" : "text"}
+                color={noteMode ? "primary" : "inherit"}
+                onClick={() => onNoteModeChange(true)}
+                sx={{ borderRadius: 999 }}
               >
-                {t("followLiveHelper")}
-              </Typography>
+                {t("noteMode")}
+              </Button>
             </Stack>
+            <FormControlLabel
+              sx={{ m: 0 }}
+              control={
+                <Switch
+                  size={compactLayout ? "small" : "medium"}
+                  checked={followLive}
+                  onChange={(event) => onFollowLiveChange(event.target.checked)}
+                />
+              }
+              label={t("followLive")}
+            />
           </Stack>
 
           <Divider />
