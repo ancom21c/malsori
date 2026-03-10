@@ -30,6 +30,12 @@ const EXCLUDED_JS_CHUNK_PATTERNS = [
   !resolveFlag(process.env.VITE_FEATURE_REALTIME_TRANSLATE, false)
     ? /^TranslatePage-.*\.js$/
     : null,
+  !resolveFlag(process.env.VITE_FEATURE_SESSION_ARTIFACTS, false)
+    ? /^sessionWorkspaceModel-.*\.js$/
+    : null,
+  !resolveFlag(process.env.VITE_FEATURE_SESSION_ARTIFACTS, false)
+    ? /^backendBindingRuntime-.*\.js$/
+    : null,
   !resolveFlag(process.env.VITE_FEATURE_OPERATOR_BACKEND_BINDINGS, false)
     ? /^BackendBindingOperatorPanel-.*\.js$/
     : null,

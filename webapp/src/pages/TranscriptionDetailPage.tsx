@@ -61,12 +61,17 @@ import {
   platformCapabilities,
 } from "../app/platformCapabilities";
 import {
+  findPlatformBackendProfile,
+  platformBackendBindingRuntime,
+} from "../app/backendBindingRuntime";
+import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
+import {
   buildSessionWorkspaceView,
   filterLocalSegmentsBySessionQuery,
-  getArtifactStatusKey,
   getArtifactTitleKey,
   getSessionModeLabelKey,
 } from "./sessionWorkspaceModel";
+import { resolveSessionArtifactLifecyclePresentation } from "./sessionArtifactLifecycleModel";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -587,6 +592,24 @@ export default function TranscriptionDetailPage() {
   const filteredTranscriptSegments = useMemo(
     () => filterLocalSegmentsBySessionQuery(segments ?? [], transcriptSearchQuery),
     [segments, transcriptSearchQuery]
+  );
+
+  const artifactCards = useMemo(
+    () =>
+      workspaceView?.artifacts.map((artifact) => {
+        const binding = resolveArtifactBindingPresentation(
+          artifact.type,
+          platformBackendBindingRuntime.bindings,
+          platformBackendBindingRuntime.profiles
+        );
+        const lifecycle = resolveSessionArtifactLifecyclePresentation(artifact, binding);
+        const resolvedProfile = findPlatformBackendProfile(
+          binding.resolution?.resolvedBackendProfileId,
+          platformBackendBindingRuntime
+        );
+        return { artifact, binding, lifecycle, resolvedProfile };
+      }) ?? [],
+    [workspaceView]
   );
 
   const timelineDurationSeconds = useMemo(() => {
@@ -2192,44 +2215,112 @@ export default function TranscriptionDetailPage() {
                     </Box>
                   ) : null}
 
-                  {workspaceView?.artifacts.map((artifact) => (
-                    <Card key={artifact.type} variant="outlined">
-                      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                        <Stack spacing={1}>
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            alignItems="center"
-                            justifyContent="space-between"
-                            useFlexGap
-                            flexWrap="wrap"
-                          >
-                            <Typography variant="subtitle2" fontWeight={700}>
-                              {t(getArtifactTitleKey(artifact.type))}
+                  {artifactCards.map(({ artifact, binding, lifecycle, resolvedProfile }) => {
+                    const supportingSnippets = [
+                      ...artifact.supportingSnippets,
+                      ...artifact.requests.flatMap((request) => request.supportingSnippets),
+                    ];
+
+                    return (
+                      <Card key={artifact.type} variant="outlined">
+                        <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                          <Stack spacing={1}>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              alignItems="center"
+                              justifyContent="space-between"
+                              useFlexGap
+                              flexWrap="wrap"
+                            >
+                              <Typography variant="subtitle2" fontWeight={700}>
+                                {t(getArtifactTitleKey(artifact.type))}
+                              </Typography>
+                              <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                                <Chip
+                                  size="small"
+                                  color={
+                                    lifecycle.requestTone === "success"
+                                      ? "success"
+                                      : lifecycle.requestTone === "warning"
+                                        ? "warning"
+                                        : lifecycle.requestTone === "error"
+                                          ? "error"
+                                          : "default"
+                                  }
+                                  label={t(lifecycle.requestStatusLabelKey)}
+                                />
+                                {binding.statusLabelKey ? (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    color={
+                                      binding.tone === "success"
+                                        ? "success"
+                                        : binding.tone === "warning"
+                                          ? "warning"
+                                          : "default"
+                                    }
+                                    label={t(binding.statusLabelKey)}
+                                  />
+                                ) : null}
+                              </Stack>
+                            </Stack>
+                            {resolvedProfile ? (
+                              <Typography variant="caption" color="text.secondary">
+                                {resolvedProfile.label}
+                              </Typography>
+                            ) : null}
+                            <Typography variant="body2" color="text.secondary">
+                              {artifact.content?.trim().length
+                                ? artifact.content
+                                : t(lifecycle.helperTextKey)}
                             </Typography>
-                            <Chip
-                              size="small"
-                              color={
-                                artifact.status === "ready"
-                                  ? "success"
-                                  : artifact.status === "pending"
-                                    ? "warning"
-                                    : artifact.status === "failed"
-                                      ? "error"
-                                      : "default"
-                              }
-                              label={t(getArtifactStatusKey(artifact.status))}
-                            />
+                            {artifact.errorMessage ? (
+                              <Alert severity="error" sx={{ py: 0 }}>
+                                {artifact.errorMessage}
+                              </Alert>
+                            ) : null}
+                            {lifecycle.showPromptComposer ? (
+                              <TextField
+                                size="small"
+                                label={t("askTranscriptPrompt")}
+                                placeholder={t("askTranscriptPromptPlaceholder")}
+                                helperText={t("askTranscriptPromptHelper")}
+                                value={artifact.requests[artifact.requests.length - 1]?.prompt ?? ""}
+                                disabled
+                                fullWidth
+                              />
+                            ) : null}
+                            {lifecycle.showSupportingSnippets ? (
+                              <Stack spacing={0.75}>
+                                <Typography variant="caption" color="text.secondary">
+                                  {t("supportingTranscriptSnippets")}
+                                </Typography>
+                                {supportingSnippets.map((snippet) => (
+                                  <Box
+                                    key={snippet.id}
+                                    sx={{
+                                      px: 1,
+                                      py: 0.75,
+                                      borderRadius: 1.5,
+                                      bgcolor: (theme) =>
+                                        alpha(theme.palette.background.default, 0.5),
+                                    }}
+                                  >
+                                    <Typography variant="caption" color="text.secondary">
+                                      {snippet.speakerLabel ?? snippet.turnId ?? "Turn"}
+                                    </Typography>
+                                    <Typography variant="body2">{snippet.text}</Typography>
+                                  </Box>
+                                ))}
+                              </Stack>
+                            ) : null}
                           </Stack>
-                          <Typography variant="body2" color="text.secondary">
-                            {artifact.content?.trim().length
-                              ? artifact.content
-                              : t("artifactNotRequestedHelper")}
-                          </Typography>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </Stack>
               </CardContent>
             </Card>

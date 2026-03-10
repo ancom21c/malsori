@@ -116,5 +116,7 @@ describe("shared session domain model", () => {
     const artifacts = createDefaultSessionArtifacts("tx-1");
     expect(artifacts).toHaveLength(4);
     expect(artifacts.every((artifact) => artifact.status === "not_requested")).toBe(true);
+    expect(artifacts.every((artifact) => artifact.supportingSnippets.length === 0)).toBe(true);
+    expect(artifacts.every((artifact) => artifact.requests.length === 0)).toBe(true);
   });
 });

@@ -26,6 +26,25 @@ export type ArtifactType = "summary" | "action_items" | "key_terms" | "qa";
 
 export type ArtifactStatus = "not_requested" | "pending" | "ready" | "failed";
 
+export interface ArtifactSupportingSnippet {
+  id: string;
+  turnId?: string;
+  speakerLabel?: string;
+  startMs?: number;
+  endMs?: number;
+  text: string;
+}
+
+export interface ArtifactRequestRecord {
+  id: string;
+  prompt?: string;
+  status: ArtifactStatus;
+  requestedAt?: string | null;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+  supportingSnippets: ArtifactSupportingSnippet[];
+}
+
 export interface QualitySnapshot {
   latencyMs?: number;
   bufferedAudioMs: number;
@@ -80,6 +99,12 @@ export interface SessionArtifact {
   status: ArtifactStatus;
   title: string;
   content?: string;
+  requestedAt?: string | null;
+  updatedAt?: string | null;
+  providerLabel?: string | null;
+  errorMessage?: string | null;
+  supportingSnippets: ArtifactSupportingSnippet[];
+  requests: ArtifactRequestRecord[];
 }
 
 export function deriveSessionMode(
@@ -196,24 +221,32 @@ export function createDefaultSessionArtifacts(
       type: "summary",
       status: "not_requested",
       title: "Summary",
+      supportingSnippets: [],
+      requests: [],
     },
     {
       sessionId,
       type: "action_items",
       status: "not_requested",
       title: "Action items",
+      supportingSnippets: [],
+      requests: [],
     },
     {
       sessionId,
       type: "key_terms",
       status: "not_requested",
       title: "Key terms",
+      supportingSnippets: [],
+      requests: [],
     },
     {
       sessionId,
       type: "qa",
       status: "not_requested",
       title: "Ask transcript",
+      supportingSnippets: [],
+      requests: [],
     },
   ];
 }

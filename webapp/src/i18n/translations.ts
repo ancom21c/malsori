@@ -3449,6 +3449,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Ask transcript",
     ja: "文字起こしに質問する",
   },
+  askTranscriptPrompt: {
+    ko: "질문",
+    en: "Question",
+    ja: "質問",
+  },
   artifactNotRequested: {
     ko: "미요청",
     en: "Not requested",
@@ -3473,6 +3478,51 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "아직 provider가 연결되지 않았습니다. 이 슬롯은 후속 요약/키워드/QA 기능을 수용하기 위한 자리입니다.",
     en: "No provider is attached yet. This slot is reserved so summaries, terms, and QA can be added without reshaping the workspace.",
     ja: "まだ provider は接続されていません。要約、用語、QA を追加してもワークスペースの形を変えないためのスロットです。",
+  },
+  summaryArtifactNotRequestedHelper: {
+    ko: "요약 요청은 아직 시작되지 않았습니다. summary backend가 준비되면 이 슬롯에서 독립적으로 생성됩니다.",
+    en: "The summary request has not started yet. Once a summary backend is ready, it will render here as an independent artifact.",
+    ja: "要約リクエストはまだ開始されていません。summary backend の準備ができると、このスロットに独立した artifact として表示されます。",
+  },
+  summaryArtifactPendingHelper: {
+    ko: "요약을 생성 중입니다. transcript와 세션 자체는 계속 읽을 수 있습니다.",
+    en: "The summary is being generated. The transcript and session remain readable while the artifact is pending.",
+    ja: "要約を生成中です。artifact の生成中でも transcript と session はそのまま閲覧できます。",
+  },
+  summaryArtifactFailedHelper: {
+    ko: "요약 생성에 실패했습니다. transcript와 세션 데이터는 그대로 유지됩니다.",
+    en: "Summary generation failed. The transcript and session data remain intact.",
+    ja: "要約の生成に失敗しました。transcript と session データはそのまま保持されます。",
+  },
+  qaArtifactNotRequestedHelper: {
+    ko: "질문 요청은 아직 시작되지 않았습니다. QA backend가 준비되면 transcript를 근거로 답변을 붙입니다.",
+    en: "No question has been requested yet. Once a QA backend is ready, answers can be attached with transcript-backed provenance.",
+    ja: "質問リクエストはまだ開始されていません。QA backend の準備ができると、transcript を根拠にした回答を追加できます。",
+  },
+  qaArtifactPendingHelper: {
+    ko: "질문 응답을 생성 중입니다. transcript는 계속 탐색할 수 있습니다.",
+    en: "The answer is being generated. The transcript remains available while QA is pending.",
+    ja: "回答を生成中です。QA の生成中でも transcript は引き続き参照できます。",
+  },
+  qaArtifactFailedHelper: {
+    ko: "질문 응답 생성에 실패했습니다. transcript와 세션 데이터는 그대로 유지됩니다.",
+    en: "Answer generation failed. The transcript and session data remain intact.",
+    ja: "回答の生成に失敗しました。transcript と session データはそのまま保持されます。",
+  },
+  askTranscriptPromptPlaceholder: {
+    ko: "예: 이 회의의 핵심 결정은 무엇인가요?",
+    en: "Example: What was the key decision in this meeting?",
+    ja: "例: この会議の主要な決定事項は何ですか？",
+  },
+  askTranscriptPromptHelper: {
+    ko: "질문과 provenance 스니펫은 이 슬롯에서 함께 관리됩니다.",
+    en: "The question and its supporting provenance snippets will live together in this slot.",
+    ja: "質問と supporting provenance snippet はこのスロットで一緒に管理されます。",
+  },
+  supportingTranscriptSnippets: {
+    ko: "근거 전사 스니펫",
+    en: "Supporting transcript snippets",
+    ja: "根拠となる transcript snippet",
   },
   searchTranscript: {
     ko: "전사 검색",
