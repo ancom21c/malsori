@@ -819,6 +819,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Capture",
     ja: "キャプチャ",
   },
+  translate: {
+    ko: "번역",
+    en: "Translate",
+    ja: "翻訳",
+  },
   filterReset: {
     ko: "필터 초기화",
     en: "Filter reset",
@@ -2288,6 +2293,101 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "세션",
     en: "Sessions",
     ja: "セッション",
+  },
+  realtimeTranslateTitle: {
+    ko: "실시간 번역 워크스페이스",
+    en: "Real-time Translate",
+    ja: "リアルタイム翻訳ワークスペース",
+  },
+  realtimeTranslateDescription: {
+    ko: "원문 turn은 항상 유지하고, 번역 결과는 별도 variant로 붙이는 독립 mode shell입니다.",
+    en: "An additive mode shell where source turns stay primary and translated variants attach separately.",
+    ja: "原文ターンを主に保ち、翻訳結果を別 variant として追加する独立モードシェルです。",
+  },
+  openCaptureWorkspace: {
+    ko: "캡처 워크스페이스 열기",
+    en: "Open capture workspace",
+    ja: "キャプチャワークスペースを開く",
+  },
+  translationShellHelper: {
+    ko: "번역 provider가 아직 연결되지 않아도 캡처 세션을 깨지 않도록 source-first shell만 먼저 노출합니다.",
+    en: "Expose the translator shell without risking capture regressions. Source turns stay authoritative until a translation provider is enabled.",
+    ja: "翻訳 provider が 아직 없어도 capture regression 없이 source-first shell 만 먼저 노출합니다.",
+  },
+  translationRoute: {
+    ko: "번역 경로",
+    en: "Translation route",
+    ja: "翻訳ルート",
+  },
+  autoDetectToEnglish: {
+    ko: "자동 감지 -> 영어",
+    en: "Auto-detect -> English",
+    ja: "自動検出 -> 英語",
+  },
+  translatorPhaseOne: {
+    ko: "1단계",
+    en: "Phase 1",
+    ja: "第1段階",
+  },
+  translatorPhaseTwo: {
+    ko: "2단계",
+    en: "Phase 2",
+    ja: "第2段階",
+  },
+  finalTurnsOnly: {
+    ko: "최종 turn 번역",
+    en: "Final turns only",
+    ja: "最終ターンのみ",
+  },
+  streamingPartialTranslation: {
+    ko: "부분 turn 스트리밍 번역",
+    en: "Streaming partial translation",
+    ja: "部分ターンのストリーミング翻訳",
+  },
+  sourceTranscript: {
+    ko: "원문 전사",
+    en: "Source transcript",
+    ja: "原文文字起こし",
+  },
+  translatedOutput: {
+    ko: "번역 출력",
+    en: "Translated output",
+    ja: "翻訳出力",
+  },
+  capturePrimary: {
+    ko: "캡처 우선",
+    en: "Capture primary",
+    ja: "キャプチャ優先",
+  },
+  sourceTranscriptPrimaryHelper: {
+    ko: "번역 지연이나 실패와 무관하게 원문 turn은 계속 누적됩니다.",
+    en: "Capture stays authoritative. Source turns keep accumulating even when translation is delayed or unavailable.",
+    ja: "翻訳の遅延や失敗に関係なく、原文ターンは継続して蓄積されます。",
+  },
+  translationSourceEmptyState: {
+    ko: "provider가 연결되면 이 영역에 source turn이 순서대로 쌓입니다.",
+    en: "Source turns will stream here in order once the provider is enabled.",
+    ja: "provider が有効になると、ここに source turn が順番に流れます。",
+  },
+  translationPending: {
+    ko: "번역 대기",
+    en: "Translation pending",
+    ja: "翻訳待ち",
+  },
+  sourceOnlyFallback: {
+    ko: "번역이 준비되지 않아도 source transcript는 계속 사용할 수 있습니다.",
+    en: "Source-only fallback keeps the session usable even when translation is not ready.",
+    ja: "翻訳が未準備でも source transcript は継続して利用できます。",
+  },
+  translationUnavailable: {
+    ko: "번역 provider 미연결",
+    en: "Translation provider unavailable",
+    ja: "翻訳 provider 未接続",
+  },
+  translationUnavailableHelper: {
+    ko: "phase 1은 final turn 번역부터 시작하고, provider capability가 준비되면 이 패널에 translated variant를 붙입니다.",
+    en: "Phase 1 starts with final-turn translation. When provider capability is available, translated variants will attach here without changing the capture contract.",
+    ja: "第1段階は最終ターン翻訳から始め、provider capability が整えばこのパネルに translated variant を追加します。",
   },
   waiting: {
     ko: "대기 중",

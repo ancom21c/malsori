@@ -9,6 +9,10 @@ import {
 } from "react-router-dom";
 import { CircularProgress, Box } from "@mui/material";
 import MainLayout from "../layouts/MainLayout";
+import {
+  platformFeatureFlags,
+  resolveRealtimeCapturePath,
+} from "./platformRoutes";
 
 const TranscriptionListPage = lazy(
   () => import("../pages/TranscriptionListPage")
@@ -20,6 +24,7 @@ const SettingsPage = lazy(() => import("../pages/SettingsPage"));
 const RealtimeSessionPage = lazy(
   () => import("../pages/RealtimeSessionPage")
 );
+const TranslatePage = lazy(() => import("../pages/TranslatePage"));
 const HelpPage = lazy(() => import("../pages/HelpPage"));
 const LabPage = lazy(() => import("../pages/LabPage"));
 const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
@@ -72,6 +77,16 @@ function createAppRouter() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/realtime" element={<RealtimeSessionPage />} />
         <Route path="/capture/realtime" element={<RealtimeSessionPage />} />
+        <Route
+          path="/translate"
+          element={
+            platformFeatureFlags.realtimeTranslate ? (
+              <TranslatePage />
+            ) : (
+              <Navigate to={resolveRealtimeCapturePath()} replace />
+            )
+          }
+        />
         <Route path="/lab" element={<LabPage />} />
         {devOnlyUiConceptsEnabled && UiConceptsPage ? (
           <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />

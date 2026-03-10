@@ -25,6 +25,10 @@ vi.mock("../pages/RealtimeSessionPage", () => ({
   default: () => <div>RealtimeSessionPageMock</div>,
 }));
 
+vi.mock("../pages/TranslatePage", () => ({
+  default: () => <div>TranslatePageMock</div>,
+}));
+
 vi.mock("../pages/HelpPage", () => ({
   default: () => <div>HelpPageMock</div>,
 }));
@@ -84,5 +88,13 @@ describe("AppRouter smoke", () => {
     cleanup();
     renderAt("/capture/file");
     expect(await screen.findByText("TranscriptionListPageMock")).toBeTruthy();
+  });
+
+  it("keeps translate mode behind the feature flag by default", async () => {
+    renderAt("/translate");
+    expect(await screen.findByText("RealtimeSessionPageMock")).toBeTruthy();
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/capture/realtime");
+    });
   });
 });

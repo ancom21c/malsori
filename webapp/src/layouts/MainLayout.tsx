@@ -44,6 +44,7 @@ import {
   resolveCaptureHubPath,
   resolveRealtimeCapturePath,
   resolveSessionsPath,
+  resolveTranslatePath,
 } from "../app/platformRoutes";
 
 type MainLayoutProps = {
@@ -62,7 +63,7 @@ type RouteChromePolicy = {
 };
 
 function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
-  if (pathname.startsWith("/realtime")) {
+  if (pathname.startsWith("/realtime") || pathname.startsWith("/capture/realtime")) {
     return {
       mobileActionOwner: "realtime-dock",
       defaultFloatingActionsVisible: false,
@@ -76,7 +77,8 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
   if (
     pathname.startsWith("/settings") ||
     pathname.startsWith("/transcriptions/") ||
-    pathname.startsWith("/sessions/")
+    pathname.startsWith("/sessions/") ||
+    pathname.startsWith("/translate")
   ) {
     return {
       mobileActionOwner: "page-owned",
@@ -161,6 +163,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
               path: resolveSessionsPath(),
               icon: <ListAltIcon fontSize="small" />,
             },
+            ...(platformFeatureFlags.realtimeTranslate
+              ? [
+                  {
+                    key: "translate",
+                    label: t("translate"),
+                    path: resolveTranslatePath(),
+                    icon: <TranslateIcon fontSize="small" />,
+                  },
+                ]
+              : []),
           ]
         : [
             {
@@ -233,6 +245,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
         : resolveCaptureHubPath();
     }
 
+    if (location.pathname.startsWith("/translate")) {
+      return resolveTranslatePath();
+    }
+
     return location.pathname;
   }, [location.pathname]);
 
@@ -245,7 +261,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
     return item?.path ?? "/";
   }, [menuItems, normalizedNavPath]);
   const isRealtimeRoute = useMemo(() => {
-    return location.pathname.startsWith("/realtime");
+    return (
+      location.pathname.startsWith("/realtime") ||
+      location.pathname.startsWith("/capture/realtime")
+    );
   }, [location.pathname]);
   const routeChromePolicy = useMemo(
     () => resolveRouteChromePolicy(location.pathname),
