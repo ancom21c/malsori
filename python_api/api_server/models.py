@@ -67,6 +67,98 @@ class BackendEndpointUpdateRequest(BaseModel):
     )
 
 
+BackendProfileKind = Literal["stt", "llm", "translate", "tts", "multimodal"]
+BackendTransport = Literal["http", "websocket", "grpc"]
+BackendCapability = Literal[
+    "stt.realtime",
+    "stt.file",
+    "artifact.summary",
+    "artifact.qa",
+    "translate.turn_final",
+    "translate.turn_partial",
+    "tts.speak",
+    "tts.stream",
+]
+BackendAuthStrategyType = Literal[
+    "none",
+    "bearer_secret_ref",
+    "oauth_broker",
+    "header_token",
+    "provider_native",
+]
+BackendHealthStatus = Literal["unknown", "healthy", "degraded", "unreachable", "misconfigured"]
+FeatureKey = Literal[
+    "capture.realtime",
+    "capture.file",
+    "artifact.summary",
+    "artifact.qa",
+    "translate.turn_final",
+    "translate.turn_partial",
+    "tts.speak",
+    "tts.stream",
+]
+FeatureDegradedBehavior = Literal["hide", "disable", "source_only", "transcript_only", "retry"]
+
+
+class BackendCredentialRef(BaseModel):
+    """Reference to a server-side credential source."""
+
+    kind: Literal["kubernetes_secret", "server_env", "operator_token"]
+    id: str
+    field: Optional[str] = None
+
+
+class BackendAuthStrategyModel(BaseModel):
+    """Auth strategy contract for an internal backend profile."""
+
+    type: BackendAuthStrategyType
+    credential_ref: Optional[BackendCredentialRef] = None
+
+
+class BackendHealthSnapshotModel(BaseModel):
+    """Health snapshot for a backend profile."""
+
+    status: BackendHealthStatus
+    checked_at: Optional[str] = None
+    message: Optional[str] = None
+
+
+class BackendProfileRecord(BaseModel):
+    """Internal admin API contract for a backend profile."""
+
+    id: str
+    label: str
+    kind: BackendProfileKind
+    base_url: str
+    transport: BackendTransport
+    auth_strategy: BackendAuthStrategyModel
+    capabilities: list[BackendCapability]
+    default_model: Optional[str] = None
+    enabled: bool = True
+    metadata: dict[str, str] = Field(default_factory=dict)
+    health: BackendHealthSnapshotModel
+
+
+class FeatureBindingRetryPolicyModel(BaseModel):
+    """Retry policy contract for a feature binding."""
+
+    max_attempts: int = Field(..., ge=0)
+    backoff_ms: int = Field(..., ge=0)
+
+
+class FeatureBindingRecord(BaseModel):
+    """Internal admin API contract for feature-to-backend binding."""
+
+    feature_key: FeatureKey
+    primary_backend_profile_id: str
+    fallback_backend_profile_id: Optional[str] = None
+    enabled: bool = True
+    model_override: Optional[str] = None
+    timeout_ms: Optional[int] = Field(default=None, ge=0)
+    retry_policy: Optional[FeatureBindingRetryPolicyModel] = None
+    degraded_behavior: Optional[FeatureDegradedBehavior] = None
+
+
 class HealthStatusResponse(BaseModel):
     """Operational health status for deployment smoke checks."""
 
