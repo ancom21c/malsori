@@ -83,9 +83,9 @@ export default function TranslatePage() {
                   {t(workspacePresentation.sourcePrimaryHelperKey)}
                 </Typography>
                 <Stack spacing={1}>
-                  {workspacePresentation.lanes.map((lane) => (
+                  {workspacePresentation.turnGroups.map((group) => (
                     <Box
-                      key={lane.id}
+                      key={group.id}
                       sx={{
                         display: "grid",
                         gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1.15fr) minmax(0, 0.85fr)" },
@@ -99,11 +99,20 @@ export default function TranslatePage() {
                     >
                       <Stack spacing={0.75}>
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                          <Chip size="small" variant="outlined" label={t(lane.sourceTitleKey)} />
+                          <Chip size="small" variant="outlined" label={t(group.sourceStatusLabelKey)} />
                           <Chip size="small" color="secondary" label={t("sourceTranscript")} />
+                          <Chip size="small" variant="outlined" label={group.speakerLabel} />
+                          <Chip size="small" variant="outlined" label={group.sourceLanguageLabel} />
                         </Stack>
+                        <Typography variant="body1" fontWeight={600}>
+                          {group.sourceText}
+                        </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {t(lane.sourceHelperKey)}
+                          {t(
+                            group.sourceStatusLabelKey === "finalTurnsOnly"
+                              ? "translationFinalSourceHelper"
+                              : "translationPartialSourceHelper"
+                          )}
                         </Typography>
                       </Stack>
 
@@ -111,14 +120,20 @@ export default function TranslatePage() {
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                           <Chip
                             size="small"
-                            color={lane.translationReady ? "success" : "default"}
-                            variant={lane.translationReady ? "filled" : "outlined"}
-                            label={t(lane.translationStatusLabelKey)}
+                            color={group.translationVariant.ready ? "success" : "default"}
+                            variant={group.translationVariant.ready ? "filled" : "outlined"}
+                            label={t(group.translationVariant.statusLabelKey)}
                           />
                           <Chip size="small" variant="outlined" label={t("translatedOutput")} />
+                          <Chip size="small" variant="outlined" label={group.translationVariant.languageLabel} />
                         </Stack>
+                        {group.translationVariant.text ? (
+                          <Typography variant="body1">
+                            {group.translationVariant.text}
+                          </Typography>
+                        ) : null}
                         <Typography variant="body2" color="text.secondary">
-                          {t(lane.translationHelperTextKey)}
+                          {t(group.translationVariant.helperTextKey)}
                         </Typography>
                       </Stack>
                     </Box>

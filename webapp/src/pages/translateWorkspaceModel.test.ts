@@ -45,8 +45,10 @@ describe("translateWorkspaceModel", () => {
     const presentation = buildTranslateWorkspacePresentation(binding);
     expect(presentation.showShell).toBe(true);
     expect(presentation.lanes).toHaveLength(2);
+    expect(presentation.turnGroups).toHaveLength(2);
     expect(presentation.lanes[0].translationReady).toBe(false);
     expect(presentation.lanes[0].translationStatusLabelKey).toBe("notConfigured");
+    expect(presentation.turnGroups[0].translationVariant.status).toBe("pending");
   });
 
   it("marks the final lane ready when a final translation binding resolves", () => {
@@ -66,5 +68,7 @@ describe("translateWorkspaceModel", () => {
     expect(presentation.lanes[0].translationReady).toBe(true);
     expect(presentation.lanes[0].translationStatusLabelKey).toBe("artifactReady");
     expect(presentation.lanes[1].translationReady).toBe(false);
+    expect(presentation.turnGroups[0].translationVariant.status).toBe("final");
+    expect(presentation.turnGroups[1].translationVariant.status).toBe("pending");
   });
 });

@@ -2509,6 +2509,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Translation pending",
     ja: "翻訳待ち",
   },
+  translationVariantFinal: {
+    ko: "최종 번역",
+    en: "Final translation",
+    ja: "最終翻訳",
+  },
+  translationVariantPartial: {
+    ko: "부분 번역",
+    en: "Partial translation",
+    ja: "部分翻訳",
+  },
   sourceOnlyFallback: {
     ko: "번역이 준비되지 않아도 source transcript는 계속 사용할 수 있습니다.",
     en: "Source-only fallback keeps the session usable even when translation is not ready.",
@@ -2528,6 +2538,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "provider capability가 열리면 source turn 아래에 translated variant를 붙이는 구조는 그대로 유지됩니다.",
     en: "Provider capability is enabled. The shell will keep attaching translated variants under the source turns without changing the capture-first layout.",
     ja: "provider capability が有効になっても、capture-first layout は維持したまま source turn の下に translated variant を追加します。",
+  },
+  translationVariantPendingHelper: {
+    ko: "source turn은 먼저 유지되고, translated variant는 provider 준비 상태에 따라 같은 그룹 아래에 늦게 붙습니다.",
+    en: "The source turn stays visible first, and the translated variant attaches later under the same group when the provider is ready.",
+    ja: "source turn は先に表示され、translated variant は provider の準備が整うと同じグループの下にあとから追加されます。",
   },
   translationFinalSourceHelper: {
     ko: "확정된 source turn이 먼저 쌓이고, final translation binding이 준비되면 이 turn 아래에 번역 variant가 붙습니다.",

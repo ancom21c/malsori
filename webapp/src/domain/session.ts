@@ -22,6 +22,8 @@ export type TurnStatus = "partial" | "final";
 
 export type TurnVariantType = "translation" | "normalized" | "redacted";
 
+export type TurnVariantStatus = "pending" | "partial" | "final" | "failed";
+
 export type ArtifactType = "summary" | "action_items" | "key_terms" | "qa";
 
 export type ArtifactStatus = "not_requested" | "pending" | "ready" | "failed";
@@ -73,10 +75,12 @@ export interface SessionRecord {
 }
 
 export interface SessionTurnVariant {
+  id: string;
   type: TurnVariantType;
   language?: string;
   text: string;
-  status: ArtifactStatus;
+  status: TurnVariantStatus;
+  errorMessage?: string | null;
 }
 
 export interface SessionTurn {
