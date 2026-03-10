@@ -135,10 +135,22 @@ export default function RealtimeStatusBanner({
           border: 1,
           borderColor: bannerBorderColor,
           borderRadius: compactLayout ? 2 : 3,
-          bgcolor: (theme) =>
-            alpha(theme.palette[bannerTone].main, bannerTone === "primary" ? 0.08 : 0.12),
+          bgcolor: "var(--malsori-workspace-rail)",
+          backgroundImage: (theme) =>
+            `linear-gradient(180deg, ${alpha(
+              theme.palette[bannerTone].main,
+              bannerTone === "primary" ? 0.12 : 0.15
+            )} 0%, ${alpha(theme.palette.background.paper, 0.02)} 100%)`,
+          boxShadow: (theme) => `0 12px 24px ${alpha(theme.palette.common.black, 0.18)}`,
           px: compactLayout ? 1 : 1.75,
           py: compactLayout ? 0.75 : 1.25,
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            inset: "0 0 auto 0",
+            height: 2,
+            background: (theme) => alpha(theme.palette[bannerTone].main, 0.72),
+          },
         }}
       >
         <Stack spacing={compactLayout ? 0.5 : 1}>

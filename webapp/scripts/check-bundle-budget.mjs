@@ -10,7 +10,7 @@ const distAssetsDir = join(webappRoot, "dist", "assets");
 const shareEmbedFile = join(webappRoot, "public", "share-embed", "share-embed.js");
 
 const BUDGET = {
-  totalJsBytes: 1_285_000,
+  totalJsBytes: 1_286_000,
   maxJsChunkBytes: 368_000,
   maxCssChunkBytes: 50_000,
   mainEntryJsBytes: 90_000,

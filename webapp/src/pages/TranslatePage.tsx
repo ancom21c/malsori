@@ -70,7 +70,14 @@ export default function TranslatePage() {
             alignItems: "stretch",
           }}
         >
-          <Card variant="outlined">
+          <Card
+            variant="outlined"
+            sx={{
+              borderColor: "var(--malsori-workspace-border)",
+              bgcolor: "var(--malsori-workspace-panel)",
+              boxShadow: "0 18px 36px rgba(0, 0, 0, 0.18)",
+            }}
+          >
             <CardContent>
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1} alignItems="center">
@@ -93,8 +100,8 @@ export default function TranslatePage() {
                         p: 1.25,
                         borderRadius: 2.5,
                         border: "1px solid",
-                        borderColor: "divider",
-                        bgcolor: "background.default",
+                        borderColor: "var(--malsori-workspace-border)",
+                        bgcolor: "var(--malsori-workspace-rail)",
                       }}
                     >
                       <Stack spacing={0.75}>
@@ -143,7 +150,14 @@ export default function TranslatePage() {
             </CardContent>
           </Card>
 
-          <Card variant="outlined">
+          <Card
+            variant="outlined"
+            sx={{
+              borderColor: "var(--malsori-workspace-border)",
+              bgcolor: "var(--malsori-workspace-panel)",
+              boxShadow: "0 18px 36px rgba(0, 0, 0, 0.18)",
+            }}
+          >
             <CardContent>
               <Stack spacing={1.5}>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -163,8 +177,8 @@ export default function TranslatePage() {
                         p: 1.25,
                         borderRadius: 2.5,
                         border: "1px dashed",
-                        borderColor: "divider",
-                        bgcolor: "background.default",
+                        borderColor: "var(--malsori-workspace-border)",
+                        bgcolor: "var(--malsori-workspace-rail)",
                       }}
                     >
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }} flexWrap="wrap" useFlexGap>

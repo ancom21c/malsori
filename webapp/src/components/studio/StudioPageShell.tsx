@@ -28,12 +28,17 @@ export function StudioPageShell({
         sx={{
           position: "relative",
           overflow: "hidden",
-          borderColor: (theme) => alpha(theme.palette.common.white, 0.08),
+          borderColor: "var(--malsori-workspace-border)",
+          backgroundColor: "var(--malsori-workspace-shell)",
           backgroundImage: (theme) =>
-            `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+            `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(
+              theme.palette.secondary.main,
+              0.05
+            )} 18%, ${alpha(
               theme.palette.background.paper,
               0.98
-            )} 38%, ${alpha(theme.palette.background.paper, 0.94)} 100%)`,
+            )} 42%, ${alpha(theme.palette.background.paper, 0.94)} 100%)`,
+          boxShadow: (theme) => `0 22px 44px ${alpha(theme.palette.common.black, 0.24)}`,
           "&::before": {
             content: '""',
             position: "absolute",
@@ -60,11 +65,11 @@ export function StudioPageShell({
                 component={headingComponent}
                 variant="h4"
                 sx={{
-                  fontSize: { xs: "1.6rem", sm: "2rem" },
+                  fontSize: { xs: "1.55rem", sm: "2rem" },
                   fontWeight: 780,
-                  letterSpacing: -0.5,
-                  lineHeight: 1.15,
-                  maxWidth: { xs: "12ch", md: "none" },
+                  letterSpacing: -0.65,
+                  lineHeight: 1.08,
+                  maxWidth: { xs: "13ch", md: "none" },
                 }}
               >
                 {title}

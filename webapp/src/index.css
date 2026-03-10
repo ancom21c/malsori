@@ -1,11 +1,15 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Sans:wght@400;600&display=swap");
-
 :root {
   --malsori-app-height: 100dvh;
   --malsori-safe-bottom: env(safe-area-inset-bottom, 0px);
   --malsori-viewport-top: 0px;
   --malsori-viewport-bottom: 0px;
   --malsori-bottom-clearance: max(var(--malsori-safe-bottom), var(--malsori-viewport-bottom));
+  --malsori-accent-teal: rgba(42, 201, 181, 0.78);
+  --malsori-accent-coral: rgba(245, 163, 127, 0.62);
+  --malsori-workspace-shell: rgba(17, 23, 24, 0.88);
+  --malsori-workspace-panel: rgba(20, 27, 28, 0.9);
+  --malsori-workspace-rail: rgba(16, 21, 22, 0.94);
+  --malsori-workspace-border: rgba(255, 255, 255, 0.08);
 }
 
 html {
@@ -21,7 +25,15 @@ body,
 
 body {
   margin: 0;
-  font-family: "IBM Plex Sans KR", "Noto Sans KR", "Noto Sans", sans-serif;
+  font-family:
+    "Segoe UI Variable",
+    "Segoe UI",
+    "SF Pro Display",
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    "Noto Sans KR",
+    "Noto Sans",
+    sans-serif;
   min-height: var(--malsori-app-height);
   background-color: #101415;
   color: rgba(255, 255, 255, 0.9);

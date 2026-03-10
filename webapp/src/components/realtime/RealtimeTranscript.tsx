@@ -73,6 +73,9 @@ export default function RealtimeTranscript({
         display: "flex",
         flexDirection: "column",
         borderRadius: compactLayout ? 2.5 : 3,
+        borderColor: "var(--malsori-workspace-border)",
+        bgcolor: "var(--malsori-workspace-panel)",
+        boxShadow: "0 18px 36px rgba(0, 0, 0, 0.18)",
       }}
     >
       <CardContent
@@ -173,7 +176,8 @@ export default function RealtimeTranscript({
                         variant="outlined"
                         sx={{
                           borderRadius: compactLayout ? 2 : 3,
-                          bgcolor: "background.paper",
+                          borderColor: "var(--malsori-workspace-border)",
+                          bgcolor: "var(--malsori-workspace-rail)",
                           "&:hover": { borderColor: "primary.main" },
                         }}
                       >
@@ -201,7 +205,7 @@ export default function RealtimeTranscript({
                         variant="outlined"
                         sx={{
                           borderColor: "secondary.main",
-                          bgcolor: "background.paper",
+                          bgcolor: "var(--malsori-workspace-rail)",
                           borderRadius: compactLayout ? 2 : 3,
                         }}
                       >

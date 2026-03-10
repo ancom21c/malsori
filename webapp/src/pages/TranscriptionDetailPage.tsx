@@ -2178,11 +2178,14 @@ export default function TranscriptionDetailPage() {
               sx={{
                 position: { xl: "sticky" },
                 top: { xl: 96 },
+                borderColor: "var(--malsori-workspace-border)",
+                bgcolor: "var(--malsori-workspace-panel)",
                 backgroundImage: (theme) =>
                   `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
                     theme.palette.background.paper,
                     0.98
                   )} 48%)`,
+                boxShadow: (theme) => `0 18px 36px ${alpha(theme.palette.common.black, 0.18)}`,
               }}
             >
               <CardHeader
@@ -2205,8 +2208,8 @@ export default function TranscriptionDetailPage() {
                         p: 1.5,
                         borderRadius: 2.5,
                         border: "1px solid",
-                        borderColor: "divider",
-                        bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
+                        borderColor: "var(--malsori-workspace-border)",
+                        bgcolor: "var(--malsori-workspace-rail)",
                       }}
                     >
                       <Typography variant="caption" color="text.secondary">
@@ -2222,7 +2225,14 @@ export default function TranscriptionDetailPage() {
                     ];
 
                     return (
-                      <Card key={artifact.type} variant="outlined">
+                      <Card
+                        key={artifact.type}
+                        variant="outlined"
+                        sx={{
+                          borderColor: "var(--malsori-workspace-border)",
+                          bgcolor: "var(--malsori-workspace-rail)",
+                        }}
+                      >
                         <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
                           <Stack spacing={1}>
                             <Stack
