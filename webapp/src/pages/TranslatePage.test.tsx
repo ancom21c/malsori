@@ -15,8 +15,9 @@ describe("TranslatePage", () => {
     );
 
     expect(screen.getByRole("heading", { name: /real-time translate/i })).toBeTruthy();
-    expect(screen.getByText(/source transcript/i)).toBeTruthy();
-    expect(screen.getByText(/translated output/i)).toBeTruthy();
+    expect(screen.getAllByText(/source transcript/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/translation workspace/i)).toBeTruthy();
     expect(screen.getByText(/capture stays authoritative/i)).toBeTruthy();
+    expect(screen.getAllByText(/final turns only/i).length).toBeGreaterThan(0);
   });
 });

@@ -1,14 +1,15 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
-import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import TranslateIcon from "@mui/icons-material/Translate";
 import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../i18n";
-import { ActionStrip, ContextCard, StudioPageShell } from "../components/studio";
+import { ActionStrip, StudioPageShell } from "../components/studio";
 import { platformFeatureFlags, resolveRealtimeCapturePath } from "../app/platformRoutes";
 import {
   derivePlatformFeatureAvailability,
   platformCapabilities,
 } from "../app/platformCapabilities";
+import { buildTranslateBindingPresentation } from "./translateBindingModel";
+import { buildTranslateWorkspacePresentation } from "./translateWorkspaceModel";
 
 export default function TranslatePage() {
   const { t } = useI18n();
@@ -16,6 +17,13 @@ export default function TranslatePage() {
     platformFeatureFlags,
     platformCapabilities
   );
+  const bindingPresentation = buildTranslateBindingPresentation(
+    platformFeatureFlags,
+    platformCapabilities,
+    availability,
+    { profiles: [], bindings: [] }
+  );
+  const workspacePresentation = buildTranslateWorkspacePresentation(bindingPresentation);
 
   return (
     <StudioPageShell
@@ -36,36 +44,29 @@ export default function TranslatePage() {
         </ActionStrip>
       }
     >
-      <Stack spacing={2.25}>
+      <Stack spacing={2}>
         <Alert severity="info">{t("translationShellHelper")}</Alert>
 
-        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
-          <ContextCard title={t("translationRoute")} value={t("autoDetectToEnglish")} tone="primary" />
-          <ContextCard
-            title={t("translatorPhaseOne")}
-            value={
-              availability.translateTurnFinalEnabled
-                ? `${t("finalTurnsOnly")} · ${t("artifactReady")}`
-                : `${t("finalTurnsOnly")} · ${t("translationPending")}`
-            }
-            tone={availability.translateTurnFinalEnabled ? "secondary" : "warning"}
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip color="primary" variant="outlined" label={`${t("translationRoute")}: ${t(workspacePresentation.routeLabelKey)}`} />
+          <Chip color="secondary" variant="outlined" label={t("capturePrimary")} />
+          <Chip
+            variant="outlined"
+            color={bindingPresentation.finalTranslation.ready ? "success" : "default"}
+            label={`${t("finalTurnsOnly")}: ${t(bindingPresentation.finalTranslation.statusLabelKey)}`}
           />
-          <ContextCard
-            title={t("translatorPhaseTwo")}
-            value={
-              availability.translateTurnPartialEnabled
-                ? `${t("streamingPartialTranslation")} · ${t("artifactReady")}`
-                : `${t("streamingPartialTranslation")} · ${t("artifactPending")}`
-            }
-            tone="neutral"
+          <Chip
+            variant="outlined"
+            color={bindingPresentation.partialTranslation.ready ? "success" : "default"}
+            label={`${t("streamingPartialTranslation")}: ${t(bindingPresentation.partialTranslation.statusLabelKey)}`}
           />
         </Stack>
 
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-            gap: 2.25,
+            gridTemplateColumns: { xs: "1fr", lg: "1.25fr 0.9fr" },
+            gap: 2,
             alignItems: "stretch",
           }}
         >
@@ -79,21 +80,50 @@ export default function TranslatePage() {
                   <Chip size="small" variant="outlined" label={t("capturePrimary")} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  {t("sourceTranscriptPrimaryHelper")}
+                  {t(workspacePresentation.sourcePrimaryHelperKey)}
                 </Typography>
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: 3,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: "background.default",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    {t("translationSourceEmptyState")}
-                  </Typography>
-                </Box>
+                <Stack spacing={1}>
+                  {workspacePresentation.lanes.map((lane) => (
+                    <Box
+                      key={lane.id}
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1.15fr) minmax(0, 0.85fr)" },
+                        gap: 1,
+                        p: 1.25,
+                        borderRadius: 2.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        bgcolor: "background.default",
+                      }}
+                    >
+                      <Stack spacing={0.75}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Chip size="small" variant="outlined" label={t(lane.sourceTitleKey)} />
+                          <Chip size="small" color="secondary" label={t("sourceTranscript")} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {t(lane.sourceHelperKey)}
+                        </Typography>
+                      </Stack>
+
+                      <Stack spacing={0.75}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Chip
+                            size="small"
+                            color={lane.translationReady ? "success" : "default"}
+                            variant={lane.translationReady ? "filled" : "outlined"}
+                            label={t(lane.translationStatusLabelKey)}
+                          />
+                          <Chip size="small" variant="outlined" label={t("translatedOutput")} />
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          {t(lane.translationHelperTextKey)}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
               </Stack>
             </CardContent>
           </Card>
@@ -101,38 +131,48 @@ export default function TranslatePage() {
           <Card variant="outlined">
             <CardContent>
               <Stack spacing={1.5}>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Typography variant="subtitle1" fontWeight={700}>
-                    {t("translatedOutput")}
+                    {t("translationWorkspaceRail")}
                   </Typography>
                   <Chip size="small" color="warning" variant="outlined" label={t("translationPending")} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  {t("sourceOnlyFallback")}
+                  {t(workspacePresentation.sourceFallbackHelperKey)}
                 </Typography>
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: 3,
-                    border: "1px dashed",
-                    borderColor: "divider",
-                    bgcolor: "background.default",
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                    <SwapHorizRoundedIcon fontSize="small" color="action" />
-                    <Typography variant="body2" fontWeight={600}>
-                      {availability.translateTurnFinalEnabled
-                        ? t("artifactReady")
-                        : t("translationUnavailable")}
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    {availability.translateTurnFinalEnabled
-                      ? t("translationProviderEnabledHelper")
-                      : t("translationUnavailableHelper")}
-                  </Typography>
-                </Box>
+                <Stack spacing={1}>
+                  {workspacePresentation.lanes.map((lane) => (
+                    <Box
+                      key={`rail-${lane.id}`}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 2.5,
+                        border: "1px dashed",
+                        borderColor: "divider",
+                        bgcolor: "background.default",
+                      }}
+                    >
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }} flexWrap="wrap" useFlexGap>
+                        <Typography variant="body2" fontWeight={600}>
+                          {t(
+                            lane.id === "final"
+                              ? "translationFinalVariantLane"
+                              : "translationPartialVariantLane"
+                          )}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          color={lane.translationReady ? "success" : "default"}
+                          variant={lane.translationReady ? "filled" : "outlined"}
+                          label={t(lane.translationStatusLabelKey)}
+                        />
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        {t(lane.translationHelperTextKey)}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
               </Stack>
             </CardContent>
           </Card>

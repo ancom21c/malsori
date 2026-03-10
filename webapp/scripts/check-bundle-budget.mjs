@@ -19,6 +19,19 @@ const BUDGET = {
 
 const KB = 1024;
 
+function resolveFlag(value, defaultValue) {
+  if (!value) {
+    return defaultValue;
+  }
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+}
+
+const EXCLUDED_JS_CHUNK_PATTERNS = [
+  !resolveFlag(process.env.VITE_FEATURE_REALTIME_TRANSLATE, false)
+    ? /^TranslatePage-.*\.js$/
+    : null,
+].filter(Boolean);
+
 function formatKiB(bytes) {
   return `${(bytes / KB).toFixed(2)} KiB`;
 }
@@ -33,13 +46,19 @@ function readAssetStats() {
     });
 
   const jsAssets = entries.filter((entry) => entry.name.endsWith(".js"));
+  const excludedJsAssets = jsAssets.filter((entry) =>
+    EXCLUDED_JS_CHUNK_PATTERNS.some((pattern) => pattern.test(entry.name))
+  );
+  const includedJsAssets = jsAssets.filter(
+    (entry) => !excludedJsAssets.some((excluded) => excluded.name === entry.name)
+  );
   const cssAssets = entries.filter((entry) => entry.name.endsWith(".css"));
-  const mainEntry = jsAssets.find((entry) => /^main-.*\.js$/.test(entry.name));
-  const totalJs = jsAssets.reduce((sum, entry) => sum + entry.size, 0);
+  const mainEntry = includedJsAssets.find((entry) => /^main-.*\.js$/.test(entry.name));
+  const totalJs = includedJsAssets.reduce((sum, entry) => sum + entry.size, 0);
   const shareEmbedSize = statSync(shareEmbedFile).size;
-  const jsAssetNames = new Set(jsAssets.map((entry) => entry.name));
+  const jsAssetNames = new Set(includedJsAssets.map((entry) => entry.name));
   const importGraph = new Map(
-    jsAssets.map((entry) => {
+    includedJsAssets.map((entry) => {
       const content = readFileSync(entry.filePath, "utf8");
       const imports = [];
       const importPattern = /from\s*["']\.\/([^"']+\.js)["']/g;
@@ -56,7 +75,8 @@ function readAssetStats() {
 
   return {
     entries,
-    jsAssets,
+    jsAssets: includedJsAssets,
+    excludedJsAssets,
     cssAssets,
     mainEntry,
     totalJs,
@@ -122,6 +142,13 @@ function fail(message, details = []) {
 function printSummary(stats) {
   console.log("[Bundle Budget] summary");
   console.log(`- total JS (dist/assets): ${formatKiB(stats.totalJs)} / ${formatKiB(BUDGET.totalJsBytes)}`);
+  if (stats.excludedJsAssets.length > 0) {
+    console.log(
+      `- excluded disabled-feature chunks: ${stats.excludedJsAssets
+        .map((entry) => `${basename(entry.name)} (${formatKiB(entry.size)})`)
+        .join(", ")}`
+    );
+  }
   console.log(`- share-embed.js: ${formatKiB(stats.shareEmbedSize)} / ${formatKiB(BUDGET.shareEmbedBytes)}`);
   if (stats.mainEntry) {
     console.log(

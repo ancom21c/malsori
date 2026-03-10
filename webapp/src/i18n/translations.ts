@@ -2394,6 +2394,31 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Provider capability is enabled. The shell will keep attaching translated variants under the source turns without changing the capture-first layout.",
     ja: "provider capability が有効になっても、capture-first layout は維持したまま source turn の下に translated variant を追加します。",
   },
+  translationFinalSourceHelper: {
+    ko: "확정된 source turn이 먼저 쌓이고, final translation binding이 준비되면 이 turn 아래에 번역 variant가 붙습니다.",
+    en: "Final source turns accumulate first. When the final translation binding is ready, translated variants attach under those turns.",
+    ja: "確定した source turn が先に蓄積され、final translation binding が準備되るとその turn の下に翻訳 variant が付きます。",
+  },
+  translationPartialSourceHelper: {
+    ko: "부분 source turn은 먼저 보이고, 실시간 partial translation은 provider capability가 준비되면 additive layer로 붙습니다.",
+    en: "Partial source turns stay visible first. Streaming partial translation attaches later as an additive layer when the provider capability is ready.",
+    ja: "部分 source turn は先に表示され、streaming partial translation は provider capability が準備できると追加レイヤーとして付きます。",
+  },
+  translationWorkspaceRail: {
+    ko: "번역 워크스페이스",
+    en: "Translation workspace",
+    ja: "翻訳ワークスペース",
+  },
+  translationFinalVariantLane: {
+    ko: "최종 turn 번역 레인",
+    en: "Final-turn translation lane",
+    ja: "最終ターン翻訳レーン",
+  },
+  translationPartialVariantLane: {
+    ko: "부분 turn 번역 레인",
+    en: "Partial-turn translation lane",
+    ja: "部分ターン翻訳レーン",
+  },
   waiting: {
     ko: "대기 중",
     en: "Waiting",

@@ -24,7 +24,9 @@ const SettingsPage = lazy(() => import("../pages/SettingsPage"));
 const RealtimeSessionPage = lazy(
   () => import("../pages/RealtimeSessionPage")
 );
-const TranslatePage = lazy(() => import("../pages/TranslatePage"));
+const TranslatePage = platformFeatureFlags.realtimeTranslate
+  ? lazy(() => import("../pages/TranslatePage"))
+  : null;
 const HelpPage = lazy(() => import("../pages/HelpPage"));
 const LabPage = lazy(() => import("../pages/LabPage"));
 const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
@@ -80,7 +82,7 @@ function createAppRouter() {
         <Route
           path="/translate"
           element={
-            platformFeatureFlags.realtimeTranslate ? (
+            platformFeatureFlags.realtimeTranslate && TranslatePage ? (
               <TranslatePage />
             ) : (
               <Navigate to={resolveRealtimeCapturePath()} replace />
