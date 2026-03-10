@@ -55,6 +55,11 @@ import { TranscriptionView } from "../components/TranscriptionView";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusChipSet } from "../components/studio";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { platformFeatureFlags } from "../app/platformRoutes";
+import {
+  derivePlatformFeatureAvailability,
+  platformCapabilities,
+} from "../app/platformCapabilities";
 import {
   buildSessionWorkspaceView,
   filterLocalSegmentsBySessionQuery,
@@ -409,6 +414,10 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 
 export default function TranscriptionDetailPage() {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const featureAvailability = derivePlatformFeatureAvailability(
+    platformFeatureFlags,
+    platformCapabilities
+  );
   const { transcriptionId } = useParams<{ transcriptionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -2149,81 +2158,83 @@ export default function TranscriptionDetailPage() {
             </Card>
           </Stack>
 
-          <Card
-            variant="outlined"
-            sx={{
-              position: { xl: "sticky" },
-              top: { xl: 96 },
-              backgroundImage: (theme) =>
-                `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
-                  theme.palette.background.paper,
-                  0.98
-                )} 48%)`,
-            }}
-          >
-            <CardHeader
-              title={detailCopy.sessionWorkspaceTitle}
-              subheader={detailCopy.sessionWorkspaceSubheader}
-            />
-            <CardContent>
-              <Stack spacing={1.5}>
-                {workspaceView?.summaryPreview ? (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary">
-                      {t("preview", { values: { text: workspaceView.summaryPreview } })}
-                    </Typography>
-                  </Box>
-                ) : null}
+          {featureAvailability.sessionArtifactsVisible ? (
+            <Card
+              variant="outlined"
+              sx={{
+                position: { xl: "sticky" },
+                top: { xl: 96 },
+                backgroundImage: (theme) =>
+                  `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(
+                    theme.palette.background.paper,
+                    0.98
+                  )} 48%)`,
+              }}
+            >
+              <CardHeader
+                title={detailCopy.sessionWorkspaceTitle}
+                subheader={detailCopy.sessionWorkspaceSubheader}
+              />
+              <CardContent>
+                <Stack spacing={1.5}>
+                  {workspaceView?.summaryPreview ? (
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        bgcolor: (theme) => alpha(theme.palette.background.default, 0.4),
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">
+                        {t("preview", { values: { text: workspaceView.summaryPreview } })}
+                      </Typography>
+                    </Box>
+                  ) : null}
 
-                {workspaceView?.artifacts.map((artifact) => (
-                  <Card key={artifact.type} variant="outlined">
-                    <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                      <Stack spacing={1}>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                          justifyContent="space-between"
-                          useFlexGap
-                          flexWrap="wrap"
-                        >
-                          <Typography variant="subtitle2" fontWeight={700}>
-                            {t(getArtifactTitleKey(artifact.type))}
+                  {workspaceView?.artifacts.map((artifact) => (
+                    <Card key={artifact.type} variant="outlined">
+                      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                        <Stack spacing={1}>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            justifyContent="space-between"
+                            useFlexGap
+                            flexWrap="wrap"
+                          >
+                            <Typography variant="subtitle2" fontWeight={700}>
+                              {t(getArtifactTitleKey(artifact.type))}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              color={
+                                artifact.status === "ready"
+                                  ? "success"
+                                  : artifact.status === "pending"
+                                    ? "warning"
+                                    : artifact.status === "failed"
+                                      ? "error"
+                                      : "default"
+                              }
+                              label={t(getArtifactStatusKey(artifact.status))}
+                            />
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary">
+                            {artifact.content?.trim().length
+                              ? artifact.content
+                              : t("artifactNotRequestedHelper")}
                           </Typography>
-                          <Chip
-                            size="small"
-                            color={
-                              artifact.status === "ready"
-                                ? "success"
-                                : artifact.status === "pending"
-                                  ? "warning"
-                                  : artifact.status === "failed"
-                                    ? "error"
-                                    : "default"
-                            }
-                            label={t(getArtifactStatusKey(artifact.status))}
-                          />
                         </Stack>
-                        <Typography variant="body2" color="text.secondary">
-                          {artifact.content?.trim().length
-                            ? artifact.content
-                            : t("artifactNotRequestedHelper")}
-                        </Typography>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          ) : null}
         </Box>
       </Stack>
     </Box >

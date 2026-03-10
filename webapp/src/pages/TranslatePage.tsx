@@ -4,10 +4,18 @@ import TranslateIcon from "@mui/icons-material/Translate";
 import { Link as RouterLink } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { ActionStrip, ContextCard, StudioPageShell } from "../components/studio";
-import { resolveRealtimeCapturePath } from "../app/platformRoutes";
+import { platformFeatureFlags, resolveRealtimeCapturePath } from "../app/platformRoutes";
+import {
+  derivePlatformFeatureAvailability,
+  platformCapabilities,
+} from "../app/platformCapabilities";
 
 export default function TranslatePage() {
   const { t } = useI18n();
+  const availability = derivePlatformFeatureAvailability(
+    platformFeatureFlags,
+    platformCapabilities
+  );
 
   return (
     <StudioPageShell
@@ -33,8 +41,24 @@ export default function TranslatePage() {
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
           <ContextCard title={t("translationRoute")} value={t("autoDetectToEnglish")} tone="primary" />
-          <ContextCard title={t("translatorPhaseOne")} value={t("finalTurnsOnly")} tone="secondary" />
-          <ContextCard title={t("translatorPhaseTwo")} value={t("streamingPartialTranslation")} tone="neutral" />
+          <ContextCard
+            title={t("translatorPhaseOne")}
+            value={
+              availability.translateTurnFinalEnabled
+                ? `${t("finalTurnsOnly")} · ${t("artifactReady")}`
+                : `${t("finalTurnsOnly")} · ${t("translationPending")}`
+            }
+            tone={availability.translateTurnFinalEnabled ? "secondary" : "warning"}
+          />
+          <ContextCard
+            title={t("translatorPhaseTwo")}
+            value={
+              availability.translateTurnPartialEnabled
+                ? `${t("streamingPartialTranslation")} · ${t("artifactReady")}`
+                : `${t("streamingPartialTranslation")} · ${t("artifactPending")}`
+            }
+            tone="neutral"
+          />
         </Stack>
 
         <Box
@@ -98,11 +122,15 @@ export default function TranslatePage() {
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                     <SwapHorizRoundedIcon fontSize="small" color="action" />
                     <Typography variant="body2" fontWeight={600}>
-                      {t("translationUnavailable")}
+                      {availability.translateTurnFinalEnabled
+                        ? t("artifactReady")
+                        : t("translationUnavailable")}
                     </Typography>
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
-                    {t("translationUnavailableHelper")}
+                    {availability.translateTurnFinalEnabled
+                      ? t("translationProviderEnabledHelper")
+                      : t("translationUnavailableHelper")}
                   </Typography>
                 </Box>
               </Stack>

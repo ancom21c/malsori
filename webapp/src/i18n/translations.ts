@@ -2389,6 +2389,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Phase 1 starts with final-turn translation. When provider capability is available, translated variants will attach here without changing the capture contract.",
     ja: "第1段階は最終ターン翻訳から始め、provider capability が整えばこのパネルに translated variant を追加します。",
   },
+  translationProviderEnabledHelper: {
+    ko: "provider capability가 열리면 source turn 아래에 translated variant를 붙이는 구조는 그대로 유지됩니다.",
+    en: "Provider capability is enabled. The shell will keep attaching translated variants under the source turns without changing the capture-first layout.",
+    ja: "provider capability が有効になっても、capture-first layout は維持したまま source turn の下に translated variant を追加します。",
+  },
   waiting: {
     ko: "대기 중",
     en: "Waiting",
