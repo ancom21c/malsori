@@ -1,4 +1,5 @@
 import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
+import { buildSessionDetailPath } from "../app/platformRoutes";
 
 interface ResolveRealtimeStreamingConfigStringOptions {
   draftJson?: string | null;
@@ -27,5 +28,5 @@ export function resolveRealtimeStreamingConfigString({
 }
 
 export function buildTranscriptionDetailPath(id: string): string {
-  return `/transcriptions/${id}`;
+  return buildSessionDetailPath(id);
 }

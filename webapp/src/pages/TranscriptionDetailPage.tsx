@@ -46,6 +46,7 @@ import {
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
 import { SpeakerEditDialog } from "../components/SpeakerEditDialog";
 import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
+import { buildSessionDetailPath, resolveSessionsPath } from "../app/platformRoutes";
 import { useShareLink } from "../hooks/useShareLink";
 import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
 import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
@@ -546,7 +547,7 @@ export default function TranscriptionDetailPage() {
       navigate(-1);
       return;
     }
-    navigate("/", { replace: true });
+    navigate(resolveSessionsPath(), { replace: true });
   }, [location.state, navigate]);
 
   const noteModeText = useMemo(() => {
@@ -1132,7 +1133,7 @@ export default function TranscriptionDetailPage() {
     if (!transcriptionId) return;
     await deleteTranscription(transcriptionId);
     enqueueSnackbar(t("theTranscriptionRecordHasBeenDeleted"), { variant: "success" });
-    navigate("/");
+    navigate(resolveSessionsPath());
   }, [enqueueSnackbar, navigate, t, transcriptionId]);
 
   const resolveRetryConfigJson = useCallback(async () => {
@@ -1175,7 +1176,7 @@ export default function TranscriptionDetailPage() {
           presetId: transcription.configPresetId ?? null,
           presetName: transcription.configPresetName ?? null,
         });
-        navigate(`/transcriptions/${result.localId}`);
+        navigate(buildSessionDetailPath(result.localId));
         return "success";
       } catch {
         // useRequestFileTranscription reports user-facing errors.

@@ -26,6 +26,7 @@ import TranscriptionConfigQuickOptions from "./TranscriptionConfigQuickOptions";
 import BackendEndpointReadonlyCard from "./BackendEndpointReadonlyCard";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import { useI18n } from "../i18n";
+import { buildSessionDetailPath } from "../app/platformRoutes";
 
 type UploadDialogProps = {
   open: boolean;
@@ -156,7 +157,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
       });
       resetForm();
       onClose();
-      navigate(`/transcriptions/${result.localId}`);
+      navigate(buildSessionDetailPath(result.localId));
     } catch (error) {
       console.error(error);
     }
