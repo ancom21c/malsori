@@ -104,7 +104,7 @@ class BackendCredentialRef(BaseModel):
     """Reference to a server-side credential source."""
 
     kind: Literal["kubernetes_secret", "server_env", "operator_token"]
-    id: str
+    id: str = Field(..., min_length=1)
     field: Optional[str] = None
 
 
@@ -126,17 +126,21 @@ class BackendHealthSnapshotModel(BaseModel):
 class BackendProfileRecord(BaseModel):
     """Internal admin API contract for a backend profile."""
 
-    id: str
-    label: str
+    id: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
     kind: BackendProfileKind
-    base_url: str
-    transport: BackendTransport
-    auth_strategy: BackendAuthStrategyModel
-    capabilities: list[BackendCapability]
+    base_url: str = Field(..., min_length=1)
+    transport: BackendTransport = "http"
+    auth_strategy: BackendAuthStrategyModel = Field(
+        default_factory=lambda: BackendAuthStrategyModel(type="none")
+    )
+    capabilities: list[BackendCapability] = Field(default_factory=list)
     default_model: Optional[str] = None
     enabled: bool = True
     metadata: dict[str, str] = Field(default_factory=dict)
-    health: BackendHealthSnapshotModel
+    health: BackendHealthSnapshotModel = Field(
+        default_factory=lambda: BackendHealthSnapshotModel(status="unknown")
+    )
 
 
 class FeatureBindingRetryPolicyModel(BaseModel):
@@ -150,13 +154,42 @@ class FeatureBindingRecord(BaseModel):
     """Internal admin API contract for feature-to-backend binding."""
 
     feature_key: FeatureKey
-    primary_backend_profile_id: str
+    primary_backend_profile_id: str = Field(..., min_length=1)
     fallback_backend_profile_id: Optional[str] = None
     enabled: bool = True
     model_override: Optional[str] = None
     timeout_ms: Optional[int] = Field(default=None, ge=0)
     retry_policy: Optional[FeatureBindingRetryPolicyModel] = None
     degraded_behavior: Optional[FeatureDegradedBehavior] = None
+
+
+class BackendProfilesResponse(BaseModel):
+    """List response for operator-managed backend profiles."""
+
+    profiles: list[BackendProfileRecord] = Field(default_factory=list)
+
+
+class FeatureBindingsResponse(BaseModel):
+    """List response for operator-managed feature bindings."""
+
+    bindings: list[FeatureBindingRecord] = Field(default_factory=list)
+
+
+class BackendBindingCompatibilityState(BaseModel):
+    """Compatibility view bridging the legacy STT override to the new binding system."""
+
+    legacy_source: Literal["default", "override"]
+    endpoint_state: Optional[BackendEndpointState] = None
+    legacy_profiles: list[BackendProfileRecord] = Field(default_factory=list)
+    legacy_bindings: list[FeatureBindingRecord] = Field(default_factory=list)
+
+
+class BackendCapabilitiesResponse(BaseModel):
+    """Operator-facing catalog of supported capabilities and compatibility state."""
+
+    capability_keys: list[BackendCapability] = Field(default_factory=list)
+    feature_keys: list[FeatureKey] = Field(default_factory=list)
+    compatibility: BackendBindingCompatibilityState
 
 
 class HealthStatusResponse(BaseModel):

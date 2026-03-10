@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, get_args
 from urllib.parse import urlparse
 
 from copy import deepcopy
@@ -27,6 +27,7 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Response,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
@@ -38,6 +39,7 @@ from websockets.exceptions import (
     ConnectionClosedOK,
 )
 from google.protobuf import json_format
+from pydantic import ValidationError
 
 from .config import (
     Settings,
@@ -46,9 +48,29 @@ from .config import (
     get_backend_override,
     get_settings,
 )
+from .backend_bindings_store import (
+    delete_backend_profile,
+    delete_feature_binding,
+    get_backend_profile,
+    get_feature_binding,
+    list_backend_profiles,
+    list_feature_bindings,
+    upsert_backend_profile,
+    upsert_feature_binding,
+)
 from .models import (
+    BackendAuthStrategyModel,
+    BackendCapability,
+    BackendCapabilitiesResponse,
+    BackendBindingCompatibilityState,
     BackendEndpointState,
     BackendEndpointUpdateRequest,
+    BackendHealthSnapshotModel,
+    BackendProfileRecord,
+    BackendProfilesResponse,
+    FeatureBindingRecord,
+    FeatureBindingsResponse,
+    FeatureKey,
     FrontendRuntimeErrorAck,
     FrontendRuntimeErrorReport,
     HealthStatusResponse,
@@ -229,6 +251,9 @@ _config_lock = Lock()
 SUCCESS_CODE = 0
 FAILURE_CODE = -1
 _FILE_TRANSCRIBE_DIRNAME = "file_transcriptions"
+_BACKEND_CAPABILITY_KEYS = list(get_args(BackendCapability))
+_FEATURE_KEYS = list(get_args(FeatureKey))
+_LEGACY_CAPTURE_PROFILE_ID = "__legacy_stt_bridge__"
 
 
 def _raise_api_error(
@@ -400,6 +425,261 @@ async def reset_backend_endpoint(
         )
     _reset_client()
     return _build_backend_state(settings, "default")
+
+
+def _normalize_backend_profile_record(
+    payload: BackendProfileRecord,
+) -> BackendProfileRecord:
+    credential_ref = payload.auth_strategy.credential_ref
+    metadata = {
+        key.strip(): value.strip()
+        for key, value in payload.metadata.items()
+        if key.strip() and value.strip()
+    }
+    data: Dict[str, Any] = {
+        "id": payload.id.strip(),
+        "label": payload.label.strip(),
+        "kind": payload.kind,
+        "base_url": _normalize_backend_api_base_url(payload.base_url),
+        "transport": payload.transport,
+        "auth_strategy": {
+            "type": payload.auth_strategy.type,
+            "credential_ref": (
+                {
+                    "kind": credential_ref.kind,
+                    "id": credential_ref.id.strip(),
+                    "field": credential_ref.field.strip() if credential_ref.field else None,
+                }
+                if credential_ref
+                else None
+            ),
+        },
+        "capabilities": sorted(set(payload.capabilities)),
+        "default_model": payload.default_model.strip() if payload.default_model else None,
+        "enabled": payload.enabled,
+        "metadata": metadata,
+        "health": {
+            "status": payload.health.status,
+            "checked_at": payload.health.checked_at,
+            "message": payload.health.message.strip() if payload.health.message else None,
+        },
+    }
+    return BackendProfileRecord.model_validate(data)
+
+
+def _normalize_feature_binding_record(
+    payload: FeatureBindingRecord,
+) -> FeatureBindingRecord:
+    retry_policy = payload.retry_policy
+    data: Dict[str, Any] = {
+        "feature_key": payload.feature_key,
+        "primary_backend_profile_id": payload.primary_backend_profile_id.strip(),
+        "fallback_backend_profile_id": (
+            payload.fallback_backend_profile_id.strip()
+            if payload.fallback_backend_profile_id
+            else None
+        ),
+        "enabled": payload.enabled,
+        "model_override": payload.model_override.strip() if payload.model_override else None,
+        "timeout_ms": payload.timeout_ms,
+        "retry_policy": (
+            {
+                "max_attempts": retry_policy.max_attempts,
+                "backoff_ms": retry_policy.backoff_ms,
+            }
+            if retry_policy
+            else None
+        ),
+        "degraded_behavior": payload.degraded_behavior,
+    }
+    return FeatureBindingRecord.model_validate(data)
+
+
+def _build_legacy_capture_profile(
+    settings: Settings, source: Literal["default", "override"]
+) -> BackendProfileRecord:
+    auth_strategy = BackendAuthStrategyModel(
+        type="provider_native" if settings.auth_enabled else "none"
+    )
+    message = (
+        "Derived from /v1/backend/endpoint override."
+        if source == "override"
+        else "Derived from server default STT configuration."
+    )
+    return BackendProfileRecord(
+        id=_LEGACY_CAPTURE_PROFILE_ID,
+        label="Legacy STT Capture Backend",
+        kind="stt",
+        base_url=settings.pronaia_api_base,
+        transport="http",
+        auth_strategy=auth_strategy,
+        capabilities=["stt.file", "stt.realtime"],
+        enabled=True,
+        metadata={
+            "legacy_source": source,
+            "deployment": settings.deployment,
+        },
+        health=BackendHealthSnapshotModel(status="unknown", message=message),
+    )
+
+
+def _build_legacy_capture_bindings() -> list[FeatureBindingRecord]:
+    return [
+        FeatureBindingRecord(
+            feature_key="capture.realtime",
+            primary_backend_profile_id=_LEGACY_CAPTURE_PROFILE_ID,
+            enabled=True,
+        ),
+        FeatureBindingRecord(
+            feature_key="capture.file",
+            primary_backend_profile_id=_LEGACY_CAPTURE_PROFILE_ID,
+            enabled=True,
+        ),
+    ]
+
+
+def _build_backend_capabilities_response(settings: Settings) -> BackendCapabilitiesResponse:
+    source = _resolve_backend_source()
+    endpoint_state = _build_backend_state(settings, source)
+    legacy_profile = _build_legacy_capture_profile(settings, source)
+    return BackendCapabilitiesResponse(
+        capability_keys=list(_BACKEND_CAPABILITY_KEYS),
+        feature_keys=list(_FEATURE_KEYS),
+        compatibility=BackendBindingCompatibilityState(
+            legacy_source=source,
+            endpoint_state=endpoint_state,
+            legacy_profiles=[legacy_profile],
+            legacy_bindings=_build_legacy_capture_bindings(),
+        ),
+    )
+
+
+@app.get("/v1/backend/profiles", response_model=BackendProfilesResponse)
+async def get_backend_profiles(
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendProfilesResponse:
+    """List operator-managed backend profiles stored separately from legacy STT overrides."""
+    return BackendProfilesResponse(
+        profiles=list_backend_profiles(settings.storage_base_dir)
+    )
+
+
+@app.get("/v1/backend/profiles/{profile_id}", response_model=BackendProfileRecord)
+async def get_backend_profile_record(
+    profile_id: str,
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendProfileRecord:
+    """Return a single operator-managed backend profile."""
+    profile = get_backend_profile(settings.storage_base_dir, profile_id)
+    if profile is None:
+        _raise_api_error(404, "BACKEND_PROFILE_NOT_FOUND", "Backend profile was not found.")
+    return profile
+
+
+@app.put("/v1/backend/profiles/{profile_id}", response_model=BackendProfileRecord)
+async def put_backend_profile(
+    profile_id: str,
+    payload: BackendProfileRecord,
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendProfileRecord:
+    """Create or replace an operator-managed backend profile."""
+    try:
+        normalized_payload = _normalize_backend_profile_record(payload)
+    except ValidationError as exc:
+        _raise_api_error(
+            400,
+            "BACKEND_PROFILE_INVALID",
+            "Backend profile payload is invalid after normalization.",
+            {"validation_error": str(exc)},
+        )
+    normalized_profile_id = profile_id.strip()
+    if normalized_payload.id != normalized_profile_id:
+        _raise_api_error(
+            400,
+            "BACKEND_PROFILE_ID_MISMATCH",
+            "profile_id path parameter must match payload.id.",
+        )
+    return upsert_backend_profile(settings.storage_base_dir, normalized_payload)
+
+
+@app.delete("/v1/backend/profiles/{profile_id}", status_code=204)
+async def delete_backend_profile_record(
+    profile_id: str,
+    settings: Settings = Depends(_require_backend_admin),
+) -> Response:
+    """Delete an operator-managed backend profile."""
+    deleted = delete_backend_profile(settings.storage_base_dir, profile_id)
+    if not deleted:
+        _raise_api_error(404, "BACKEND_PROFILE_NOT_FOUND", "Backend profile was not found.")
+    return Response(status_code=204)
+
+
+@app.get("/v1/backend/bindings", response_model=FeatureBindingsResponse)
+async def get_backend_feature_bindings(
+    settings: Settings = Depends(_require_backend_admin),
+) -> FeatureBindingsResponse:
+    """List operator-managed feature bindings."""
+    return FeatureBindingsResponse(
+        bindings=list_feature_bindings(settings.storage_base_dir)
+    )
+
+
+@app.get("/v1/backend/bindings/{feature_key}", response_model=FeatureBindingRecord)
+async def get_backend_feature_binding(
+    feature_key: str,
+    settings: Settings = Depends(_require_backend_admin),
+) -> FeatureBindingRecord:
+    """Return a single operator-managed feature binding."""
+    binding = get_feature_binding(settings.storage_base_dir, feature_key)
+    if binding is None:
+        _raise_api_error(404, "FEATURE_BINDING_NOT_FOUND", "Feature binding was not found.")
+    return binding
+
+
+@app.put("/v1/backend/bindings/{feature_key}", response_model=FeatureBindingRecord)
+async def put_backend_feature_binding(
+    feature_key: str,
+    payload: FeatureBindingRecord,
+    settings: Settings = Depends(_require_backend_admin),
+) -> FeatureBindingRecord:
+    """Create or replace an operator-managed feature binding."""
+    try:
+        normalized_payload = _normalize_feature_binding_record(payload)
+    except ValidationError as exc:
+        _raise_api_error(
+            400,
+            "FEATURE_BINDING_INVALID",
+            "Feature binding payload is invalid after normalization.",
+            {"validation_error": str(exc)},
+        )
+    normalized_feature_key = feature_key.strip()
+    if normalized_payload.feature_key != normalized_feature_key:
+        _raise_api_error(
+            400,
+            "FEATURE_BINDING_KEY_MISMATCH",
+            "feature_key path parameter must match payload.feature_key.",
+        )
+    return upsert_feature_binding(settings.storage_base_dir, normalized_payload)
+
+
+@app.delete("/v1/backend/bindings/{feature_key}", status_code=204)
+async def delete_backend_feature_binding(
+    feature_key: str,
+    settings: Settings = Depends(_require_backend_admin),
+) -> Response:
+    """Delete an operator-managed feature binding."""
+    deleted = delete_feature_binding(settings.storage_base_dir, feature_key)
+    if not deleted:
+        _raise_api_error(404, "FEATURE_BINDING_NOT_FOUND", "Feature binding was not found.")
+    return Response(status_code=204)
+
+
+@app.get("/v1/backend/capabilities", response_model=BackendCapabilitiesResponse)
+async def get_backend_capabilities(
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendCapabilitiesResponse:
+    """Return supported backend capabilities and legacy STT compatibility bridge info."""
+    return _build_backend_capabilities_response(settings)
 
 
 def _get_client(settings: Settings) -> RTZRClient:
