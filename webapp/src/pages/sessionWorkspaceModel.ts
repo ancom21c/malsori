@@ -1,12 +1,13 @@
 import type { LocalSegment, LocalTranscription } from "../data/app-db";
 import {
-  createDefaultSessionArtifacts,
+  createSessionArtifacts,
   mapLocalSegmentToSessionTurn,
   mapLocalTranscriptionToSessionRecord,
   type ArtifactStatus,
   type ArtifactType,
   type SessionArtifact,
   type SessionMode,
+  type SessionSummaryArtifactInput,
   type SessionTurn,
 } from "../domain/session";
 
@@ -43,7 +44,8 @@ function normalizePreviewText(value: string | undefined) {
 
 export function buildSessionWorkspaceView(
   transcription: LocalTranscription,
-  segments: LocalSegment[]
+  segments: LocalSegment[],
+  summaryState?: SessionSummaryArtifactInput | null
 ): SessionWorkspaceView {
   const turns = segments
     .map(mapLocalSegmentToSessionTurn)
@@ -68,14 +70,21 @@ export function buildSessionWorkspaceView(
     speakerCount: speakerTokens.size || undefined,
   };
 
+  const artifacts = createSessionArtifacts(
+    transcription.id,
+    summaryState,
+    transcription.updatedAt
+  );
+  const summaryArtifact = artifacts.find((artifact) => artifact.type === "summary");
   const summaryPreview =
+    normalizePreviewText(summaryArtifact?.content) ??
     normalizePreviewText(transcription.transcriptText) ??
     normalizePreviewText(turns.map((turn) => turn.text).join("\n"));
 
   return {
     record,
     turns,
-    artifacts: createDefaultSessionArtifacts(transcription.id),
+    artifacts,
     speakerCount: speakerTokens.size,
     languageCodes,
     summaryPreview,

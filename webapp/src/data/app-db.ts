@@ -136,6 +136,92 @@ export interface TranscriptionSearchIndex {
   updatedAt: string;
 }
 
+export type LocalSummaryMode = "realtime" | "full";
+
+export type LocalSummaryPartitionStatus = "draft" | "finalized" | "stale";
+
+export type LocalSummaryPartitionReason =
+  | "manual"
+  | "silence_gap"
+  | "speaker_shift"
+  | "topic_shift"
+  | "max_turns"
+  | "max_duration"
+  | "token_budget"
+  | "session_end";
+
+export type LocalSummaryRunScope = "partition" | "session";
+
+export type LocalSummaryRunStatus = "pending" | "ready" | "failed";
+
+export type LocalSummaryFreshness = "fresh" | "stale";
+
+export interface LocalSummarySupportingSnippet {
+  id: string;
+  turnId?: string;
+  speakerLabel?: string;
+  startMs?: number;
+  endMs?: number;
+  text: string;
+}
+
+export interface LocalSummaryBlock {
+  id: string;
+  kind: string;
+  title?: string;
+  content: string;
+  supportingSnippets: LocalSummarySupportingSnippet[];
+}
+
+export interface LocalSummaryPartition {
+  id: string;
+  sessionId: string;
+  startTurnId: string;
+  endTurnId: string;
+  turnCount: number;
+  startedAt: string;
+  endedAt: string;
+  status: LocalSummaryPartitionStatus;
+  reason: LocalSummaryPartitionReason;
+  sourceRevision: string;
+}
+
+export interface LocalSummaryRun {
+  id: string;
+  sessionId: string;
+  mode: LocalSummaryMode;
+  scope: LocalSummaryRunScope;
+  partitionIds: string[];
+  presetId?: string;
+  presetVersion?: string;
+  providerLabel?: string;
+  model?: string;
+  sourceRevision: string;
+  requestedAt: string;
+  completedAt?: string | null;
+  status: LocalSummaryRunStatus;
+  errorMessage?: string | null;
+  blocks: LocalSummaryBlock[];
+}
+
+export interface LocalPublishedSummary {
+  id: string;
+  sessionId: string;
+  mode: LocalSummaryMode;
+  runId: string;
+  title: string;
+  content: string;
+  requestedAt?: string | null;
+  updatedAt: string;
+  providerLabel?: string;
+  sourceRevision: string;
+  partitionIds: string[];
+  supportingSnippets: LocalSummarySupportingSnippet[];
+  blocks: LocalSummaryBlock[];
+  freshness: LocalSummaryFreshness;
+  stalePartitionIds: string[];
+}
+
 class AppDatabase extends Dexie {
   transcriptions!: Table<LocalTranscription, string>;
   segments!: Table<LocalSegment, string>;
@@ -145,6 +231,9 @@ class AppDatabase extends Dexie {
   settings!: Table<AppSetting, string>;
   backendEndpoints!: Table<BackendEndpointPreset, string>;
   searchIndexes!: Table<TranscriptionSearchIndex, string>;
+  summaryPartitions!: Table<LocalSummaryPartition, string>;
+  summaryRuns!: Table<LocalSummaryRun, string>;
+  publishedSummaries!: Table<LocalPublishedSummary, string>;
 
   constructor() {
     super("rtzr-stt-webapp");
@@ -279,11 +368,28 @@ class AppDatabase extends Dexie {
           .toCollection()
           .modify((chunk) => {
             const typed = chunk as LocalAudioChunk;
-            if (!typed.role) {
-              typed.role = "capture";
-            }
-          });
+          if (!typed.role) {
+            typed.role = "capture";
+          }
+        });
       });
+
+    this.version(9).stores({
+      transcriptions: "id, createdAt, kind, status, isCloudSynced",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      videoChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+      backendEndpoints: "id, deployment, isDefault, createdAt",
+      searchIndexes: "transcriptionId",
+      summaryPartitions:
+        "id, sessionId, [sessionId+status], startedAt, endedAt, sourceRevision",
+      summaryRuns:
+        "id, sessionId, [sessionId+status], mode, requestedAt, completedAt, sourceRevision",
+      publishedSummaries:
+        "id, sessionId, [sessionId+mode], mode, runId, updatedAt, freshness, sourceRevision",
+    });
   }
 }
 

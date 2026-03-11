@@ -24,7 +24,7 @@ export function resolveSessionArtifactLifecyclePresentation(
 ): SessionArtifactLifecyclePresentation {
   const showPromptComposer = artifact.type === "qa";
   const showSupportingSnippets =
-    artifact.type === "qa" &&
+    (artifact.type === "qa" || artifact.type === "summary") &&
     (artifact.supportingSnippets.length > 0 ||
       artifact.requests.some((request) => request.supportingSnippets.length > 0));
 

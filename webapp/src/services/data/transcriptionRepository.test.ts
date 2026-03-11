@@ -11,6 +11,11 @@ import {
   replaceSegments,
   updateLocalTranscription,
 } from "./transcriptionRepository";
+import {
+  createSummaryPartition,
+  createSummaryRun,
+  upsertPublishedSummary,
+} from "./summaryRepository";
 
 const SAMPLE_PCM_A = new Int16Array([0, 128, -128, 32767, -32768]).buffer;
 const SAMPLE_PCM_B = new Int16Array([42, -42]).buffer;
@@ -287,6 +292,39 @@ describe("transcriptionRepository", () => {
       data: SAMPLE_VIDEO_A,
       mimeType: "video/webm",
     });
+    await createSummaryPartition({
+      id: "partition-1",
+      sessionId: record.id,
+      startTurnId: "turn-1",
+      endTurnId: "turn-1",
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    const run = await createSummaryRun({
+      id: "run-1",
+      sessionId: record.id,
+      mode: "full",
+      scope: "session",
+      partitionIds: ["partition-1"],
+      sourceRevision: record.updatedAt,
+      requestedAt: "2026-03-10T00:00:02.000Z",
+      completedAt: "2026-03-10T00:00:03.000Z",
+      status: "ready",
+      blocks: [],
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: run.id,
+      title: "Summary",
+      content: "Persisted summary",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-1"],
+    });
 
     await deleteTranscription(record.id);
 
@@ -301,5 +339,66 @@ describe("transcriptionRepository", () => {
       .equals(record.id)
       .count();
     expect(remainingVideoChunks).toBe(0);
+    const remainingSummaryPartitions = await appDb.summaryPartitions
+      .where("sessionId")
+      .equals(record.id)
+      .count();
+    expect(remainingSummaryPartitions).toBe(0);
+    const remainingSummaryRuns = await appDb.summaryRuns
+      .where("sessionId")
+      .equals(record.id)
+      .count();
+    expect(remainingSummaryRuns).toBe(0);
+    const remainingPublishedSummaries = await appDb.publishedSummaries
+      .where("sessionId")
+      .equals(record.id)
+      .count();
+    expect(remainingPublishedSummaries).toBe(0);
+  });
+
+  it("marks persisted summary partitions and published summaries stale after segment replacement", async () => {
+    const record = await createLocalTranscription({
+      title: "summary stale",
+      kind: "file",
+    });
+
+    await createSummaryPartition({
+      id: "partition-1",
+      sessionId: record.id,
+      startTurnId: "turn-1",
+      endTurnId: "turn-1",
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "realtime",
+      runId: "run-1",
+      title: "Summary",
+      content: "Original summary",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-1"],
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "updated segment",
+        startMs: 0,
+        endMs: 1000,
+        isFinal: true,
+      },
+    ]);
+
+    const partition = await appDb.summaryPartitions.get("partition-1");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-realtime`);
+
+    expect(partition?.status).toBe("stale");
+    expect(partition?.sourceRevision).not.toBe(record.updatedAt);
+    expect(summary?.freshness).toBe("stale");
+    expect(summary?.stalePartitionIds).toEqual(["partition-1"]);
   });
 });

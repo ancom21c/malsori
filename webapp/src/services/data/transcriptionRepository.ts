@@ -1,6 +1,7 @@
 import { liveQuery } from "dexie";
 import { v4 as uuid } from "uuid";
 import { appDb } from "../../data/app-db";
+import { markSessionSummaryStateStale } from "./summaryRepository";
 import type {
   LocalTranscription,
   LocalTranscriptionKind,
@@ -124,12 +125,18 @@ export async function deleteTranscription(id: string) {
       appDb.audioChunks,
       appDb.videoChunks,
       appDb.searchIndexes,
+      appDb.summaryPartitions,
+      appDb.summaryRuns,
+      appDb.publishedSummaries,
     ],
     async () => {
       await appDb.audioChunks.where("transcriptionId").equals(id).delete();
       await appDb.videoChunks.where("transcriptionId").equals(id).delete();
       await appDb.segments.where("transcriptionId").equals(id).delete();
       await appDb.searchIndexes.delete(id);
+      await appDb.summaryPartitions.where("sessionId").equals(id).delete();
+      await appDb.summaryRuns.where("sessionId").equals(id).delete();
+      await appDb.publishedSummaries.where("sessionId").equals(id).delete();
       await appDb.transcriptions.delete(id);
     }
   );
@@ -222,6 +229,7 @@ export async function replaceSegments(
   segments: ReplaceableSegment[],
   options?: ReplaceSegmentsOptions
 ) {
+  const now = new Date().toISOString();
   await appDb.transaction("rw", appDb.segments, async () => {
     const correctionByKey = new Map<string, string>();
     if (options?.preserveCorrections) {
@@ -248,7 +256,6 @@ export async function replaceSegments(
     }
 
     await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
-    const now = new Date().toISOString();
     if (segments.length > 0) {
       await appDb.segments.bulkAdd(
         segments.map((segment, index) => {
@@ -297,6 +304,7 @@ export async function replaceSegments(
       );
     }
   });
+  await markSessionSummaryStateStale(transcriptionId, now);
 }
 
 export async function updateSegmentCorrection(
@@ -310,13 +318,18 @@ export async function updateSegmentCorrection(
     patch.words = updatedWords;
   }
   const now = new Date().toISOString();
+  let transcriptionId: string | null = null;
   await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
     const segment = await appDb.segments.get(segmentId);
     if (!segment) return;
+    transcriptionId = segment.transcriptionId;
     await appDb.segments.update(segmentId, patch);
     // Ensure cloud sync detects segment-level edits.
     await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
   });
+  if (transcriptionId) {
+    await markSessionSummaryStateStale(transcriptionId, now);
+  }
 }
 
 export async function updateSegmentSpeakerLabel(
@@ -342,6 +355,7 @@ export async function updateSegmentSpeakerLabel(
       await appDb.transcriptions.update(transcriptionId, { updatedAt: now });
     }
   });
+  await markSessionSummaryStateStale(transcriptionId, now);
 }
 
 export async function updateSingleSegmentSpeakerLabel(
@@ -352,12 +366,17 @@ export async function updateSingleSegmentSpeakerLabel(
   const normalizedNewLabel = newLabel.trim();
   if (!normalizedNewLabel) return;
   const now = new Date().toISOString();
+  let transcriptionId: string | null = null;
   await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
     const segment = await appDb.segments.get(segmentId);
     if (!segment) return;
+    transcriptionId = segment.transcriptionId;
     await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
     await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
   });
+  if (transcriptionId) {
+    await markSessionSummaryStateStale(transcriptionId, now);
+  }
 }
 
 export async function appendAudioChunk(params: {

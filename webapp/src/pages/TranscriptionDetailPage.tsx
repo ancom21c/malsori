@@ -43,6 +43,7 @@ import {
   updateSegmentSpeakerLabel,
   updateSingleSegmentSpeakerLabel,
 } from "../services/data/transcriptionRepository";
+import { readSessionSummaryState } from "../services/data/summaryRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
 import { SpeakerEditDialog } from "../components/SpeakerEditDialog";
 import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
@@ -490,6 +491,10 @@ export default function TranscriptionDetailPage() {
       .equals(transcriptionId)
       .sortBy("startMs");
   }, [transcriptionId]);
+  const summaryState = useLiveQuery(async () => {
+    if (!transcriptionId) return null;
+    return await readSessionSummaryState(transcriptionId);
+  }, [transcriptionId]);
 
   const {
     includeAudioInShare,
@@ -584,9 +589,13 @@ export default function TranscriptionDetailPage() {
   const workspaceView = useMemo(
     () =>
       transcription
-        ? buildSessionWorkspaceView(transcription, segments ?? [])
+        ? buildSessionWorkspaceView(
+            transcription,
+            segments ?? [],
+            summaryState ?? null
+          )
         : null,
-    [segments, transcription]
+    [segments, summaryState, transcription]
   );
 
   const filteredTranscriptSegments = useMemo(

@@ -116,13 +116,25 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             // Wipe local data
             await appDb.transaction(
                 "rw",
-                [appDb.transcriptions, appDb.segments, appDb.audioChunks, appDb.videoChunks, appDb.searchIndexes],
+                [
+                    appDb.transcriptions,
+                    appDb.segments,
+                    appDb.audioChunks,
+                    appDb.videoChunks,
+                    appDb.searchIndexes,
+                    appDb.summaryPartitions,
+                    appDb.summaryRuns,
+                    appDb.publishedSummaries,
+                ],
                 async () => {
                     await appDb.transcriptions.clear();
                     await appDb.segments.clear();
                     await appDb.audioChunks.clear();
                     await appDb.videoChunks.clear();
                     await appDb.searchIndexes.clear();
+                    await appDb.summaryPartitions.clear();
+                    await appDb.summaryRuns.clear();
+                    await appDb.publishedSummaries.clear();
                 }
             );
 

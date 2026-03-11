@@ -81,10 +81,10 @@
 
 ### 수용 기준 (AC)
 
-- [ ] summary partition 필드와 status/reason/sourceRevision contract가 문서상 고정된다.
-- [ ] realtime/full summary가 같은 artifact model 위에서 공존 가능한 구조로 정리된다.
-- [ ] supporting snippet과 summary run/audit trail의 역할이 분리된다.
-- [ ] core transcript/detail flow를 침범하지 않는 additive rule이 명시된다.
+- [x] summary partition 필드와 status/reason/sourceRevision contract가 문서상 고정된다.
+- [x] realtime/full summary가 같은 artifact model 위에서 공존 가능한 구조로 정리된다.
+- [x] supporting snippet과 summary run/audit trail의 역할이 분리된다.
+- [x] core transcript/detail flow를 침범하지 않는 additive rule이 명시된다.
 
 ## Plan (Review 대상)
 
@@ -120,19 +120,27 @@
 
 ## Implementation Log
 
-- [ ] domain model과 storage/API contract를 구현한다.
-- [ ] current placeholder summary artifact를 published summary read model로 브리지한다.
-- [ ] stale/freshness derivation과 run history mapping을 구현한다.
-- [ ] 필요한 tests/fixture/migration checks를 추가한다.
+- [x] domain model과 storage/API contract를 구현한다.
+- [x] current placeholder summary artifact를 published summary read model로 브리지한다.
+- [x] stale/freshness derivation과 run history mapping을 구현한다.
+- [x] 필요한 tests/fixture/migration checks를 추가한다.
+
+### Implementation Notes
+
+- Dexie v9에 `summaryPartitions`, `summaryRuns`, `publishedSummaries`를 additive table로 추가했다.
+- `summaryRepository`를 새로 만들어 persisted summary state CRUD와 stale/delete helper를 page/component 바깥으로 분리했다.
+- `SessionArtifact(type=summary)`는 published summary 우선, ready run fallback, historical request history 브리지 순으로 hydrate 한다.
+- detail page는 새 summary state를 live query로 읽고, existing summary rail은 placeholder fallback을 유지한다.
+- segment replace/correction/speaker relabel은 persisted summary state를 stale로 mark하고, local wipe/delete 경로는 summary rows도 함께 정리한다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] existing detail route가 summary 필드 부재 때문에 깨지지 않는가?
-- [ ] stale/failure 상태가 additive rail로만 격리되는가?
-- [ ] migration이 additive field만으로 가능한가?
+- [x] existing detail route가 summary 필드 부재 때문에 깨지지 않는가?
+- [x] stale/failure 상태가 additive rail로만 격리되는가?
+- [x] migration이 additive field만으로 가능한가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- session`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/domain/session.test.ts src/pages/sessionWorkspaceModel.test.ts src/pages/sessionArtifactLifecycleModel.test.ts src/services/data/summaryRepository.test.ts src/services/data/transcriptionRepository.test.ts`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`

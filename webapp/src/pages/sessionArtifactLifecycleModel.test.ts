@@ -72,4 +72,26 @@ describe("sessionArtifactLifecycleModel", () => {
 
     expect(presentation.showSupportingSnippets).toBe(true);
   });
+
+  it("marks summary provenance visibility when supporting snippets exist", () => {
+    const [summary] = createDefaultSessionArtifacts("tx-1");
+    summary.supportingSnippets.push({
+      id: "snippet-1",
+      turnId: "turn-1",
+      text: "Relevant source utterance",
+      startMs: 0,
+      endMs: 1200,
+    });
+
+    const presentation = resolveSessionArtifactLifecyclePresentation(
+      summary,
+      resolveArtifactBindingPresentation("summary", [createFeatureBinding({
+        featureKey: "artifact.summary",
+        primaryBackendProfileId: "summary-primary",
+        enabled: true,
+      })], [summaryProfile])
+    );
+
+    expect(presentation.showSupportingSnippets).toBe(true);
+  });
 });
