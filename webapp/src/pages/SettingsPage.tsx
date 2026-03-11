@@ -73,6 +73,7 @@ import type {
 } from "../services/api/types";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useI18n } from "../i18n";
+import BackendRuntimeChangeDialog from "../components/BackendRuntimeChangeDialog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { formatLocalizedDateTime } from "../utils/time";
 import {
@@ -108,6 +109,13 @@ import {
 } from "./settingsBackendBindingModel";
 import type { BackendProfile } from "../domain/backendProfile";
 import type { FeatureBinding, FeatureKey } from "../domain/featureBinding";
+import {
+  buildBackendRuntimeSnapshotFromPreset,
+  buildBackendRuntimeSnapshotFromState,
+  buildServerDefaultRuntimeSnapshot,
+  resolveBackendRuntimeActionAvailability,
+  type BackendRuntimeAction,
+} from "./settingsBackendRuntimeModel";
 
 const operatorBackendBindingsEnabled = ["1", "true", "yes", "on"].includes(
   (import.meta.env.VITE_FEATURE_OPERATOR_BACKEND_BINDINGS ?? "").toLowerCase()
@@ -307,6 +315,8 @@ export default function SettingsPage() {
   const [backendStateLoading, setBackendStateLoading] = useState(false);
   const [backendStateError, setBackendStateError] = useState<string | null>(null);
   const [backendStateLastSuccessAt, setBackendStateLastSuccessAt] = useState<string | null>(null);
+  const [backendMutationDialogAction, setBackendMutationDialogAction] =
+    useState<BackendRuntimeAction | null>(null);
   const [backendAdminEnabled, setBackendAdminEnabled] = useState(false);
   const [backendAdminToken, setBackendAdminToken] = useState("");
   const [backendBindingState, setBackendBindingState] = useState<BackendCapabilitiesState | null>(
@@ -961,7 +971,6 @@ export default function SettingsPage() {
   const apiConfigured = Boolean(apiBaseUrl.trim());
   const adminApiConfigured = Boolean(adminApiBaseUrl.trim());
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
-  const backendStatusUnavailable = Boolean(backendStateError) && !backendState;
   const backendAdminTokenPresent = backendAdminToken.trim().length > 0;
   const operatorActionsBlockedByDraft = shouldBlockOperatorActions(
     connectionSettingsDirty,
@@ -1005,6 +1014,38 @@ export default function SettingsPage() {
     return `${backendState.deployment === "cloud" ? t("rtzrApi") : t("onPrem")} · ${backendState.source === "override" ? t("custom") : t("serverDefault")
       }`;
   }, [adminApiConfigured, backendAdminEnabled, backendState, t]);
+  const backendRuntimeActionAvailability = useMemo(
+    () =>
+      resolveBackendRuntimeActionAvailability({
+        selectedBackendPreset,
+        adminApiConfigured,
+        backendAdminTokenPresent,
+        operatorActionsBlockedByDraft,
+        backendState,
+        activeBackendPresetId,
+      }),
+    [
+      activeBackendPresetId,
+      adminApiConfigured,
+      backendAdminTokenPresent,
+      backendState,
+      operatorActionsBlockedByDraft,
+      selectedBackendPreset,
+    ]
+  );
+  const currentBackendRuntimeSnapshot = useMemo(
+    () => (backendState ? buildBackendRuntimeSnapshotFromState(backendState) : null),
+    [backendState]
+  );
+  const nextAppliedBackendRuntimeSnapshot = useMemo(
+    () =>
+      selectedBackendPreset ? buildBackendRuntimeSnapshotFromPreset(selectedBackendPreset) : null,
+    [selectedBackendPreset]
+  );
+  const nextServerDefaultRuntimeSnapshot = useMemo(
+    () => buildServerDefaultRuntimeSnapshot(),
+    []
+  );
 
   useEffect(() => {
     setSelectedPresetId(null);
@@ -1350,14 +1391,14 @@ export default function SettingsPage() {
     }
   };
 
-  const handleApplyBackendPreset = async () => {
+  const handleApplyBackendPreset = async (): Promise<boolean> => {
     if (!selectedBackendPreset) {
       enqueueSnackbar(t("pleaseSelectTheBackendPresetToApply"), { variant: "warning" });
-      return;
+      return false;
     }
     if (!adminApiBaseUrl.trim()) {
       enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
-      return;
+      return false;
     }
     let normalizedPresetApiBaseUrl: string;
     try {
@@ -1370,14 +1411,14 @@ export default function SettingsPage() {
       );
       setBackendStateError(message);
       enqueueSnackbar(message, { variant: "warning" });
-      return;
+      return false;
     }
     const adminToken = backendAdminToken.trim();
     if (!adminToken) {
       enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
         variant: "warning",
       });
-      return;
+      return false;
     }
     setBackendStateLoading(true);
     setBackendStateError(null);
@@ -1393,7 +1434,13 @@ export default function SettingsPage() {
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
       await updateSetting("activeBackendPresetId", selectedBackendPreset.id);
-      enqueueSnackbar(t("backendEndpointApplied"), { variant: "success" });
+      enqueueSnackbar(
+        t("backendEndpointAppliedWithName", {
+          values: { name: selectedBackendPreset.name },
+        }),
+        { variant: "success" }
+      );
+      return true;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("applyingBackendEndpointFailed");
@@ -1402,22 +1449,23 @@ export default function SettingsPage() {
         message,
         { variant: "error" }
       );
+      return false;
     } finally {
       setBackendStateLoading(false);
     }
   };
 
-  const handleResetBackendEndpoint = async () => {
+  const handleResetBackendEndpoint = async (): Promise<boolean> => {
     if (!adminApiBaseUrl.trim()) {
       enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
-      return;
+      return false;
     }
     const adminToken = backendAdminToken.trim();
     if (!adminToken) {
       enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
         variant: "warning",
       });
-      return;
+      return false;
     }
     setBackendStateLoading(true);
     setBackendStateError(null);
@@ -1427,7 +1475,8 @@ export default function SettingsPage() {
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
       await updateSetting("activeBackendPresetId", null);
-      enqueueSnackbar(t("revertedToServerDefaults"), { variant: "info" });
+      enqueueSnackbar(t("revertedToServerDefaultsWithRollbackHint"), { variant: "info" });
+      return true;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("restoringServerDefaultsFailed");
@@ -1436,8 +1485,45 @@ export default function SettingsPage() {
         message,
         { variant: "error" }
       );
+      return false;
     } finally {
       setBackendStateLoading(false);
+    }
+  };
+
+  const handleOpenBackendMutationDialog = useCallback(
+    (action: BackendRuntimeAction) => {
+      const blockedReasonKey =
+        action === "apply"
+          ? backendRuntimeActionAvailability.applyBlockedReasonKey
+          : backendRuntimeActionAvailability.resetBlockedReasonKey;
+      if (blockedReasonKey) {
+        enqueueSnackbar(t(blockedReasonKey), { variant: "warning" });
+        return;
+      }
+      setBackendStateError(null);
+      setBackendMutationDialogAction(action);
+    },
+    [backendRuntimeActionAvailability, enqueueSnackbar, t]
+  );
+
+  const handleCloseBackendMutationDialog = useCallback(() => {
+    if (backendStateLoading) {
+      return;
+    }
+    setBackendMutationDialogAction(null);
+  }, [backendStateLoading]);
+
+  const handleConfirmBackendMutation = async () => {
+    if (!backendMutationDialogAction) {
+      return;
+    }
+    const success =
+      backendMutationDialogAction === "apply"
+        ? await handleApplyBackendPreset()
+        : await handleResetBackendEndpoint();
+    if (success) {
+      setBackendMutationDialogAction(null);
     }
   };
 
@@ -2461,18 +2547,25 @@ export default function SettingsPage() {
                         <Button
                           variant="text"
                           color="secondary"
-                          onClick={() => void handleResetBackendEndpoint()}
+                          onClick={() => handleOpenBackendMutationDialog("reset")}
                           disabled={
                             backendStateLoading ||
-                            !adminApiConfigured ||
-                            backendStatusUnavailable ||
-                            !backendAdminTokenPresent ||
-                            operatorActionsBlockedByDraft
+                            Boolean(backendRuntimeActionAvailability.resetBlockedReasonKey)
                           }
                         >
                           {t("returnToServerDefault")}
                         </Button>
                       </Stack>
+                      <Alert
+                        severity={
+                          backendRuntimeActionAvailability.resetBlockedReasonKey ? "warning" : "info"
+                        }
+                        variant="outlined"
+                      >
+                        {backendRuntimeActionAvailability.resetBlockedReasonKey
+                          ? t(backendRuntimeActionAvailability.resetBlockedReasonKey)
+                          : t("backendResetRequiresConfirmationHelper")}
+                      </Alert>
                       {backendStateError && (
                         <Alert
                           severity="error"
@@ -2666,19 +2759,28 @@ export default function SettingsPage() {
                               <Button
                                 variant="outlined"
                                 color="success"
-                                onClick={() => void handleApplyBackendPreset()}
+                                onClick={() => handleOpenBackendMutationDialog("apply")}
                                 fullWidth
                                 disabled={
-                                  !selectedBackendPreset ||
                                   backendStateLoading ||
-                                  backendStatusUnavailable ||
-                                  !backendAdminTokenPresent ||
-                                  operatorActionsBlockedByDraft
+                                  Boolean(backendRuntimeActionAvailability.applyBlockedReasonKey)
                                 }
                               >
                                 {t("applyToServer")}
                               </Button>
                             </Stack>
+                            <Alert
+                              severity={
+                                backendRuntimeActionAvailability.applyBlockedReasonKey
+                                  ? "warning"
+                                  : "info"
+                              }
+                              variant="outlined"
+                            >
+                              {backendRuntimeActionAvailability.applyBlockedReasonKey
+                                ? t(backendRuntimeActionAvailability.applyBlockedReasonKey)
+                                : t("backendApplyRequiresConfirmationHelper")}
+                            </Alert>
                           </Stack>
                         </Stack>
                       </Box>
@@ -2914,6 +3016,21 @@ export default function SettingsPage() {
           </Box>
         </Box>
       </StudioPageShell>
+      <BackendRuntimeChangeDialog
+        open={backendMutationDialogAction !== null}
+        action={backendMutationDialogAction ?? "apply"}
+        pending={backendStateLoading}
+        presetName={selectedBackendPreset?.name ?? null}
+        currentSnapshot={currentBackendRuntimeSnapshot}
+        nextSnapshot={
+          backendMutationDialogAction === "reset"
+            ? nextServerDefaultRuntimeSnapshot
+            : nextAppliedBackendRuntimeSnapshot ?? nextServerDefaultRuntimeSnapshot
+        }
+        errorText={backendStateError}
+        onCancel={handleCloseBackendMutationDialog}
+        onConfirm={() => void handleConfirmBackendMutation()}
+      />
       <ConfirmDialog
         open={backendDeleteOpen}
         title={t("delete")}

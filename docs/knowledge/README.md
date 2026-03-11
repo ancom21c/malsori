@@ -8,6 +8,7 @@
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - operator-managed backend binding architecture
 - `docs/plan-summary-feature-2026-03-11.md` - canonical summary feature spec
+- `docs/knowledge/backend-settings-operator-contract.md` - durable operator UX and safety rules for live backend mutations
 - `docs/knowledge/summary-feature-contract.md` - durable summary terminology and invariants
 
 ## Usage Rules

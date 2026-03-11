@@ -324,6 +324,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Backend endpoint applied.",
     ja: "バックエンド エンドポイントが適用されました。",
   },
+  backendEndpointAppliedWithName: {
+    ko: "{{name}} 프리셋을 서버에 적용했습니다.",
+    en: "Applied {{name}} to the server.",
+    ja: "{{name}} をサーバーに適用しました。",
+  },
+  backendApplyImpactHelper: {
+    ko: "이 변경은 legacy backend surface를 통해 들어오는 새 요청부터 즉시 영향을 줍니다.",
+    en: "This change affects new requests that use the legacy backend surface immediately.",
+    ja: "この変更は legacy backend surface を使う新しいリクエストに即時反映されます。",
+  },
+  backendApplyRequiresConfirmationHelper: {
+    ko: "적용 전에 현재 서버 상태와 다음 적용 상태를 한 번 더 확인합니다.",
+    en: "Review the current and next server state before applying.",
+    ja: "適用前に現在のサーバー状態と適用後の状態を確認します。",
+  },
+  backendApplyRollbackHelper: {
+    ko: "되돌리려면 서버 기본값으로 복원하거나 다른 프리셋을 다시 적용하세요.",
+    en: "To revert, return to the server default or re-apply another preset.",
+    ja: "戻すにはサーバーのデフォルトに戻すか、別のプリセットを再適用してください。",
+  },
   backendAdminToken: {
     ko: "백엔드 관리자 토큰",
     en: "Backend admin token",
@@ -639,10 +659,20 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Credentials not used",
     ja: "認証情報は使用されません",
   },
+  credentialUsage: {
+    ko: "자격증명 사용",
+    en: "Credential usage",
+    ja: "認証情報の使用",
+  },
   currentServerApplicationSettings: {
     ko: "현재 서버 적용 설정",
     en: "Current server application settings",
     ja: "現在のサーバーアプリケーション設定",
+  },
+  currentServerState: {
+    ko: "현재 서버 상태",
+    en: "Current server state",
+    ja: "現在のサーバー状態",
   },
   currentlySelectedStreamingSetting: {
     ko: "현재 선택된 스트리밍 설정: {{name}}",
@@ -1779,6 +1809,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Refresh server status",
     ja: "サーバーのステータスを更新する",
   },
+  refreshServerStatusBeforeApplyingServerSettings: {
+    ko: "서버 상태를 먼저 새로고침해 현재 적용값을 확인한 뒤 적용하세요.",
+    en: "Refresh the server status first so you can review the current live settings before applying.",
+    ja: "先にサーバー状態を更新して現在の適用値を確認してから適用してください。",
+  },
+  refreshServerStatusBeforeRestoringServerDefaults: {
+    ko: "서버 상태를 먼저 새로고침해 현재 override 상태를 확인한 뒤 복원하세요.",
+    en: "Refresh the server status first so you can review the current override before restoring the server default.",
+    ja: "先にサーバー状態を更新して現在の override を確認してからサーバーのデフォルトへ戻してください。",
+  },
   refreshOperatorAccess: {
     ko: "운영자 접근 새로고침",
     en: "Refresh operator access",
@@ -1824,10 +1864,20 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Required to check or apply server settings. Not saved locally.",
     ja: "サーバー設定の確認/適用に必要です。ローカルには保存されません。",
   },
+  resolvedByServerDefault: {
+    ko: "서버 기본값에 따라 결정됨",
+    en: "Resolved by server default",
+    ja: "サーバーのデフォルトで決定",
+  },
   restoringServerDefaultsFailed: {
     ko: "서버 기본값 복원에 실패했습니다.",
     en: "Restoring server defaults failed.",
     ja: "サーバーのデフォルトの復元に失敗しました。",
+  },
+  restoringServerDefaults: {
+    ko: "서버 기본값 복원 중...",
+    en: "Restoring server defaults...",
+    ja: "サーバーのデフォルトを復元中...",
   },
   resumption: {
     ko: "재개",
@@ -1839,10 +1889,35 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Return to server default",
     ja: "サーバーのデフォルトに戻す",
   },
+  reviewBackendApplyChange: {
+    ko: "서버 적용 전 변경사항 확인",
+    en: "Review backend apply change",
+    ja: "サーバー適用前の変更を確認",
+  },
+  reviewBackendApplyChangeHelper: {
+    ko: "{{name}} 프리셋을 live backend로 적용합니다. 현재 상태와 다음 상태를 확인한 뒤 진행하세요.",
+    en: "Apply {{name}} to the live backend. Review the current and next state before continuing.",
+    ja: "{{name}} を live backend に適用します。続行前に現在と変更後の状態を確認してください。",
+  },
+  reviewServerDefaultRestore: {
+    ko: "서버 기본값 복원 전 확인",
+    en: "Review server default restore",
+    ja: "サーバーのデフォルトに戻す前の確認",
+  },
+  reviewServerDefaultRestoreHelper: {
+    ko: "현재 live override를 제거하고 서버 기본값으로 되돌립니다. 복원 후에는 서버가 관리하는 기본 endpoint/credential 구성을 따릅니다.",
+    en: "Remove the current live override and return to the server default. After restore, the server-managed endpoint and credential configuration will be used.",
+    ja: "現在の live override を削除してサーバーのデフォルトに戻します。復元後はサーバー管理の endpoint / credential 設定を使用します。",
+  },
   revertedToServerDefaults: {
     ko: "서버 기본값으로 되돌렸습니다.",
     en: "Reverted to server defaults.",
     ja: "サーバーのデフォルトに戻しました。",
+  },
+  revertedToServerDefaultsWithRollbackHint: {
+    ko: "서버 기본값으로 되돌렸습니다. 다시 override하려면 원하는 프리셋을 재적용하세요.",
+    en: "Reverted to the server default. Re-apply a preset if you need to restore an override.",
+    ja: "サーバーのデフォルトに戻しました。override を復元するにはプリセットを再適用してください。",
   },
   save: {
     ko: "저장",
@@ -3298,6 +3373,56 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "입력 중인 URL을 사용하려면 먼저 연결 설정을 저장하세요.",
     en: "Save the connection settings first to use the URLs you are editing.",
     ja: "編集中の URL を使うには、先に接続設定を保存してください。",
+  },
+  selectPresetBeforeApplyingServerSettings: {
+    ko: "서버에 적용할 백엔드 프리셋을 먼저 선택하세요.",
+    en: "Select a backend preset before applying it to the server.",
+    ja: "サーバーに適用する前にバックエンド プリセットを選択してください。",
+  },
+  selectedPreset: {
+    ko: "선택한 프리셋",
+    en: "Selected preset",
+    ja: "選択したプリセット",
+  },
+  serverDefaultAlreadyActive: {
+    ko: "이미 서버 기본값이 적용 중입니다.",
+    en: "The server default is already active.",
+    ja: "サーバーのデフォルトはすでに有効です。",
+  },
+  serverManaged: {
+    ko: "서버가 결정",
+    en: "Server managed",
+    ja: "サーバー管理",
+  },
+  settingSource: {
+    ko: "설정 출처",
+    en: "Setting source",
+    ja: "設定ソース",
+  },
+  sslMode: {
+    ko: "SSL 모드",
+    en: "SSL mode",
+    ja: "SSL モード",
+  },
+  nextServerState: {
+    ko: "다음 서버 상태",
+    en: "Next server state",
+    ja: "次のサーバー状態",
+  },
+  backendResetImpactHelper: {
+    ko: "이 작업은 현재 live override를 제거하고 이후 요청을 서버 기본 endpoint 구성으로 되돌립니다.",
+    en: "This removes the current live override and sends future requests back to the server default endpoint configuration.",
+    ja: "この操作は現在の live override を削除し、今後のリクエストをサーバーのデフォルト endpoint 設定に戻します。",
+  },
+  backendResetRequiresConfirmationHelper: {
+    ko: "복원 전에 현재 override와 복원 후 server-default 경로를 다시 확인합니다.",
+    en: "Review the current override and the server-default path before restoring.",
+    ja: "復元前に現在の override と server-default 適用後の状態を確認します。",
+  },
+  backendResetRollbackHelper: {
+    ko: "복원 후 다시 override가 필요하면 원하는 프리셋을 다시 적용하세요.",
+    en: "If you need the override again after restore, re-apply the desired preset.",
+    ja: "復元後に再び override が必要なら、目的のプリセットを再適用してください。",
   },
   discardUnsavedConnectionSettingsChanges: {
     ko: "저장하지 않은 연결 설정 변경사항이 있습니다. 이 페이지를 떠나시겠습니까?",

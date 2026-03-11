@@ -116,19 +116,21 @@
 
 ## Implementation Log
 
-- [ ] apply/reset confirmation flow를 구현한다.
-- [ ] current/next state impact copy를 추가한다.
-- [ ] blocked reason inline helper와 confirm entry condition을 정리한다.
-- [ ] success/failure/rollback feedback를 정리한다.
+- [x] `SettingsPage` live mutation actions를 immediate execution에서 `review -> confirm -> execute` 흐름으로 바꿨다.
+- [x] current/next server state 비교를 보여주는 전용 confirm dialog를 추가했다.
+- [x] live state refresh 전에는 apply/reset을 막고, draft/admin-token/admin-url/server-default-active block 이유를 inline helper로 노출했다.
+- [x] success snackbar에 changed/rollback hint를 넣고, failure는 dialog 안에서 retry 가능한 error surface로 남겼다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] accidental click으로 live backend가 바뀌지 않는가?
-- [ ] disabled 상태의 이유가 inline helper로 드러나는가?
-- [ ] reset 후 active preset/server default state가 일관되게 정렬되는가?
+- [x] 첫 클릭은 항상 review dialog를 열고 실제 mutation은 confirm 이후에만 실행된다.
+- [x] disabled 상태는 warning/info helper alert로 설명되고, current state refresh 전에는 confirm entry 자체가 막힌다.
+- [x] reset 성공 시 server default로 되돌리고 local `activeBackendPresetId`도 함께 정렬한다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- SettingsPage`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/pages/settingsBackendRuntimeModel.test.ts src/components/BackendRuntimeChangeDialog.test.tsx`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `git diff --check`
+- [x] `node scripts/check-todo-board-consistency.mjs`
