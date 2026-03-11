@@ -79,10 +79,10 @@
 
 ### 수용 기준 (AC)
 
-- [ ] preset schema와 기본 preset library가 문서상 고정된다.
-- [ ] auto suggestion metadata(`suggestedPresetId/confidence/reason`)가 정의된다.
-- [ ] low-confidence fallback과 user override 우선순위가 명시된다.
-- [ ] `지금부터 적용` / `전체 다시 생성` 두 경로가 문서에 포함된다.
+- [x] preset schema와 기본 preset library가 문서상 고정된다.
+- [x] auto suggestion metadata(`suggestedPresetId/confidence/reason`)가 정의된다.
+- [x] low-confidence fallback과 user override 우선순위가 명시된다.
+- [x] `지금부터 적용` / `전체 다시 생성` 두 경로가 문서에 포함된다.
 
 ## Plan (Review 대상)
 
@@ -118,19 +118,27 @@
 
 ## Implementation Log
 
-- [ ] preset registry와 selection metadata 구조를 구현한다.
-- [ ] auto suggestion / manual override state flow를 연결한다.
-- [ ] low-confidence fallback과 apply scope path를 구현한다.
-- [ ] 필요한 tests 또는 fixtures를 추가한다.
+- [x] preset registry와 selection metadata 구조를 구현한다.
+- [x] auto suggestion / manual override state flow를 연결한다.
+- [x] low-confidence fallback과 apply scope path를 구현한다.
+- [x] 필요한 tests 또는 fixtures를 추가한다.
+
+### Implementation Notes
+
+- `summaryPreset` domain module에 baseline preset library와 heuristic auto-suggestion, manual override selection helper를 추가했다.
+- product-safe fallback preset은 현재 `meeting`으로 고정했고, unknown preset id도 같은 safe default로 resolve 한다.
+- `summaryRuns`는 `presetId`, `presetVersion`, `selectionSource`를 남기고, session-level preset selection state는 별도 Dexie table로 persist 한다.
+- `readSessionSummaryState`는 persisted preset selection과 suggestion metadata를 함께 읽어 이후 summary surface가 재사용할 수 있게 정리했다.
+- summary artifact bridge는 run이 없더라도 selected preset metadata를 유지해 이후 UI selector가 empty state를 만들지 않도록 했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] preset 변경이 core transcript state를 덮어쓰지 않는가?
-- [ ] low-confidence fallback이 빈 UI를 만들지 않는가?
-- [ ] preset version이 run history에 남는가?
+- [x] preset 변경이 core transcript state를 덮어쓰지 않는가?
+- [x] low-confidence fallback이 빈 UI를 만들지 않는가?
+- [x] preset version이 run history에 남는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- summary preset`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/domain/summaryPreset.test.ts src/domain/session.test.ts src/pages/sessionWorkspaceModel.test.ts src/services/data/summaryRepository.test.ts src/services/data/transcriptionRepository.test.ts`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`

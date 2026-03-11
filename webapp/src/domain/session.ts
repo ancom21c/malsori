@@ -48,6 +48,12 @@ export type SummaryRunStatus = Extract<ArtifactStatus, "pending" | "ready" | "fa
 
 export type SummaryFreshness = "fresh" | "stale";
 
+export type SummarySupportedMode = "realtime" | "full" | "both";
+
+export type SummaryPresetSelectionSource = "default" | "auto" | "manual";
+
+export type SummaryPresetApplyScope = "from_now" | "regenerate_all";
+
 export interface ArtifactSupportingSnippet {
   id: string;
   turnId?: string;
@@ -64,12 +70,57 @@ export interface ArtifactRequestRecord {
   requestedAt?: string | null;
   completedAt?: string | null;
   errorMessage?: string | null;
+  presetId?: string;
+  presetVersion?: string;
+  selectionSource?: SummaryPresetSelectionSource;
   summaryMode?: SummaryMode;
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision?: string | null;
   partitionIds?: string[];
   supportingSnippets: ArtifactSupportingSnippet[];
+}
+
+export interface SummaryPresetSectionSchema {
+  id: string;
+  label: string;
+  kind: "narrative" | "bullet_list" | "quote_list";
+  required: boolean;
+}
+
+export interface SummaryPreset {
+  id: string;
+  version: string;
+  label: string;
+  description: string;
+  language: string;
+  intendedContexts: string[];
+  supportedModes: SummarySupportedMode;
+  outputSchema: SummaryPresetSectionSchema[];
+  defaultModelHint?: string | null;
+  defaultSelectionWeight: number;
+}
+
+export interface SummaryPresetSuggestion {
+  suggestedPresetId: string;
+  appliedPresetId: string;
+  confidence: number;
+  reason: string;
+  evaluatedTurnStartTurnId?: string | null;
+  evaluatedTurnEndTurnId?: string | null;
+  createdAt: string;
+  fallbackApplied: boolean;
+}
+
+export interface SummaryPresetSelection {
+  sessionId: string;
+  selectedPresetId: string;
+  selectedPresetVersion: string;
+  selectionSource: SummaryPresetSelectionSource;
+  applyScope: SummaryPresetApplyScope;
+  lockedByUser: boolean;
+  updatedAt: string;
+  suggestion?: SummaryPresetSuggestion | null;
 }
 
 export interface SummaryPartition {
@@ -101,6 +152,7 @@ export interface SummaryRun {
   partitionIds: string[];
   presetId?: string;
   presetVersion?: string;
+  selectionSource: SummaryPresetSelectionSource;
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision: string;
@@ -133,6 +185,7 @@ export interface SessionSummaryArtifactInput {
   partitions: SummaryPartition[];
   runs: SummaryRun[];
   publishedSummaries: PublishedSummary[];
+  presetSelection?: SummaryPresetSelection | null;
 }
 
 export interface QualitySnapshot {
@@ -201,6 +254,10 @@ export interface SessionArtifact {
   summaryRunId?: string | null;
   summaryPartitionIds?: string[];
   stalePartitionIds?: string[];
+  summaryPresetId?: string | null;
+  summaryPresetVersion?: string | null;
+  presetSelectionSource?: SummaryPresetSelectionSource | null;
+  presetSuggestion?: SummaryPresetSuggestion | null;
   supportingSnippets: ArtifactSupportingSnippet[];
   requests: ArtifactRequestRecord[];
 }
@@ -458,6 +515,9 @@ function createSummaryRequestRecord(run: SummaryRun): ArtifactRequestRecord {
     requestedAt: run.requestedAt,
     completedAt: run.completedAt ?? null,
     errorMessage: run.errorMessage ?? null,
+    presetId: run.presetId,
+    presetVersion: run.presetVersion,
+    selectionSource: run.selectionSource,
     summaryMode: run.mode,
     providerLabel: run.providerLabel ?? null,
     model: run.model ?? null,
@@ -475,7 +535,14 @@ function createSummarySessionArtifact(
   summaryState: SessionSummaryArtifactInput,
   currentSourceRevision?: string | null
 ): SessionArtifact {
-  const artifact = createBaseSessionArtifact(sessionId, "summary", "Summary");
+  const selectedPreset = summaryState.presetSelection ?? null;
+  const artifact: SessionArtifact = {
+    ...createBaseSessionArtifact(sessionId, "summary", "Summary"),
+    summaryPresetId: selectedPreset?.selectedPresetId ?? null,
+    summaryPresetVersion: selectedPreset?.selectedPresetVersion ?? null,
+    presetSelectionSource: selectedPreset?.selectionSource ?? null,
+    presetSuggestion: selectedPreset?.suggestion ?? null,
+  };
   const runs = [...summaryState.runs].sort((left, right) => {
     const requestedDelta = sortByIsoDescending(left.requestedAt, right.requestedAt);
     if (requestedDelta !== 0) {
@@ -529,6 +596,16 @@ function createSummarySessionArtifact(
       summaryRunId: preferredSummary.runId,
       summaryPartitionIds: [...preferredSummary.partitionIds],
       stalePartitionIds,
+      summaryPresetId:
+        selectedPreset?.selectedPresetId ??
+        runs.find((run) => run.id === preferredSummary.runId)?.presetId ??
+        null,
+      summaryPresetVersion:
+        selectedPreset?.selectedPresetVersion ??
+        runs.find((run) => run.id === preferredSummary.runId)?.presetVersion ??
+        null,
+      presetSelectionSource: selectedPreset?.selectionSource ?? null,
+      presetSuggestion: selectedPreset?.suggestion ?? null,
       supportingSnippets: rollupSupportingSnippets(preferredSummary),
     };
   }
@@ -546,6 +623,11 @@ function createSummarySessionArtifact(
       summaryMode: latestRun.mode,
       summarySourceRevision: latestRun.sourceRevision,
       summaryPartitionIds: [...latestRun.partitionIds],
+      summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
+      summaryPresetVersion:
+        selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
+      presetSelectionSource: selectedPreset?.selectionSource ?? null,
+      presetSuggestion: selectedPreset?.suggestion ?? null,
     };
   }
 
@@ -571,6 +653,11 @@ function createSummarySessionArtifact(
       summarySourceRevision: latestRun.sourceRevision,
       summaryRunId: latestRun.id,
       summaryPartitionIds: [...latestRun.partitionIds],
+      summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
+      summaryPresetVersion:
+        selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
+      presetSelectionSource: selectedPreset?.selectionSource ?? null,
+      presetSuggestion: selectedPreset?.suggestion ?? null,
       stalePartitionIds: summaryState.partitions
         .filter(
           (partition) =>
@@ -595,6 +682,11 @@ function createSummarySessionArtifact(
       summaryMode: latestRun.mode,
       summarySourceRevision: latestRun.sourceRevision,
       summaryPartitionIds: [...latestRun.partitionIds],
+      summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
+      summaryPresetVersion:
+        selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
+      presetSelectionSource: selectedPreset?.selectionSource ?? null,
+      presetSuggestion: selectedPreset?.suggestion ?? null,
     };
   }
 

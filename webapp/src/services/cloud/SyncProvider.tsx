@@ -125,6 +125,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     appDb.summaryPartitions,
                     appDb.summaryRuns,
                     appDb.publishedSummaries,
+                    appDb.summaryPresetSelections,
                 ],
                 async () => {
                     await appDb.transcriptions.clear();
@@ -135,6 +136,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     await appDb.summaryPartitions.clear();
                     await appDb.summaryRuns.clear();
                     await appDb.publishedSummaries.clear();
+                    await appDb.summaryPresetSelections.clear();
                 }
             );
 

@@ -146,6 +146,7 @@ describe("shared session domain model", () => {
             mode: "realtime",
             scope: "partition",
             partitionIds: ["partition-1"],
+            selectionSource: "auto",
             sourceRevision: "rev-1",
             requestedAt: "2026-03-10T00:02:30.000Z",
             status: "pending",
@@ -159,6 +160,7 @@ describe("shared session domain model", () => {
             partitionIds: ["partition-1"],
             presetId: "meeting",
             presetVersion: "v1",
+            selectionSource: "auto",
             providerLabel: "OpenAI",
             model: "gpt-5-mini",
             sourceRevision: "rev-1",
@@ -221,6 +223,25 @@ describe("shared session domain model", () => {
             stalePartitionIds: [],
           },
         ],
+        presetSelection: {
+          sessionId: "tx-1",
+          selectedPresetId: "meeting",
+          selectedPresetVersion: "v1",
+          selectionSource: "auto",
+          applyScope: "from_now",
+          lockedByUser: false,
+          updatedAt: "2026-03-10T00:03:00.000Z",
+          suggestion: {
+            suggestedPresetId: "meeting",
+            appliedPresetId: "meeting",
+            confidence: 0.91,
+            reason: "Matched meeting signals.",
+            evaluatedTurnStartTurnId: "turn-1",
+            evaluatedTurnEndTurnId: "turn-2",
+            createdAt: "2026-03-10T00:03:00.000Z",
+            fallbackApplied: false,
+          },
+        },
       },
       "rev-1"
     );
@@ -231,8 +252,11 @@ describe("shared session domain model", () => {
     expect(summary.summaryMode).toBe("full");
     expect(summary.freshness).toBe("fresh");
     expect(summary.content).toBe("The team agreed on the launch checklist.");
+    expect(summary.summaryPresetId).toBe("meeting");
+    expect(summary.presetSelectionSource).toBe("auto");
     expect(summary.requests).toHaveLength(2);
     expect(summary.requests[0].summaryMode).toBe("full");
+    expect(summary.requests[0].selectionSource).toBe("auto");
     expect(summary.supportingSnippets[0].turnId).toBe("turn-1");
   });
 
@@ -261,6 +285,7 @@ describe("shared session domain model", () => {
             mode: "realtime",
             scope: "partition",
             partitionIds: ["partition-1"],
+            selectionSource: "default",
             sourceRevision: "rev-1",
             requestedAt: "2026-03-10T00:03:00.000Z",
             completedAt: "2026-03-10T00:03:03.000Z",
@@ -307,6 +332,7 @@ describe("shared session domain model", () => {
             mode: "full",
             scope: "session",
             partitionIds: [],
+            selectionSource: "manual",
             providerLabel: "OpenAI",
             sourceRevision: "rev-1",
             requestedAt: "2026-03-10T00:03:00.000Z",
@@ -331,5 +357,27 @@ describe("shared session domain model", () => {
     expect(summary.status).toBe("ready");
     expect(summary.content).toBe("Overview: Fallback summary content");
     expect(summary.summaryRunId).toBe("run-ready");
+  });
+
+  it("preserves preset selection metadata even before the first summary run starts", () => {
+    const [summary] = createSessionArtifacts("tx-1", {
+      partitions: [],
+      runs: [],
+      publishedSummaries: [],
+      presetSelection: {
+        sessionId: "tx-1",
+        selectedPresetId: "lecture",
+        selectedPresetVersion: "2026-03-11",
+        selectionSource: "manual",
+        applyScope: "from_now",
+        lockedByUser: true,
+        updatedAt: "2026-03-10T00:03:00.000Z",
+        suggestion: null,
+      },
+    });
+
+    expect(summary.status).toBe("not_requested");
+    expect(summary.summaryPresetId).toBe("lecture");
+    expect(summary.presetSelectionSource).toBe("manual");
   });
 });

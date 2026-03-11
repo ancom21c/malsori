@@ -20,6 +20,9 @@ This note captures the durable invariants for the summary feature so later imple
 
 - Presets are first-class records with `id`, `version`, `label`, `language`, intended context, output schema, and supported modes.
 - The default preset library includes at least `meeting`, `lecture`, `interview`, and `casual`.
+- The product-safe fallback preset is currently `meeting` when confidence is too low or an unknown preset id is requested.
+- Auto suggestion should keep `suggestedPresetId`, `appliedPresetId`, `confidence`, `reason`, and the evaluated early-turn range together.
+- Persisted preset selection carries `selectionSource` (`default`, `auto`, `manual`) plus `applyScope` (`from_now`, `regenerate_all`).
 - Preset choice may be auto-suggested from early session context, but user override always wins.
 
 ## UX Invariants

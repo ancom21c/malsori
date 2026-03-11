@@ -5,6 +5,10 @@ import type {
   LocalSummaryBlock,
   LocalSummaryFreshness,
   LocalSummaryMode,
+  LocalSummaryPresetApplyScope,
+  LocalSummaryPresetSelection,
+  LocalSummaryPresetSelectionSource,
+  LocalSummaryPresetSuggestion,
   LocalSummaryPartition,
   LocalSummaryPartitionReason,
   LocalSummaryPartitionStatus,
@@ -19,6 +23,10 @@ import type {
   SummaryBlock,
   SummaryFreshness,
   SummaryMode,
+  SummaryPresetApplyScope,
+  SummaryPresetSelection,
+  SummaryPresetSelectionSource,
+  SummaryPresetSuggestion,
   SummaryPartition,
   SummaryPartitionReason,
   SummaryPartitionStatus,
@@ -53,6 +61,18 @@ function cloneLocalBlocks(blocks: SummaryBlock[]): LocalSummaryBlock[] {
   }));
 }
 
+function clonePresetSuggestion(
+  suggestion: LocalSummaryPresetSuggestion
+): SummaryPresetSuggestion {
+  return { ...suggestion };
+}
+
+function cloneLocalPresetSuggestion(
+  suggestion: SummaryPresetSuggestion
+): LocalSummaryPresetSuggestion {
+  return { ...suggestion };
+}
+
 function mapLocalSummaryPartition(partition: LocalSummaryPartition): SummaryPartition {
   return {
     ...partition,
@@ -66,6 +86,7 @@ function mapLocalSummaryRun(run: LocalSummaryRun): SummaryRun {
     ...run,
     mode: run.mode as SummaryMode,
     scope: run.scope as SummaryRunScope,
+    selectionSource: run.selectionSource as SummaryPresetSelectionSource,
     status: run.status as SummaryRunStatus,
     partitionIds: [...run.partitionIds],
     blocks: cloneBlocks(run.blocks),
@@ -81,6 +102,20 @@ function mapLocalPublishedSummary(summary: LocalPublishedSummary): PublishedSumm
     supportingSnippets: cloneSupportingSnippets(summary.supportingSnippets),
     blocks: cloneBlocks(summary.blocks),
     stalePartitionIds: [...summary.stalePartitionIds],
+  };
+}
+
+function mapLocalSummaryPresetSelection(
+  selection: LocalSummaryPresetSelection
+): SummaryPresetSelection {
+  return {
+    ...selection,
+    selectionSource:
+      selection.selectionSource as SummaryPresetSelectionSource,
+    applyScope: selection.applyScope as SummaryPresetApplyScope,
+    suggestion: selection.suggestion
+      ? clonePresetSuggestion(selection.suggestion)
+      : null,
   };
 }
 
@@ -145,6 +180,7 @@ export async function createSummaryRun(input: {
   partitionIds?: string[];
   presetId?: string;
   presetVersion?: string;
+  selectionSource?: SummaryPresetSelectionSource;
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision: string;
@@ -162,6 +198,8 @@ export async function createSummaryRun(input: {
     partitionIds: [...(input.partitionIds ?? [])],
     presetId: input.presetId,
     presetVersion: input.presetVersion,
+    selectionSource:
+      (input.selectionSource ?? "default") as LocalSummaryPresetSelectionSource,
     providerLabel: input.providerLabel ?? undefined,
     model: input.model ?? undefined,
     sourceRevision: input.sourceRevision,
@@ -192,6 +230,10 @@ export async function updateSummaryRun(
   }
   if (patch.presetVersion !== undefined) {
     updates.presetVersion = patch.presetVersion;
+  }
+  if (patch.selectionSource !== undefined) {
+    updates.selectionSource =
+      patch.selectionSource as LocalSummaryPresetSelectionSource;
   }
   if (patch.providerLabel !== undefined) {
     updates.providerLabel = patch.providerLabel ?? undefined;
@@ -274,18 +316,54 @@ export async function listPublishedSummaries(sessionId: string): Promise<Publish
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
+export async function saveSummaryPresetSelection(input: {
+  sessionId: string;
+  selectedPresetId: string;
+  selectedPresetVersion: string;
+  selectionSource: SummaryPresetSelectionSource;
+  applyScope: SummaryPresetApplyScope;
+  lockedByUser: boolean;
+  updatedAt?: string;
+  suggestion?: SummaryPresetSuggestion | null;
+}): Promise<SummaryPresetSelection> {
+  const payload: LocalSummaryPresetSelection = {
+    sessionId: input.sessionId,
+    selectedPresetId: input.selectedPresetId,
+    selectedPresetVersion: input.selectedPresetVersion,
+    selectionSource:
+      input.selectionSource as LocalSummaryPresetSelectionSource,
+    applyScope: input.applyScope as LocalSummaryPresetApplyScope,
+    lockedByUser: input.lockedByUser,
+    updatedAt: input.updatedAt ?? new Date().toISOString(),
+    suggestion: input.suggestion
+      ? cloneLocalPresetSuggestion(input.suggestion)
+      : null,
+  };
+  await appDb.summaryPresetSelections.put(payload);
+  return mapLocalSummaryPresetSelection(payload);
+}
+
+export async function readSummaryPresetSelection(
+  sessionId: string
+): Promise<SummaryPresetSelection | null> {
+  const selection = await appDb.summaryPresetSelections.get(sessionId);
+  return selection ? mapLocalSummaryPresetSelection(selection) : null;
+}
+
 export async function readSessionSummaryState(
   sessionId: string
 ): Promise<SessionSummaryArtifactInput> {
-  const [partitions, runs, publishedSummaries] = await Promise.all([
+  const [partitions, runs, publishedSummaries, presetSelection] = await Promise.all([
     listSummaryPartitions(sessionId),
     listSummaryRuns(sessionId),
     listPublishedSummaries(sessionId),
+    readSummaryPresetSelection(sessionId),
   ]);
   return {
     partitions,
     runs,
     publishedSummaries,
+    presetSelection,
   };
 }
 
@@ -328,11 +406,17 @@ export async function markSessionSummaryStateStale(
 export async function deleteSessionSummaryState(sessionId: string): Promise<void> {
   await appDb.transaction(
     "rw",
-    [appDb.summaryPartitions, appDb.summaryRuns, appDb.publishedSummaries],
+    [
+      appDb.summaryPartitions,
+      appDb.summaryRuns,
+      appDb.publishedSummaries,
+      appDb.summaryPresetSelections,
+    ],
     async () => {
       await appDb.summaryPartitions.where("sessionId").equals(sessionId).delete();
       await appDb.summaryRuns.where("sessionId").equals(sessionId).delete();
       await appDb.publishedSummaries.where("sessionId").equals(sessionId).delete();
+      await appDb.summaryPresetSelections.delete(sessionId);
     }
   );
 }

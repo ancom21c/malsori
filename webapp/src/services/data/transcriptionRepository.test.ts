@@ -14,6 +14,7 @@ import {
 import {
   createSummaryPartition,
   createSummaryRun,
+  saveSummaryPresetSelection,
   upsertPublishedSummary,
 } from "./summaryRepository";
 
@@ -325,6 +326,14 @@ describe("transcriptionRepository", () => {
       sourceRevision: record.updatedAt,
       partitionIds: ["partition-1"],
     });
+    await saveSummaryPresetSelection({
+      sessionId: record.id,
+      selectedPresetId: "meeting",
+      selectedPresetVersion: "2026-03-11",
+      selectionSource: "manual",
+      applyScope: "regenerate_all",
+      lockedByUser: true,
+    });
 
     await deleteTranscription(record.id);
 
@@ -354,6 +363,8 @@ describe("transcriptionRepository", () => {
       .equals(record.id)
       .count();
     expect(remainingPublishedSummaries).toBe(0);
+    const remainingPresetSelections = await appDb.summaryPresetSelections.count();
+    expect(remainingPresetSelections).toBe(0);
   });
 
   it("marks persisted summary partitions and published summaries stale after segment replacement", async () => {

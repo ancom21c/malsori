@@ -6,6 +6,7 @@ import {
   deleteSessionSummaryState,
   markSessionSummaryStateStale,
   readSessionSummaryState,
+  saveSummaryPresetSelection,
   upsertPublishedSummary,
 } from "./summaryRepository";
 
@@ -77,6 +78,24 @@ describe("summaryRepository", () => {
       supportingSnippets: run.blocks[0].supportingSnippets,
       freshness: "fresh",
     });
+    await saveSummaryPresetSelection({
+      sessionId: "tx-1",
+      selectedPresetId: "meeting",
+      selectedPresetVersion: "2026-03-11",
+      selectionSource: "auto",
+      applyScope: "from_now",
+      lockedByUser: false,
+      suggestion: {
+        suggestedPresetId: "meeting",
+        appliedPresetId: "meeting",
+        confidence: 0.91,
+        reason: "Matched meeting signals: agenda, decision.",
+        evaluatedTurnStartTurnId: "turn-1",
+        evaluatedTurnEndTurnId: "turn-3",
+        createdAt: "2026-03-11T00:03:00.000Z",
+        fallbackApplied: false,
+      },
+    });
 
     const state = await readSessionSummaryState("tx-1");
 
@@ -84,8 +103,14 @@ describe("summaryRepository", () => {
     expect(state.partitions[0].reason).toBe("speaker_shift");
     expect(state.runs).toHaveLength(1);
     expect(state.runs[0].partitionIds).toEqual(["partition-1"]);
+    expect(state.runs[0].selectionSource).toBe("default");
+    expect(state.runs[0].presetId).toBe("meeting");
+    expect(state.runs[0].presetVersion).toBe("2026-03-11");
     expect(state.publishedSummaries).toHaveLength(1);
     expect(state.publishedSummaries[0].supportingSnippets[0].speakerLabel).toBe("Alice");
+    expect(state.presetSelection?.selectedPresetId).toBe("meeting");
+    expect(state.presetSelection?.selectionSource).toBe("auto");
+    expect(state.presetSelection?.suggestion?.confidence).toBe(0.91);
   });
 
   it("marks persisted summaries stale and can delete them as a unit", async () => {
@@ -111,6 +136,14 @@ describe("summaryRepository", () => {
       partitionIds: ["partition-1"],
       freshness: "fresh",
     });
+    await saveSummaryPresetSelection({
+      sessionId: "tx-2",
+      selectedPresetId: "meeting",
+      selectedPresetVersion: "2026-03-11",
+      selectionSource: "manual",
+      applyScope: "regenerate_all",
+      lockedByUser: true,
+    });
 
     await markSessionSummaryStateStale("tx-2", "rev-2");
 
@@ -126,5 +159,6 @@ describe("summaryRepository", () => {
     expect(state.partitions).toHaveLength(0);
     expect(state.runs).toHaveLength(0);
     expect(state.publishedSummaries).toHaveLength(0);
+    expect(state.presetSelection).toBeNull();
   });
 });

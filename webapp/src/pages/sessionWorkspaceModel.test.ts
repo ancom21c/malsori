@@ -82,6 +82,7 @@ describe("sessionWorkspaceModel", () => {
           mode: "full",
           scope: "session",
           partitionIds: ["partition-1"],
+          selectionSource: "manual",
           sourceRevision: baseTranscription.updatedAt,
           requestedAt: "2026-03-10T00:10:10.000Z",
           completedAt: "2026-03-10T00:10:12.000Z",
@@ -106,12 +107,24 @@ describe("sessionWorkspaceModel", () => {
           stalePartitionIds: [],
         },
       ],
+      presetSelection: {
+        sessionId: "tx-1",
+        selectedPresetId: "meeting",
+        selectedPresetVersion: "2026-03-11",
+        selectionSource: "manual",
+        applyScope: "regenerate_all",
+        lockedByUser: true,
+        updatedAt: "2026-03-10T00:10:10.000Z",
+        suggestion: null,
+      },
     });
 
     expect(view.summaryPreview).toBe("A concise summary from persisted storage.");
     expect(view.artifacts[0].status).toBe("ready");
     expect(view.artifacts[0].content).toBe("A concise summary from persisted storage.");
     expect(view.artifacts[0].summaryMode).toBe("full");
+    expect(view.artifacts[0].summaryPresetId).toBe("meeting");
+    expect(view.artifacts[0].presetSelectionSource).toBe("manual");
   });
 
   it("filters local segments by transcript, speaker, or language query", () => {
