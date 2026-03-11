@@ -26,7 +26,7 @@ summary feature spec와 backend settings UI review findings를 구현 가능한 
 |---|---|---|---|---|---|---|---|---|
 | T1001 | P0 | Summary partition / artifact contract | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1001-summary-partition-artifact-contract.md` |
 | T1002 | P1 | Summary preset library + auto-selection contract | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1002-summary-preset-selection-contract.md` |
-| T1003 | P1 | Summary surface UX for realtime/detail | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1003-summary-surface-ux.md` |
+| T1003 | P1 | Summary surface UX for realtime/detail | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1003-summary-surface-ux.md` |
 | T1004 | P1 | Summary runtime freshness + regeneration lifecycle | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1004-summary-runtime-freshness-lifecycle.md` |
 | T1005 | P1 | Backend live apply/reset safety | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1005-backend-live-apply-safety.md` |
 | T1006 | P2 | Backend form semantics + credential affordance hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1006-backend-form-semantics-hardening.md` |

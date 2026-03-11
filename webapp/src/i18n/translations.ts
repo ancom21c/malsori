@@ -3449,6 +3449,51 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Summary",
     ja: "要約",
   },
+  summaryOpen: {
+    ko: "열기",
+    en: "Open",
+    ja: "開く",
+  },
+  summaryClose: {
+    ko: "닫기",
+    en: "Close",
+    ja: "閉じる",
+  },
+  summaryLive: {
+    ko: "실시간",
+    en: "Live",
+    ja: "ライブ",
+  },
+  summaryFull: {
+    ko: "전체",
+    en: "Full",
+    ja: "全体",
+  },
+  summaryUpdating: {
+    ko: "갱신 중",
+    en: "Updating",
+    ja: "更新中",
+  },
+  summaryStale: {
+    ko: "오래됨",
+    en: "Stale",
+    ja: "古い",
+  },
+  summaryAutoSelected: {
+    ko: "자동 추천",
+    en: "Auto-selected",
+    ja: "自動推奨",
+  },
+  summaryManualSelected: {
+    ko: "수동 선택",
+    en: "Manual",
+    ja: "手動選択",
+  },
+  summaryDefaultSelected: {
+    ko: "기본값 적용",
+    en: "Safe default",
+    ja: "既定値適用",
+  },
   actionItems: {
     ko: "액션 아이템",
     en: "Action items",
@@ -3508,6 +3553,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "요약 생성에 실패했습니다. transcript와 세션 데이터는 그대로 유지됩니다.",
     en: "Summary generation failed. The transcript and session data remain intact.",
     ja: "要約の生成に失敗しました。transcript と session データはそのまま保持されます。",
+  },
+  summarySurfaceDisabledHelper: {
+    ko: "summary capability 또는 backend binding이 준비되지 않아 이 패널은 대기 상태입니다.",
+    en: "This panel is waiting because the summary capability or backend binding is not ready.",
+    ja: "summary capability または backend binding の準備ができていないため、このパネルは待機状態です。",
+  },
+  summaryUpdatingHelper: {
+    ko: "기존 요약을 유지한 채 새 summary run 결과를 반영하는 중입니다.",
+    en: "A new summary run is updating this panel while the current summary remains readable.",
+    ja: "現在の summary を維持したまま、新しい summary run の結果を反映しています。",
+  },
+  summaryStaleHelper: {
+    ko: "source transcript가 바뀌어 현재 요약을 다시 생성해야 합니다.",
+    en: "The source transcript changed, so this summary should be regenerated.",
+    ja: "source transcript が変わったため、この summary は再生成が必要です。",
   },
   qaArtifactNotRequestedHelper: {
     ko: "질문 요청은 아직 시작되지 않았습니다. QA backend가 준비되면 transcript를 근거로 답변을 붙입니다.",

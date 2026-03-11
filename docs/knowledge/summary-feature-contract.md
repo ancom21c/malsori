@@ -28,6 +28,7 @@ This note captures the durable invariants for the summary feature so later imple
 ## UX Invariants
 
 - Realtime and session detail surfaces expose a toggleable summary panel; transcript stays primary.
+- The shared summary shell exposes `Off`, `Live`, and `Full` mode controls plus preset/status badges.
 - Desktop uses a right-side rail; mobile uses a bottom sheet or accordion that does not displace the transcript viewport or transport controls.
 - Summary state must be explicit: `disabled`, `pending`, `updating`, `ready`, `stale`, or `failed`.
 - Summary blocks should link back to supporting transcript snippets so users can inspect evidence.

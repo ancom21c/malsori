@@ -23,6 +23,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ContentCopyOutlinedIcon from "@mui/icons-material/ContentCopyOutlined";
@@ -73,6 +74,11 @@ import {
   getSessionModeLabelKey,
 } from "./sessionWorkspaceModel";
 import { resolveSessionArtifactLifecyclePresentation } from "./sessionArtifactLifecycleModel";
+import SummarySurface from "../components/summary/SummarySurface";
+import {
+  buildSummarySurfaceView,
+  type SummarySurfaceMode,
+} from "../components/summary/summarySurfaceModel";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -420,6 +426,7 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 
 export default function TranscriptionDetailPage() {
   const prefersReducedMotion = usePrefersReducedMotion();
+  const compactSummarySurface = useMediaQuery("(max-width: 959px)");
   const featureAvailability = derivePlatformFeatureAvailability(
     platformFeatureFlags,
     platformCapabilities
@@ -467,6 +474,8 @@ export default function TranscriptionDetailPage() {
   const transcriptWorkspaceRef = useRef<HTMLDivElement | null>(null);
 
   const [speakerEditDialogOpen, setSpeakerEditDialogOpen] = useState(false);
+  const summaryModeTouchedRef = useRef(false);
+  const [summarySurfaceMode, setSummarySurfaceMode] = useState<SummarySurfaceMode>("off");
   const [speakerEditTarget, setSpeakerEditTarget] = useState<{
     segmentId: string;
     currentSpk: string;
@@ -619,6 +628,83 @@ export default function TranscriptionDetailPage() {
         return { artifact, binding, lifecycle, resolvedProfile };
       }) ?? [],
     [workspaceView]
+  );
+  const nonSummaryArtifactCards = useMemo(
+    () => artifactCards.filter((entry) => entry.artifact.type !== "summary"),
+    [artifactCards]
+  );
+  const preferredSummaryMode = useMemo<SummarySurfaceMode>(() => {
+    if (summaryState?.publishedSummaries.some((summary) => summary.mode === "full")) {
+      return "full";
+    }
+    if (summaryState?.publishedSummaries.some((summary) => summary.mode === "realtime")) {
+      return "realtime";
+    }
+    return workspaceView?.record.mode === "capture_realtime" ? "realtime" : "full";
+  }, [summaryState, workspaceView]);
+  useEffect(() => {
+    if (summaryModeTouchedRef.current) {
+      return;
+    }
+    setSummarySurfaceMode(
+      featureAvailability.sessionArtifactsVisible ? preferredSummaryMode : "off"
+    );
+  }, [featureAvailability.sessionArtifactsVisible, preferredSummaryMode]);
+  const summaryBinding = useMemo(
+    () =>
+      resolveArtifactBindingPresentation(
+        "summary",
+        platformBackendBindingRuntime.bindings,
+        platformBackendBindingRuntime.profiles
+      ),
+    []
+  );
+  const summaryResolvedProfile = useMemo(
+    () =>
+      findPlatformBackendProfile(
+        summaryBinding.resolution?.resolvedBackendProfileId,
+        platformBackendBindingRuntime
+      ),
+    [summaryBinding]
+  );
+  const summarySurfaceView = useMemo(() => {
+    const view = buildSummarySurfaceView({
+      mode: summarySurfaceMode,
+      summaryState: summaryState ?? null,
+      binding: summaryBinding,
+    });
+    return {
+      ...view,
+      providerLabel: view.providerLabel ?? summaryResolvedProfile?.label ?? null,
+    };
+  }, [summaryBinding, summaryResolvedProfile, summaryState, summarySurfaceMode]);
+  const handleSummaryModeChange = useCallback((mode: SummarySurfaceMode) => {
+    summaryModeTouchedRef.current = true;
+    setSummarySurfaceMode(mode);
+  }, []);
+  const handleSummaryToggle = useCallback(() => {
+    summaryModeTouchedRef.current = true;
+    setSummarySurfaceMode((prev) => (prev === "off" ? preferredSummaryMode : "off"));
+  }, [preferredSummaryMode]);
+  const handleJumpToSummarySnippet = useCallback(
+    (snippet: { turnId?: string; startMs?: number; endMs?: number }) => {
+      if (snippet.turnId) {
+        setActiveSegmentId(snippet.turnId);
+      }
+      if (
+        typeof snippet.startMs === "number" &&
+        Number.isFinite(snippet.startMs) &&
+        typeof snippet.endMs === "number" &&
+        Number.isFinite(snippet.endMs)
+      ) {
+        setLoopStartSeconds(Math.max(0, snippet.startMs / 1000));
+        setLoopEndSeconds(Math.max(0, snippet.endMs / 1000));
+      }
+      if (transcriptWorkspaceRef.current && typeof transcriptWorkspaceRef.current.focus === "function") {
+        transcriptWorkspaceRef.current.focus({ preventScroll: true });
+      }
+    },
+    []
   );
 
   const timelineDurationSeconds = useMemo(() => {
@@ -2203,6 +2289,21 @@ export default function TranscriptionDetailPage() {
               />
               <CardContent>
                 <Stack spacing={1.5}>
+                  <SummarySurface
+                    compactLayout={compactSummarySurface}
+                    open={summarySurfaceMode !== "off"}
+                    onToggle={handleSummaryToggle}
+                    selectedMode={summarySurfaceMode}
+                    onModeChange={handleSummaryModeChange}
+                    modeOptions={[
+                      { value: "off", labelKey: "off" },
+                      { value: "realtime", labelKey: "summaryLive" },
+                      { value: "full", labelKey: "summaryFull" },
+                    ]}
+                    view={summarySurfaceView}
+                    onJumpToSnippet={handleJumpToSummarySnippet}
+                  />
+
                   <TextField
                     size="small"
                     label={detailCopy.searchTranscript}
@@ -2211,23 +2312,7 @@ export default function TranscriptionDetailPage() {
                     fullWidth
                   />
 
-                  {workspaceView?.summaryPreview ? (
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 2.5,
-                        border: "1px solid",
-                        borderColor: "var(--malsori-workspace-border)",
-                        bgcolor: "var(--malsori-workspace-rail)",
-                      }}
-                    >
-                      <Typography variant="caption" color="text.secondary">
-                        {t("preview", { values: { text: workspaceView.summaryPreview } })}
-                      </Typography>
-                    </Box>
-                  ) : null}
-
-                  {artifactCards.map(({ artifact, binding, lifecycle, resolvedProfile }) => {
+                  {nonSummaryArtifactCards.map(({ artifact, binding, lifecycle, resolvedProfile }) => {
                     const supportingSnippets = [
                       ...artifact.supportingSnippets,
                       ...artifact.requests.flatMap((request) => request.supportingSnippets),

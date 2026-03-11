@@ -79,10 +79,10 @@
 
 ### 수용 기준 (AC)
 
-- [ ] realtime 화면과 session detail 화면에 summary toggle contract가 문서화된다.
-- [ ] desktop/mobile layout rule이 분리되어 명시된다.
-- [ ] `disabled/pending/updating/ready/stale/failed` state vocabulary가 정리된다.
-- [ ] summary와 transcript 사이의 jump/highlight interaction이 정의된다.
+- [x] realtime 화면과 session detail 화면에 summary toggle contract가 문서화된다.
+- [x] desktop/mobile layout rule이 분리되어 명시된다.
+- [x] `disabled/pending/updating/ready/stale/failed` state vocabulary가 정리된다.
+- [x] summary와 transcript 사이의 jump/highlight interaction이 정의된다.
 
 ## Plan (Review 대상)
 
@@ -118,19 +118,27 @@
 
 ## Implementation Log
 
-- [ ] realtime/detail summary shell을 구현한다.
-- [ ] desktop/mobile layout과 interaction state를 반영한다.
-- [ ] empty/disabled/error/freshness states를 추가한다.
-- [ ] transcript jump/highlight affordance를 추가한다.
+- [x] realtime/detail summary shell을 구현한다.
+- [x] desktop/mobile layout과 interaction state를 반영한다.
+- [x] empty/disabled/error/freshness states를 추가한다.
+- [x] transcript jump/highlight affordance를 추가한다.
+
+### Implementation Notes
+
+- `SummarySurface`와 `summarySurfaceModel`을 추가해 realtime/detail가 같은 summary shell vocabulary를 공유하도록 정리했다.
+- desktop에서는 inline right rail card로, compact/mobile에서는 bottom drawer로 summary surface를 열고 닫는다.
+- detail page는 기존 artifact rail에서 summary를 전용 shell로 분리하고, action items/key terms/qa card는 그대로 유지한다.
+- realtime page는 transcript main pane 옆에 summary rail을 붙이고, compact layout에서는 transcript 위 toggle bar + bottom drawer 조합으로 degrade 한다.
+- summary sections의 supporting snippet 버튼은 detail page에서 해당 transcript segment/loop range로 jump하도록 연결했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] summary open 상태가 mobile viewport ownership을 깨지 않는가?
-- [ ] focus/scroll steal 없이 업데이트가 반영되는가?
-- [ ] capability off 상태가 broken UI가 아니라 helper/disabled state로 보이는가?
+- [x] summary open 상태가 mobile viewport ownership을 깨지 않는가?
+- [x] focus/scroll steal 없이 업데이트가 반영되는가?
+- [x] capability off 상태가 broken UI가 아니라 helper/disabled state로 보이는가?
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- AppRouter TranscriptionDetailPage RealtimeSessionPage`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/components/summary/SummarySurface.test.tsx src/components/summary/summarySurfaceModel.test.ts src/domain/session.test.ts src/pages/sessionWorkspaceModel.test.ts src/components/realtime/RealtimeTranscript.test.tsx`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`

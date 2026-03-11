@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useSnackbar, type OptionsObject } from "notistack";
 import { useNavigate } from "react-router-dom";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useSettingsStore } from "../store/settingsStore";
 import { usePresets } from "../hooks/usePresets";
 import {
@@ -68,6 +69,22 @@ import RealtimeToolbar from "../components/realtime/RealtimeToolbar";
 import RealtimeStatusBanner from "../components/realtime/RealtimeStatusBanner";
 import RealtimeTranscript from "../components/realtime/RealtimeTranscript";
 import RealtimeSettingsDialog from "../components/realtime/RealtimeSettingsDialog";
+import {
+  derivePlatformFeatureAvailability,
+  platformCapabilities,
+} from "../app/platformCapabilities";
+import { platformFeatureFlags } from "../app/platformRoutes";
+import { platformBackendBindingRuntime } from "../app/backendBindingRuntime";
+import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
+import { readSessionSummaryState } from "../services/data/summaryRepository";
+import {
+  resolveSummaryPresetSelection,
+} from "../domain/summaryPreset";
+import SummarySurface from "../components/summary/SummarySurface";
+import {
+  buildSummarySurfaceView,
+  type SummarySurfaceMode,
+} from "../components/summary/summarySurfaceModel";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -388,6 +405,10 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
 
 export default function RealtimeSessionPage() {
   const compactRealtimeLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
+  const featureAvailability = derivePlatformFeatureAvailability(
+    platformFeatureFlags,
+    platformCapabilities
+  );
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
@@ -532,6 +553,9 @@ export default function RealtimeSessionPage() {
   const [runtimeStreamConfigOpen, setRuntimeStreamConfigOpen] = useState(false);
   const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettingsState>(DEFAULT_RUNTIME_SETTINGS);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [activeTranscriptionId, setActiveTranscriptionId] = useState<string | null>(null);
+  const summaryModeTouchedRef = useRef(false);
+  const [summarySurfaceMode, setSummarySurfaceMode] = useState<SummarySurfaceMode>("off");
   const [streamingRequestJson, setStreamingRequestJson] = useState("");
   const cameraSupported =
     typeof navigator !== "undefined" &&
@@ -600,6 +624,12 @@ export default function RealtimeSessionPage() {
     ...EMPTY_STREAMING_BUFFER_METRICS,
   });
   const suppressRecorderOnStopRef = useRef(false);
+  const summaryState = useLiveQuery(async () => {
+    if (!activeTranscriptionId) {
+      return null;
+    }
+    return await readSessionSummaryState(activeTranscriptionId);
+  }, [activeTranscriptionId]);
 
   sessionStateRef.current = sessionState;
   connectionUxStateRef.current = connectionUxState;
@@ -614,6 +644,65 @@ export default function RealtimeSessionPage() {
     sessionState === "saving";
 
   const latencyLevel = classifyRealtimeLatencyLevel(lastLatencyMs, latencyStaleMs);
+  const preferredSummaryMode = useMemo<SummarySurfaceMode>(() => {
+    if (summaryState?.publishedSummaries.some((summary) => summary.mode === "full")) {
+      return "full";
+    }
+    return "realtime";
+  }, [summaryState]);
+  useEffect(() => {
+    if (summaryModeTouchedRef.current) {
+      return;
+    }
+    setSummarySurfaceMode(
+      featureAvailability.sessionArtifactsVisible ? preferredSummaryMode : "off"
+    );
+  }, [featureAvailability.sessionArtifactsVisible, preferredSummaryMode]);
+  const summaryBinding = useMemo(
+    () =>
+      resolveArtifactBindingPresentation(
+        "summary",
+        platformBackendBindingRuntime.bindings,
+        platformBackendBindingRuntime.profiles
+      ),
+    []
+  );
+  const synthesizedSummaryState = useMemo(() => {
+    const sessionId = activeTranscriptionId ?? "realtime-preview";
+    const fallbackSelection = resolveSummaryPresetSelection({
+      sessionId,
+      turns: segments.slice(0, 6).map((segment) => ({
+        id: segment.id,
+        text: segment.text,
+        speakerLabel: segment.speakerLabel,
+      })),
+      requestedMode: summarySurfaceMode === "off" ? "realtime" : summarySurfaceMode,
+    });
+
+    return {
+      partitions: summaryState?.partitions ?? [],
+      runs: summaryState?.runs ?? [],
+      publishedSummaries: summaryState?.publishedSummaries ?? [],
+      presetSelection: summaryState?.presetSelection ?? fallbackSelection,
+    };
+  }, [activeTranscriptionId, segments, summaryState, summarySurfaceMode]);
+  const summarySurfaceView = useMemo(
+    () =>
+      buildSummarySurfaceView({
+        mode: summarySurfaceMode,
+        summaryState: synthesizedSummaryState,
+        binding: summaryBinding,
+      }),
+    [summaryBinding, summarySurfaceMode, synthesizedSummaryState]
+  );
+  const handleSummaryModeChange = useCallback((mode: SummarySurfaceMode) => {
+    summaryModeTouchedRef.current = true;
+    setSummarySurfaceMode(mode);
+  }, []);
+  const handleSummaryToggle = useCallback(() => {
+    summaryModeTouchedRef.current = true;
+    setSummarySurfaceMode((prev) => (prev === "off" ? preferredSummaryMode : "off"));
+  }, [preferredSummaryMode]);
   const latencyChipColor: "default" | "success" | "warning" | "error" =
     latencyLevel === "stable"
       ? "success"
@@ -1014,6 +1103,7 @@ export default function RealtimeSessionPage() {
     streamingClientRef.current = null;
     streamingConfigRef.current = null;
     transcriptionIdRef.current = null;
+    setActiveTranscriptionId(null);
     segmentsRef.current = [];
     setSegments([]);
     setPartialText(null);
@@ -1682,6 +1772,7 @@ export default function RealtimeSessionPage() {
         },
       });
       transcriptionIdRef.current = record.id;
+      setActiveTranscriptionId(record.id);
       await updateLocalTranscription(record.id, {
         audioSampleRate: sampleRate,
         audioChannels: 1,
@@ -2013,17 +2104,63 @@ export default function RealtimeSessionPage() {
               </Stack>
             )}
 
-            <RealtimeTranscript
-              segments={segments}
-              partialText={partialText}
-              noteMode={noteMode}
-              onNoteModeChange={setNoteMode}
-              followLive={followLive}
-              onFollowLiveChange={setFollowLive}
-              noteModeText={noteModeText}
-              sessionState={sessionState}
-              compactLayout={compactRealtimeLayout}
-            />
+            {featureAvailability.sessionArtifactsVisible && compactRealtimeLayout ? (
+              <SummarySurface
+                compactLayout
+                open={summarySurfaceMode !== "off"}
+                onToggle={handleSummaryToggle}
+                selectedMode={summarySurfaceMode}
+                onModeChange={handleSummaryModeChange}
+                modeOptions={[
+                  { value: "off", labelKey: "off" },
+                  { value: "realtime", labelKey: "summaryLive" },
+                  { value: "full", labelKey: "summaryFull" },
+                ]}
+                view={summarySurfaceView}
+              />
+            ) : null}
+
+            <Box
+              sx={{
+                display: "flex",
+                gap: compactRealtimeLayout ? 0 : 2,
+                alignItems: "stretch",
+                minHeight: 0,
+                flex: 1,
+              }}
+            >
+              <Box sx={{ flex: "1 1 auto", minWidth: 0, minHeight: 0 }}>
+                <RealtimeTranscript
+                  segments={segments}
+                  partialText={partialText}
+                  noteMode={noteMode}
+                  onNoteModeChange={setNoteMode}
+                  followLive={followLive}
+                  onFollowLiveChange={setFollowLive}
+                  noteModeText={noteModeText}
+                  sessionState={sessionState}
+                  compactLayout={compactRealtimeLayout}
+                />
+              </Box>
+
+              {featureAvailability.sessionArtifactsVisible && !compactRealtimeLayout ? (
+                <Box sx={{ flex: "0 0 320px", width: 320, minWidth: 280 }}>
+                  <SummarySurface
+                    compactLayout={false}
+                    open={summarySurfaceMode !== "off"}
+                    onToggle={handleSummaryToggle}
+                    selectedMode={summarySurfaceMode}
+                    onModeChange={handleSummaryModeChange}
+                    modeOptions={[
+                      { value: "off", labelKey: "off" },
+                      { value: "realtime", labelKey: "summaryLive" },
+                      { value: "full", labelKey: "summaryFull" },
+                    ]}
+                    view={summarySurfaceView}
+                  />
+                </Box>
+              ) : null}
+            </Box>
           </Box>
         </Box>
 
