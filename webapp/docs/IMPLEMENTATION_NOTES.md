@@ -21,12 +21,16 @@
 - STT value preservation baseline: `docs/plan-stt-value-preservation-baseline-2026-03-10.md`
 - Additive platform rollout baseline: `docs/plan-platform-expansion-rollout-2026-03-10.md`
 - Feature/backend binding architecture baseline: `docs/plan-feature-backend-binding-2026-03-10.md`
-- No active remediation loop is currently registered.
+- Summary feature spec baseline: `docs/plan-summary-feature-2026-03-11.md`
+- Durable knowledge index: `docs/knowledge/README.md`
+- Current execution plan: `docs/plan-summary-backend-2026-03-11.md`
+- Current execution board: `docs/todo/2026-03-11-summary-backend-loop/README.md`
 - Latest completed execution plan: `docs/plan-review-remediation-2026-03-08.md`
 - Latest completed execution board: `docs/todo/2026-03-08-contract-ux-loop/README.md`
 - Historical Studio Console rollout log: `docs/studio-console-rollout-plan-2026-03-04.md`
 
 ## Follow-up Backlog
+- Provider-backed summary vertical slice: contiguous partition model, realtime/full summary modes, preset auto-selection + override, and source-linked summary blocks.
 - Waveform visualisation and timeline scrubbing (e.g., @ffmpeg/wasm or Wavesurfer integration) with loop markers per transcript segment.
 - Offline-first enhancements: chunk compaction, storage quota monitoring, and ability to resume partially uploaded realtime sessions.
 - Preset management polish: import/export presets as JSON, multi-default guardrails across file/streaming types, and validation helpers.

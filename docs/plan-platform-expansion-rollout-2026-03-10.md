@@ -5,6 +5,7 @@
 Primary no-regression reference:
 
 - `docs/plan-stt-value-preservation-baseline-2026-03-10.md`
+- Summary feature detail: `docs/plan-summary-feature-2026-03-11.md`
 
 ## Goal
 

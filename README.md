@@ -17,7 +17,10 @@ Current canonical/UI references:
 - `docs/plan-stt-value-preservation-baseline-2026-03-10.md` - no-regression baseline for file/realtime/detail/settings while workspace features expand
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
-- No active remediation loop is currently registered.
+- `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
+- `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
+- `docs/plan-summary-backend-2026-03-11.md` - current execution plan for summary/backend settings work
+- `docs/todo/2026-03-11-summary-backend-loop/README.md` - current execution board
 - `docs/plan-review-remediation-2026-03-08.md` - latest completed execution plan
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` - latest completed execution board
 - `webapp/docs/IMPLEMENTATION_NOTES.md` - implementation snapshot and code-level notes
@@ -123,8 +126,9 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 ## Repository Layout
 
 - `webapp/` – main SPA source code, configuration, and tests.
+- `docs/knowledge/` – durable product and architecture knowledge.
 - `.github/workflows/ci.yml` – project CI pipeline.
-- `AGENTS.MD`, `LICENSE` – auxiliary metadata.
+- `AGENTS.md`, `LICENSE` – auxiliary metadata.
 
 ## Documentation
 
@@ -134,7 +138,11 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-stt-value-preservation-baseline-2026-03-10.md` – no-regression baseline for core file/realtime/detail/settings flows.
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
-- No active remediation loop is currently registered.
+- `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
+- `docs/knowledge/README.md` – durable knowledge index.
+- `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
+- `docs/plan-summary-backend-2026-03-11.md` – current execution plan for summary/backend settings work.
+- `docs/todo/2026-03-11-summary-backend-loop/README.md` – current execution board.
 - `docs/plan-review-remediation-2026-03-08.md` – latest completed execution plan.
 - `docs/todo/2026-03-08-contract-ux-loop/README.md` – latest completed execution board.
 - `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation snapshot, current references, and code-level notes.

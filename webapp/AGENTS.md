@@ -1,41 +1,37 @@
-# Malsori WebApp Architecture & Agent Guide
+# Malsori Webapp Agent Guide
 
-This document serves as a high-level guide for AI Agents working on the Malsori WebApp. It outlines core architectural decisions, design patterns, and feature specifications.
+This file is the frontend-specific companion to the repo root `AGENTS.md`.
 
-## 1. Project Overview
-Malsori is a local-first web application for real-time audio transcription and recording.
-- **Stack**: React, Vite, TypeScript, TailwindCSS (if applicable), Dexie.js (IndexedDB).
-- **Core Philosophy**: Local-First. User data resides primarily in the browser's IndexedDB.
+## Project Surface
 
-## 2. Cloud Synchronization (New)
-**Status**: Design Phase (Approved)
-**Design Doc**: [cloud_sync_design.md](./cloud_sync_design.md)
+- Stack: React 19, Vite 7, TypeScript, Material UI, Dexie, Zustand, TanStack Query, and Notistack.
+- Primary user value: file transcription, realtime capture, session detail playback/edit/export, and settings/operator configuration.
+- Additive routes: `/sessions`, `/capture/*`, `/translate`.
 
-### Architecture
-- **Provider**: Google Drive (via Google Identity Services).
-- **Auth**: Client-side Token Model (No backend).
-- **Data Strategy**:
-    - **Metadata**: `metadata.json` (Synced first).
-    - **Media**: `audio.webm`, `video.webm` (Standard formats).
-    - **Segments**: `segments.json`.
-- **Sync Logic**:
-    - **Selective Sync**: User toggles `isCloudSynced` per record.
-    - **On-Demand Download**: Cloud records appear as "Ghost Records" locally until explicitly downloaded.
-    - **Conflict Resolution**: Manual resolution dialog on account switch.
+## Canonical References
 
-### Key Components to Implement
-1.  **GoogleAuthProvider**: Context for GIS SDK.
-2.  **GoogleDriveService**: API wrapper for Drive v3.
-3.  **SyncManager**: Logic for Pull/Push/Merge.
-4.  **UI**: Sync Status Indicator, Conflict Dialog, Sync Toggle.
+- `../AGENTS.md`
+- `../docs/knowledge/README.md`
+- `../docs/plan-ui-remediation-2026-03-06.md`
+- `../docs/plan-stt-value-preservation-baseline-2026-03-10.md`
+- `../docs/plan-platform-expansion-rollout-2026-03-10.md`
+- `../docs/plan-feature-backend-binding-2026-03-10.md`
+- `../docs/plan-summary-feature-2026-03-11.md`
+- `../docs/plan-summary-backend-2026-03-11.md`
+- `../docs/todo/2026-03-11-summary-backend-loop/README.md`
+- `docs/IMPLEMENTATION_NOTES.md`
 
-## 3. Database Schema (Dexie)
-See `src/data/app-db.ts`.
-- **Tables**: `transcriptions`, `segments`, `audioChunks`, `videoChunks`, `presets`, `settings`.
-- **New Fields**: `LocalTranscription.isCloudSynced`, `LocalTranscription.downloadStatus`.
+## Frontend Rules
 
-## 4. Internationalization (i18n)
-- User-facing UI strings should be implemented with `useI18n().t(key)` (see `src/i18n/translations.ts`).
-- Non-React modules (services/data/utils) can use `tStatic(key, options)` from `src/i18n/static.ts`.
-- Comments and console logs can remain in Korean; focus i18n effort on user-facing text.
-- For persisted text (seeded presets, stored metadata), decide whether to store a translated string or a stable key and translate in the UI.
+- Keep STT-first behavior intact. Summary, QA, translate, and future TTS remain additive surfaces.
+- Use same-origin `/` as the public API default. Operator-only backend controls stay behind the internal `/v1/backend/*` boundary.
+- Realtime mobile UX is a hard guardrail. Transcript viewport and transport controls stay primary even when additive features are enabled.
+- Summary UX uses toggleable secondary surfaces. Desktop prefers a right rail; mobile prefers a bottom sheet or accordion.
+- Summary updates must not steal focus, auto-scroll the user away from current reading position, or displace the transport dock.
+- Capability-off or binding-misconfigured states should render as hidden/disabled helper UI, not broken controls.
+
+## i18n
+
+- React UI strings use `useI18n().t(key)`.
+- Non-React modules use `tStatic(key, options)`.
+- User-facing persisted text should use stable keys or versioned content decisions, not ad-hoc untranslated strings.
