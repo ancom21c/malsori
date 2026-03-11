@@ -127,19 +127,21 @@
 
 ## Implementation Log
 
-- [ ] structured profile/binding inspector를 구현한다.
-- [ ] mismatch/health state chips or alerts를 추가한다.
-- [ ] advanced JSON editor path를 secondary affordance로 재배치한다.
-- [ ] long-content/mobile responsive handling을 보강한다.
+- [x] selected profile/binding을 위한 structured inspector를 추가해 base URL, auth, health, capability, resolution 상태를 JSON 없이 읽을 수 있게 했다.
+- [x] capability mismatch, primary/fallback readiness, fallback active 상태를 alert/chip으로 끌어올렸다.
+- [x] profile/binding JSON editor를 `View advanced settings` 뒤의 secondary collapse path로 내리고 저장/삭제 액션도 그 안으로 옮겼다.
+- [x] list row와 inspector field에 truncation, `wordBreak`, responsive grid를 적용해 long id/URL/mobile overflow를 줄였다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] operator가 JSON editor를 열기 전에 핵심 상태를 읽을 수 있는가?
-- [ ] health/capability mismatch가 silent failure로 숨지 않는가?
-- [ ] long id / URL이 small viewport에서 overflow하지 않는가?
+- [x] operator는 list 선택만으로 profile/binding의 핵심 상태를 읽을 수 있고 JSON editor는 advanced path로 후퇴했다.
+- [x] health/capability mismatch와 fallback activation이 alert/chip으로 surface에 드러난다.
+- [x] long id / URL은 list에서 no-wrap + title, inspector에서 word-break/grid로 처리해 small viewport overflow를 줄였다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- BackendBindingOperatorPanel SettingsPage`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/components/backendBindingOperatorModel.test.ts src/components/BackendBindingOperatorPanel.test.tsx`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run i18n:check`
+- [x] `git diff --check`

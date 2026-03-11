@@ -17,8 +17,8 @@ This file is the frontend-specific companion to the repo root `AGENTS.md`.
 - `../docs/plan-platform-expansion-rollout-2026-03-10.md`
 - `../docs/plan-feature-backend-binding-2026-03-10.md`
 - `../docs/plan-summary-feature-2026-03-11.md`
-- `../docs/plan-summary-backend-2026-03-11.md`
-- `../docs/todo/2026-03-11-summary-backend-loop/README.md`
+- `../docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan
+- `../docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/IMPLEMENTATION_NOTES.md`
 
 ## Frontend Rules

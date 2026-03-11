@@ -1,6 +1,6 @@
 # UI Remediation + Studio Console Alignment Plan (2026-03-06)
 
-> Status: current canonical UI/spec baseline. Current execution plan/board live in `docs/plan-summary-backend-2026-03-11.md` and `docs/todo/2026-03-11-summary-backend-loop/README.md`. The latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md` and `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: current canonical UI/spec baseline. No active execution loop is open right now. The latest completed execution record lives in `docs/plan-summary-backend-2026-03-11.md` and `docs/todo/2026-03-11-summary-backend-loop/README.md`. The previous completed execution record lives in `docs/plan-review-remediation-2026-03-08.md` and `docs/todo/2026-03-08-contract-ux-loop/README.md`.
 
 ## Goal
 
@@ -67,8 +67,9 @@
 ### 6. Documentation Contract
 
 - 현재 canonical spec은 `docs/plan-ui-remediation-2026-03-06.md` 하나만 사용한다.
-- 현재 execution loop는 `docs/plan-summary-backend-2026-03-11.md`와 `docs/todo/2026-03-11-summary-backend-loop/README.md`다.
-- 최신 완료 기록은 `docs/plan-review-remediation-2026-03-08.md`와 `docs/todo/2026-03-08-contract-ux-loop/README.md`다.
+- 현재 open execution loop는 없다.
+- 최신 완료 기록은 `docs/plan-summary-backend-2026-03-11.md`와 `docs/todo/2026-03-11-summary-backend-loop/README.md`다.
+- 이전 완료 기록은 `docs/plan-review-remediation-2026-03-08.md`와 `docs/todo/2026-03-08-contract-ux-loop/README.md`다.
 - `docs/todo/2026-03-06-ui-remediation-loop/`는 foundational remediation loop의 historical execution board다.
 - `docs/studio-console-rollout-plan-2026-03-04.md`는 execution history 전용 문서다.
 - `docs/plan-studio-console-v3.md`는 concept/IA baseline 문서다.
@@ -81,12 +82,12 @@
 | Document | Role | Status rule |
 |---|---|---|
 | `docs/plan-ui-remediation-2026-03-06.md` | current canonical spec | 현재 코드와 승인된 contract만 유지 |
-| `docs/plan-summary-backend-2026-03-11.md` | current execution plan | 현재 open work의 target/priority/decision을 유지 |
-| `docs/todo/2026-03-11-summary-backend-loop/README.md` | current execution board | 현재 open task 상태를 유지 |
-| `docs/todo/2026-03-11-summary-backend-loop/T*.md` | current task spec | 현재 loop task의 spec/plan/verify contract를 유지 |
-| `docs/plan-review-remediation-2026-03-08.md` | latest completed execution plan | 가장 최근에 완료된 remediation loop decision/log 보존 |
-| `docs/todo/2026-03-08-contract-ux-loop/README.md` | latest completed execution board | 가장 최근에 완료된 remediation loop 상태 기록 |
-| `docs/todo/2026-03-08-contract-ux-loop/T*.md` | latest completed task log | 가장 최근 완료 loop의 task evidence와 검증 명령 연결 |
+| `docs/plan-summary-backend-2026-03-11.md` | latest completed execution plan | 가장 최근에 완료된 summary/backend loop decision/log 보존 |
+| `docs/todo/2026-03-11-summary-backend-loop/README.md` | latest completed execution board | 가장 최근에 완료된 summary/backend loop 상태 기록 |
+| `docs/todo/2026-03-11-summary-backend-loop/T*.md` | latest completed task log | 가장 최근 완료 loop의 task evidence와 검증 명령 연결 |
+| `docs/plan-review-remediation-2026-03-08.md` | previous completed execution plan | 이전 remediation loop decision/log 보존 |
+| `docs/todo/2026-03-08-contract-ux-loop/README.md` | previous completed execution board | 이전 remediation loop 상태 기록 |
+| `docs/todo/2026-03-08-contract-ux-loop/T*.md` | previous completed task log | 이전 completed loop의 task evidence와 검증 명령 연결 |
 | `docs/plan-review-followup-2026-03-07.md` | historical execution plan | 완료된 2026-03-07 follow-up loop decision/log 보존 |
 | `docs/todo/2026-03-07-followup-remediation-loop/README.md` | historical execution board | 완료된 2026-03-07 follow-up loop 상태 기록 |
 | `docs/todo/2026-03-07-followup-remediation-loop/T*.md` | historical task log | 완료된 follow-up task evidence 보존 |

@@ -1,6 +1,6 @@
 # Summary + Backend Settings Loop Board (2026-03-11)
 
-> Status: current execution board. Current execution plan: `docs/plan-summary-backend-2026-03-11.md`. The latest completed execution board remains `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: latest completed execution board. Execution plan: `docs/plan-summary-backend-2026-03-11.md`. No active execution board is open right now. The previous completed execution board is `docs/todo/2026-03-08-contract-ux-loop/README.md`.
 
 ## 목적
 
@@ -30,7 +30,7 @@ summary feature spec와 backend settings UI review findings를 구현 가능한 
 | T1004 | P1 | Summary runtime freshness + regeneration lifecycle | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1004-summary-runtime-freshness-lifecycle.md` |
 | T1005 | P1 | Backend live apply/reset safety | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1005-backend-live-apply-safety.md` |
 | T1006 | P2 | Backend form semantics + credential affordance hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1006-backend-form-semantics-hardening.md` |
-| T1007 | P1 | Backend binding operator inspector UX | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1007-backend-binding-operator-inspector-ux.md` |
+| T1007 | P1 | Backend binding operator inspector UX | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1007-backend-binding-operator-inspector-ux.md` |
 
 ## 이번 루프 우선순위
 

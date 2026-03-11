@@ -1,6 +1,6 @@
 # Summary + Backend Settings Execution Plan (2026-03-11)
 
-> Status: current execution plan. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`. The latest completed execution record lives in `docs/plan-review-remediation-2026-03-08.md` and `docs/todo/2026-03-08-contract-ux-loop/README.md`.
+> Status: latest completed execution plan. Current canonical UI/spec baseline remains `docs/plan-ui-remediation-2026-03-06.md`. No active execution loop is open right now. The previous completed execution record lives in `docs/plan-review-remediation-2026-03-08.md` and `docs/todo/2026-03-08-contract-ux-loop/README.md`.
 
 ## Goal
 
@@ -20,7 +20,8 @@ summary feature spec에서 정리한 요구사항과 backend settings UI review�
 - 완료: `T1004` summary runtime freshness + regeneration lifecycle implementation + review + verify
 - 완료: `T1005` backend live apply/reset safety implementation + review + verify
 - 완료: `T1006` backend form semantics + credential affordance hardening implementation + review + verify
-- 현재 open work: `T1007`
+- 완료: `T1007` backend binding operator inspector UX implementation + review + verify
+- 현재 open work: none
 
 ## Inputs
 

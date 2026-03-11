@@ -34,3 +34,10 @@ This note captures the durable UX and safety rules for the operator-only backend
 - Non-secret fields such as base URLs, preset names, descriptions, and client IDs default to non-password semantics so password managers do not treat them like login fields.
 - Secret fields such as admin tokens and client secrets stay masked by default and use helper copy that explains memory-only handling or overwrite behavior.
 - `Client ID` remains reviewable text; `Client Secret` remains masked. The two fields may not share the same affordance.
+
+## Binding Inspector
+
+- Profile and binding status must be readable before the operator opens a JSON editor.
+- The primary read path is list selection plus structured inspector; JSON editing is an advanced path that stays collapsed until requested.
+- Binding inspectors surface primary/fallback routing, resolution status, retry/timeout metadata, and mismatch warnings.
+- Long profile ids, feature keys, model names, and URLs use truncation or wrapped detail rows so narrow layouts do not overflow.

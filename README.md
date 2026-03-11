@@ -19,10 +19,11 @@ Current canonical/UI references:
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
 - `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
-- `docs/plan-summary-backend-2026-03-11.md` - current execution plan for summary/backend settings work
-- `docs/todo/2026-03-11-summary-backend-loop/README.md` - current execution board
-- `docs/plan-review-remediation-2026-03-08.md` - latest completed execution plan
-- `docs/todo/2026-03-08-contract-ux-loop/README.md` - latest completed execution board
+- No active execution loop is open right now.
+- `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan for summary/backend settings work
+- `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
+- `docs/plan-review-remediation-2026-03-08.md` - previous completed execution plan
+- `docs/todo/2026-03-08-contract-ux-loop/README.md` - previous completed execution board
 - `webapp/docs/IMPLEMENTATION_NOTES.md` - implementation snapshot and code-level notes
 
 ## Development
@@ -141,10 +142,11 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
 - `docs/knowledge/README.md` – durable knowledge index.
 - `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
-- `docs/plan-summary-backend-2026-03-11.md` – current execution plan for summary/backend settings work.
-- `docs/todo/2026-03-11-summary-backend-loop/README.md` – current execution board.
-- `docs/plan-review-remediation-2026-03-08.md` – latest completed execution plan.
-- `docs/todo/2026-03-08-contract-ux-loop/README.md` – latest completed execution board.
+- No active execution loop is open right now.
+- `docs/plan-summary-backend-2026-03-11.md` – latest completed execution plan for summary/backend settings work.
+- `docs/todo/2026-03-11-summary-backend-loop/README.md` – latest completed execution board.
+- `docs/plan-review-remediation-2026-03-08.md` – previous completed execution plan.
+- `docs/todo/2026-03-08-contract-ux-loop/README.md` – previous completed execution board.
 - `webapp/docs/IMPLEMENTATION_NOTES.md` – implementation snapshot, current references, and code-level notes.
 
 ### Agent Workloop Policy

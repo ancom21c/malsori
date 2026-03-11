@@ -5,16 +5,26 @@ import {
   Card,
   CardContent,
   Chip,
+  Collapse,
   Divider,
   Stack,
   Typography,
 } from "@mui/material";
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type { BackendProfile } from "../domain/backendProfile";
 import type { FeatureBinding, FeatureKey } from "../domain/featureBinding";
 import type { BackendCapabilitiesState } from "../services/api/types";
 import { StudioJsonEditor } from "./studio";
 import { useI18n } from "../i18n";
 import { formatLocalizedDateTime } from "../utils/time";
+import {
+  buildBindingInspectorState,
+  getBackendHealthAlertSeverity,
+  getBackendHealthTone,
+  getBindingResolutionTone,
+  resolveSelectedBackendProfile,
+} from "./backendBindingOperatorModel";
 
 type BackendBindingOperatorPanelProps = {
   locale: string;
@@ -48,6 +58,27 @@ type BackendBindingOperatorPanelProps = {
   onDeleteBinding: () => void;
 };
 
+function InspectorField({
+  label,
+  value,
+  title,
+}: {
+  label: string;
+  value: ReactNode;
+  title?: string;
+}) {
+  return (
+    <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ wordBreak: "break-word" }} title={title}>
+        {value}
+      </Typography>
+    </Stack>
+  );
+}
+
 export default function BackendBindingOperatorPanel({
   locale,
   disabled,
@@ -80,10 +111,63 @@ export default function BackendBindingOperatorPanel({
   onDeleteBinding,
 }: BackendBindingOperatorPanelProps) {
   const { t } = useI18n();
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [bindingEditorOpen, setBindingEditorOpen] = useState(false);
+
+  const selectedProfile = useMemo(
+    () => resolveSelectedBackendProfile(profiles, selectedProfileId),
+    [profiles, selectedProfileId]
+  );
+  const selectedBindingInspector = useMemo(
+    () =>
+      buildBindingInspectorState({
+        bindings,
+        selectedBindingKey,
+        profiles,
+      }),
+    [bindings, profiles, selectedBindingKey]
+  );
 
   const capabilitySummary =
-    capabilitiesState?.capabilityKeys.join(", ") ?? t("notConfigured");
-  const featureSummary = capabilitiesState?.featureKeys.join(", ") ?? t("notConfigured");
+    capabilitiesState?.capabilityKeys.length
+      ? capabilitiesState.capabilityKeys.join(", ")
+      : t("notConfigured");
+  const featureSummary =
+    capabilitiesState?.featureKeys.length
+      ? capabilitiesState.featureKeys.join(", ")
+      : t("notConfigured");
+
+  const renderProfileReference = (profileId: string | null | undefined) => {
+    if (!profileId) {
+      return t("notConfigured");
+    }
+    const profile = profiles.find((candidate) => candidate.id === profileId) ?? null;
+    if (!profile) {
+      return profileId;
+    }
+    return `${profile.label} · ${profile.id}`;
+  };
+
+  const renderInspectorNotice = (
+    notice: (typeof selectedBindingInspector.notices)[number],
+    index: number
+  ) => {
+    const keyMap = {
+      binding_disabled: "bindingDisabledInspectorNotice",
+      primary_profile_missing: "primaryProfileMissingInspectorNotice",
+      primary_capability_mismatch: "primaryCapabilityMismatchInspectorNotice",
+      primary_not_ready: "primaryProfileNotReadyInspectorNotice",
+      fallback_profile_missing: "fallbackProfileMissingInspectorNotice",
+      fallback_not_ready: "fallbackProfileNotReadyInspectorNotice",
+      fallback_active: "fallbackActiveInspectorNotice",
+    } as const;
+
+    return (
+      <Alert key={`${notice.code}-${index}`} severity={notice.severity} variant="outlined">
+        {t(keyMap[notice.code])}
+      </Alert>
+    );
+  };
 
   return (
     <Stack spacing={2.5}>
@@ -145,7 +229,7 @@ export default function BackendBindingOperatorPanel({
           <CardContent>
             <Stack spacing={1}>
               <Typography variant="subtitle2">{t("availableCapabilities")}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
                 {capabilitySummary}
               </Typography>
             </Stack>
@@ -156,7 +240,7 @@ export default function BackendBindingOperatorPanel({
           <CardContent>
             <Stack spacing={1}>
               <Typography variant="subtitle2">{t("featureBindings")}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
                 {featureSummary}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -174,137 +258,471 @@ export default function BackendBindingOperatorPanel({
         </Card>
       </Box>
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
-          gap: 2,
-        }}
-      >
-        <Card variant="outlined">
-          <CardContent>
-            <Stack spacing={1.5}>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                justifyContent="space-between"
-                alignItems={{ xs: "flex-start", sm: "center" }}
-              >
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", sm: "center" }}
+            >
+              <Stack spacing={0.5}>
                 <Typography variant="subtitle1">{t("backendProfiles")}</Typography>
-                <Button variant="text" size="small" onClick={onNewProfile} disabled={disabled}>
-                  {t("newProfile")}
-                </Button>
+                <Typography variant="body2" color="text.secondary">
+                  {t("profileInspectorHelper")}
+                </Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary">
-                {t("profileRecordJsonHelper")}
-              </Typography>
-              {profiles.length > 0 ? (
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {profiles.map((profile) => (
-                    <Chip
-                      key={profile.id}
-                      clickable
-                      color={selectedProfileId === profile.id ? "primary" : "default"}
-                      variant={selectedProfileId === profile.id ? "filled" : "outlined"}
-                      label={`${profile.label} · ${profile.kind}`}
-                      onClick={() => onSelectProfile(profile.id)}
-                    />
-                  ))}
-                </Stack>
-              ) : (
-                <Alert severity="info">{t("thereAreNoRegisteredProfiles")}</Alert>
-              )}
-              <StudioJsonEditor
-                value={profileEditorValue}
-                onChange={onProfileEditorChange}
-                onFormat={onFormatProfileEditor}
-                onCopy={onCopyProfileEditor}
-                label={t("profileRecordJson")}
-                error={Boolean(profileEditorError)}
-                helperText={profileEditorError ?? t("profileRecordJsonHelper")}
-                minRows={16}
-              />
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <Button variant="contained" onClick={onSaveProfile} disabled={disabled} fullWidth>
-                  {t("saveProfile")}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={onDeleteProfile}
-                  disabled={disabled || !selectedProfileId}
-                  fullWidth
-                >
-                  {t("deleteProfile")}
-                </Button>
-              </Stack>
+              <Button variant="text" size="small" onClick={onNewProfile} disabled={disabled}>
+                {t("newProfile")}
+              </Button>
             </Stack>
-          </CardContent>
-        </Card>
 
-        <Card variant="outlined">
-          <CardContent>
-            <Stack spacing={1.5}>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                justifyContent="space-between"
-                alignItems={{ xs: "flex-start", sm: "center" }}
-              >
-                <Typography variant="subtitle1">{t("featureBindings")}</Typography>
-                <Button variant="text" size="small" onClick={onNewBinding} disabled={disabled}>
-                  {t("newBinding")}
-                </Button>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                {t("bindingRecordJsonHelper")}
-              </Typography>
-              {bindings.length > 0 ? (
-                <Stack divider={<Divider flexItem />} spacing={1}>
-                  {bindings.map((binding) => (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 320px) minmax(0, 1fr)" },
+                gap: 2,
+              }}
+            >
+              <Stack spacing={1}>
+                {profiles.length > 0 ? (
+                  profiles.map((profile) => (
                     <Button
-                      key={binding.featureKey}
-                      variant={selectedBindingKey === binding.featureKey ? "contained" : "text"}
-                      color={selectedBindingKey === binding.featureKey ? "primary" : "inherit"}
-                      onClick={() => onSelectBinding(binding.featureKey)}
-                      sx={{ justifyContent: "space-between", textTransform: "none" }}
+                      key={profile.id}
+                      variant={selectedProfileId === profile.id ? "contained" : "outlined"}
+                      color={selectedProfileId === profile.id ? "primary" : "inherit"}
+                      onClick={() => onSelectProfile(profile.id)}
+                      sx={{
+                        justifyContent: "flex-start",
+                        textTransform: "none",
+                        minWidth: 0,
+                        px: 1.25,
+                        py: 1,
+                      }}
                     >
-                      <span>{binding.featureKey}</span>
-                      <span>{binding.primaryBackendProfileId}</span>
+                      <Stack spacing={0.5} sx={{ width: "100%", minWidth: 0 }} alignItems="flex-start">
+                        <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600, minWidth: 0, maxWidth: "100%" }}
+                            title={profile.label}
+                          >
+                            {profile.label}
+                          </Typography>
+                          <Chip size="small" label={profile.kind} />
+                          <Chip
+                            size="small"
+                            color={getBackendHealthTone(profile.health.status)}
+                            label={`${t("healthStatus")}: ${profile.health.status}`}
+                          />
+                        </Stack>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          noWrap
+                          sx={{ maxWidth: "100%" }}
+                          title={profile.baseUrl}
+                        >
+                          {profile.baseUrl}
+                        </Typography>
+                      </Stack>
                     </Button>
-                  ))}
+                  ))
+                ) : (
+                  <Alert severity="info">{t("thereAreNoRegisteredProfiles")}</Alert>
+                )}
+              </Stack>
+
+              {selectedProfile ? (
+                <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                      <Chip size="small" label={selectedProfile.kind} />
+                      <Chip
+                        size="small"
+                        color={selectedProfile.enabled ? "success" : "default"}
+                        label={selectedProfile.enabled ? t("enabled") : t("disabled")}
+                      />
+                      <Chip
+                        size="small"
+                        color={getBackendHealthTone(selectedProfile.health.status)}
+                        label={`${t("healthStatus")}: ${selectedProfile.health.status}`}
+                      />
+                    </Stack>
+                    <Typography variant="h6" sx={{ wordBreak: "break-word" }}>
+                      {selectedProfile.label}
+                    </Typography>
+                  </Stack>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                      gap: 1.5,
+                    }}
+                  >
+                    <InspectorField
+                      label={t("profileId")}
+                      value={selectedProfile.id}
+                      title={selectedProfile.id}
+                    />
+                    <InspectorField label={t("transport")} value={selectedProfile.transport} />
+                    <InspectorField
+                      label={t("authStrategy")}
+                      value={selectedProfile.authStrategy.type}
+                    />
+                    <InspectorField
+                      label={t("credentialReference")}
+                      value={
+                        selectedProfile.authStrategy.credentialRef
+                          ? `${selectedProfile.authStrategy.credentialRef.kind}:${selectedProfile.authStrategy.credentialRef.id}`
+                          : t("notConfigured")
+                      }
+                    />
+                    <InspectorField
+                      label={t("apiBaseUrl")}
+                      value={selectedProfile.baseUrl}
+                      title={selectedProfile.baseUrl}
+                    />
+                    <InspectorField
+                      label={t("defaultModel")}
+                      value={selectedProfile.defaultModel ?? t("notConfigured")}
+                    />
+                  </Box>
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("availableCapabilities")}
+                    </Typography>
+                    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                      {selectedProfile.capabilities.length > 0 ? (
+                        selectedProfile.capabilities.map((capability) => (
+                          <Chip key={capability} size="small" variant="outlined" label={capability} />
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          {t("notConfigured")}
+                        </Typography>
+                      )}
+                    </Stack>
+                  </Stack>
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("operatorMetadata")}
+                    </Typography>
+                    {Object.keys(selectedProfile.metadata).length > 0 ? (
+                      <Stack spacing={0.5}>
+                        {Object.entries(selectedProfile.metadata).map(([key, value]) => (
+                          <Typography
+                            key={key}
+                            variant="body2"
+                            sx={{ wordBreak: "break-word" }}
+                          >
+                            {key}: {value}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        {t("noMetadataAvailable")}
+                      </Typography>
+                    )}
+                  </Stack>
+                  {selectedProfile.health.message ? (
+                    <Alert
+                      severity={getBackendHealthAlertSeverity(selectedProfile.health.status)}
+                      variant="outlined"
+                    >
+                      {selectedProfile.health.message}
+                    </Alert>
+                  ) : null}
                 </Stack>
               ) : (
-                <Alert severity="info">{t("thereAreNoFeatureBindings")}</Alert>
+                <Alert severity="info">{t("selectAProfileToInspect")}</Alert>
               )}
-              <StudioJsonEditor
-                value={bindingEditorValue}
-                onChange={onBindingEditorChange}
-                onFormat={onFormatBindingEditor}
-                onCopy={onCopyBindingEditor}
-                label={t("bindingRecordJson")}
-                error={Boolean(bindingEditorError)}
-                helperText={bindingEditorError ?? t("bindingRecordJsonHelper")}
-                minRows={16}
-              />
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <Button variant="contained" onClick={onSaveBinding} disabled={disabled} fullWidth>
-                  {t("saveBinding")}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={onDeleteBinding}
-                  disabled={disabled || !selectedBindingKey}
-                  fullWidth
-                >
-                  {t("deleteBinding")}
-                </Button>
+            </Box>
+
+            <Divider />
+
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => setProfileEditorOpen((current) => !current)}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              {profileEditorOpen ? t("hideAdvancedSettings") : t("viewAdvancedSettings")}
+            </Button>
+            <Collapse in={profileEditorOpen} timeout="auto" unmountOnExit>
+              <Stack spacing={1.5}>
+                <Typography variant="body2" color="text.secondary">
+                  {t("advancedProfileEditorHelper")}
+                </Typography>
+                <StudioJsonEditor
+                  value={profileEditorValue}
+                  onChange={onProfileEditorChange}
+                  onFormat={onFormatProfileEditor}
+                  onCopy={onCopyProfileEditor}
+                  label={t("profileRecordJson")}
+                  error={Boolean(profileEditorError)}
+                  helperText={profileEditorError ?? t("profileRecordJsonHelper")}
+                  minRows={16}
+                />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <Button variant="contained" onClick={onSaveProfile} disabled={disabled} fullWidth>
+                    {t("saveProfile")}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={onDeleteProfile}
+                    disabled={disabled || !selectedProfileId}
+                    fullWidth
+                  >
+                    {t("deleteProfile")}
+                  </Button>
+                </Stack>
               </Stack>
+            </Collapse>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardContent>
+          <Stack spacing={1.5}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", sm: "center" }}
+            >
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle1">{t("featureBindings")}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t("bindingInspectorHelper")}
+                </Typography>
+              </Stack>
+              <Button variant="text" size="small" onClick={onNewBinding} disabled={disabled}>
+                {t("newBinding")}
+              </Button>
             </Stack>
-          </CardContent>
-        </Card>
-      </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 320px) minmax(0, 1fr)" },
+                gap: 2,
+              }}
+            >
+              <Stack spacing={1}>
+                {bindings.length > 0 ? (
+                  bindings.map((binding) => {
+                    const resolution = buildBindingInspectorState({
+                      bindings,
+                      selectedBindingKey: binding.featureKey,
+                      profiles,
+                    }).resolution;
+                    return (
+                      <Button
+                        key={binding.featureKey}
+                        variant={selectedBindingKey === binding.featureKey ? "contained" : "outlined"}
+                        color={selectedBindingKey === binding.featureKey ? "primary" : "inherit"}
+                        onClick={() => onSelectBinding(binding.featureKey)}
+                        sx={{
+                          justifyContent: "flex-start",
+                          textTransform: "none",
+                          minWidth: 0,
+                          px: 1.25,
+                          py: 1,
+                        }}
+                      >
+                        <Stack spacing={0.5} sx={{ width: "100%", minWidth: 0 }} alignItems="flex-start">
+                          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 600, minWidth: 0, maxWidth: "100%" }}
+                              title={binding.featureKey}
+                            >
+                              {binding.featureKey}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              color={binding.enabled ? "success" : "default"}
+                              label={binding.enabled ? t("enabled") : t("disabled")}
+                            />
+                            {resolution ? (
+                              <Chip
+                                size="small"
+                                color={getBindingResolutionTone(resolution.status)}
+                                label={`${t("resolutionStatus")}: ${resolution.status}`}
+                              />
+                            ) : null}
+                          </Stack>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            noWrap
+                            sx={{ maxWidth: "100%" }}
+                            title={binding.primaryBackendProfileId}
+                          >
+                            {binding.primaryBackendProfileId}
+                          </Typography>
+                        </Stack>
+                      </Button>
+                    );
+                  })
+                ) : (
+                  <Alert severity="info">{t("thereAreNoFeatureBindings")}</Alert>
+                )}
+              </Stack>
+
+              {selectedBindingInspector.binding && selectedBindingInspector.resolution ? (
+                <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                      <Chip
+                        size="small"
+                        color={
+                          selectedBindingInspector.binding.enabled ? "success" : "default"
+                        }
+                        label={
+                          selectedBindingInspector.binding.enabled
+                            ? t("enabled")
+                            : t("disabled")
+                        }
+                      />
+                      <Chip
+                        size="small"
+                        color={getBindingResolutionTone(selectedBindingInspector.resolution.status)}
+                        label={`${t("resolutionStatus")}: ${selectedBindingInspector.resolution.status}`}
+                      />
+                    </Stack>
+                    <Typography variant="h6" sx={{ wordBreak: "break-word" }}>
+                      {selectedBindingInspector.binding.featureKey}
+                    </Typography>
+                  </Stack>
+
+                  <Stack spacing={1}>
+                    {selectedBindingInspector.notices.map(renderInspectorNotice)}
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                      gap: 1.5,
+                    }}
+                  >
+                    <InspectorField
+                      label={t("primaryBackend")}
+                      value={renderProfileReference(
+                        selectedBindingInspector.binding.primaryBackendProfileId
+                      )}
+                      title={selectedBindingInspector.binding.primaryBackendProfileId}
+                    />
+                    <InspectorField
+                      label={t("fallbackBackend")}
+                      value={renderProfileReference(
+                        selectedBindingInspector.binding.fallbackBackendProfileId ?? null
+                      )}
+                      title={selectedBindingInspector.binding.fallbackBackendProfileId ?? undefined}
+                    />
+                    <InspectorField
+                      label={t("resolvedBackend")}
+                      value={renderProfileReference(
+                        selectedBindingInspector.resolution.resolvedBackendProfileId
+                      )}
+                      title={selectedBindingInspector.resolution.resolvedBackendProfileId ?? undefined}
+                    />
+                    <InspectorField
+                      label={t("resolvedModel")}
+                      value={selectedBindingInspector.resolution.resolvedModel ?? t("notConfigured")}
+                    />
+                    <InspectorField
+                      label={t("modelOverride")}
+                      value={selectedBindingInspector.binding.modelOverride ?? t("notConfigured")}
+                    />
+                    <InspectorField
+                      label={t("timeoutMs")}
+                      value={
+                        selectedBindingInspector.binding.timeoutMs
+                          ? String(selectedBindingInspector.binding.timeoutMs)
+                          : t("notConfigured")
+                      }
+                    />
+                    <InspectorField
+                      label={t("retryPolicy")}
+                      value={
+                        selectedBindingInspector.binding.retryPolicy
+                          ? `${selectedBindingInspector.binding.retryPolicy.maxAttempts} / ${selectedBindingInspector.binding.retryPolicy.backoffMs}ms`
+                          : t("notConfigured")
+                      }
+                    />
+                    <InspectorField
+                      label={t("degradedBehavior")}
+                      value={selectedBindingInspector.binding.degradedBehavior ?? t("notConfigured")}
+                    />
+                  </Box>
+
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("requiredCapabilities")}
+                    </Typography>
+                    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                      {selectedBindingInspector.resolution.requiredCapabilities.map((capability) => (
+                        <Chip key={capability} size="small" variant="outlined" label={capability} />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Stack>
+              ) : (
+                <Alert severity="info">{t("selectABindingToInspect")}</Alert>
+              )}
+            </Box>
+
+            <Divider />
+
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => setBindingEditorOpen((current) => !current)}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              {bindingEditorOpen ? t("hideAdvancedSettings") : t("viewAdvancedSettings")}
+            </Button>
+            <Collapse in={bindingEditorOpen} timeout="auto" unmountOnExit>
+              <Stack spacing={1.5}>
+                <Typography variant="body2" color="text.secondary">
+                  {t("advancedBindingEditorHelper")}
+                </Typography>
+                <StudioJsonEditor
+                  value={bindingEditorValue}
+                  onChange={onBindingEditorChange}
+                  onFormat={onFormatBindingEditor}
+                  onCopy={onCopyBindingEditor}
+                  label={t("bindingRecordJson")}
+                  error={Boolean(bindingEditorError)}
+                  helperText={bindingEditorError ?? t("bindingRecordJsonHelper")}
+                  minRows={16}
+                />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <Button variant="contained" onClick={onSaveBinding} disabled={disabled} fullWidth>
+                    {t("saveBinding")}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={onDeleteBinding}
+                    disabled={disabled || !selectedBindingKey}
+                    fullWidth
+                  >
+                    {t("deleteBinding")}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Collapse>
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }

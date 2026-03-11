@@ -384,6 +384,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Manage which backend profiles power additive features such as summary, QA, translation, and TTS from an operator-only surface.",
     ja: "summary、QA、translation、TTS などの追加機能がどの backend profile を使うかを operator 専用 surface で管理します。",
   },
+  profileInspectorHelper: {
+    ko: "프로필을 선택하면 base URL, auth, capability, health 상태를 JSON 없이 먼저 확인할 수 있습니다.",
+    en: "Select a profile to inspect its base URL, auth, capability, and health state before opening JSON.",
+    ja: "プロファイルを選択すると、base URL、auth、capability、health を JSON を開く前に確認できます。",
+  },
+  bindingInspectorHelper: {
+    ko: "바인딩을 선택하면 primary/fallback, resolution, retry, mismatch 경고를 한 곳에서 확인할 수 있습니다.",
+    en: "Select a binding to inspect primary/fallback routing, resolution, retry policy, and mismatch warnings in one place.",
+    ja: "バインディングを選択すると、primary/fallback、resolution、retry policy、mismatch warning をまとめて確認できます。",
+  },
+  advancedProfileEditorHelper: {
+    ko: "프로필 JSON 편집은 고급 경로입니다. inspector에서 상태를 먼저 읽고 필요할 때만 수정하세요.",
+    en: "Profile JSON editing is the advanced path. Review the inspector first, then edit when needed.",
+    ja: "プロファイル JSON 編集は上級者向けの経路です。まず inspector を確認し、必要なときだけ編集してください。",
+  },
+  advancedBindingEditorHelper: {
+    ko: "바인딩 JSON 편집은 고급 경로입니다. inspector의 상태와 경고를 먼저 확인한 뒤 수정하세요.",
+    en: "Binding JSON editing is the advanced path. Review the inspector state and warnings first, then edit.",
+    ja: "バインディング JSON 編集は上級者向けの経路です。まず inspector の状態と warning を確認してから編集してください。",
+  },
   backendProfiles: {
     ko: "백엔드 프로파일",
     en: "Backend profiles",
@@ -428,6 +448,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "프로파일 삭제",
     en: "Delete profile",
     ja: "プロファイルを削除",
+  },
+  degradedBehavior: {
+    ko: "degraded 동작",
+    en: "Degraded behavior",
+    ja: "degraded 動作",
   },
   profileRecordJson: {
     ko: "프로파일 레코드 JSON",
@@ -503,6 +528,26 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "기능 바인딩을 삭제하지 못했습니다.",
     en: "Failed to delete the feature binding.",
     ja: "機能バインディングを削除できませんでした。",
+  },
+  fallbackActiveInspectorNotice: {
+    ko: "현재 fallback backend가 선택되어 사용 중입니다.",
+    en: "The fallback backend is currently active.",
+    ja: "現在 fallback backend が有効です。",
+  },
+  fallbackBackend: {
+    ko: "fallback backend",
+    en: "Fallback backend",
+    ja: "fallback backend",
+  },
+  fallbackProfileMissingInspectorNotice: {
+    ko: "fallback backend가 없거나 찾을 수 없습니다. primary가 실패하면 이 기능은 바로 degraded 됩니다.",
+    en: "No usable fallback backend is configured. If the primary fails, this feature degrades immediately.",
+    ja: "利用可能な fallback backend がありません。primary が失敗するとこの機能はすぐ degraded になります。",
+  },
+  fallbackProfileNotReadyInspectorNotice: {
+    ko: "fallback backend가 비활성화되었거나 health 상태가 좋지 않습니다.",
+    en: "The fallback backend is disabled or not healthy enough to take traffic.",
+    ja: "fallback backend が無効、またはトラフィックを受けるのに十分な health 状態ではありません。",
   },
   failedToCopyJson: {
     ko: "JSON을 복사하지 못했습니다.",
@@ -689,6 +734,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Credential usage",
     ja: "認証情報の使用",
   },
+  credentialReference: {
+    ko: "자격증명 참조",
+    en: "Credential reference",
+    ja: "認証情報参照",
+  },
   currentServerApplicationSettings: {
     ko: "현재 서버 적용 설정",
     en: "Current server application settings",
@@ -718,6 +768,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "기본 설정",
     en: "Default settings",
     ja: "デフォルト設定",
+  },
+  defaultModel: {
+    ko: "기본 모델",
+    en: "Default model",
+    ja: "デフォルトモデル",
   },
   defaultSpeakerName: {
     ko: "기본 화자 이름",
@@ -3359,6 +3414,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "This area requires the internal admin URL and an admin token, and checks run only when you press a button.",
     ja: "この領域では内部管理 URL と管理者トークンが必要で、確認はボタンを押したときにのみ実行されます。",
   },
+  operatorMetadata: {
+    ko: "운영 메타데이터",
+    en: "Operator metadata",
+    ja: "運用メタデータ",
+  },
   permissionsReadyCount: {
     ko: "권한 {{ready}}/{{total}}",
     en: "Permissions {{ready}}/{{total}}",
@@ -3389,6 +3449,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Selected preset",
     ja: "選択したプリセット",
   },
+  selectABindingToInspect: {
+    ko: "검토할 binding을 선택하세요.",
+    en: "Select a binding to inspect.",
+    ja: "確認する binding を選択してください。",
+  },
+  selectAProfileToInspect: {
+    ko: "검토할 profile을 선택하세요.",
+    en: "Select a profile to inspect.",
+    ja: "確認する profile を選択してください。",
+  },
   serverDefaultAlreadyActive: {
     ko: "이미 서버 기본값이 적용 중입니다.",
     en: "The server default is already active.",
@@ -3408,6 +3478,91 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "SSL 모드",
     en: "SSL mode",
     ja: "SSL モード",
+  },
+  transport: {
+    ko: "전송 방식",
+    en: "Transport",
+    ja: "トランスポート",
+  },
+  healthStatus: {
+    ko: "헬스 상태",
+    en: "Health status",
+    ja: "ヘルス状態",
+  },
+  profileId: {
+    ko: "프로필 ID",
+    en: "Profile ID",
+    ja: "プロファイル ID",
+  },
+  authStrategy: {
+    ko: "인증 방식",
+    en: "Auth strategy",
+    ja: "認証方式",
+  },
+  noMetadataAvailable: {
+    ko: "표시할 metadata가 없습니다.",
+    en: "No metadata available.",
+    ja: "表示できる metadata はありません。",
+  },
+  primaryBackend: {
+    ko: "primary backend",
+    en: "Primary backend",
+    ja: "primary backend",
+  },
+  resolvedBackend: {
+    ko: "해결된 backend",
+    en: "Resolved backend",
+    ja: "解決された backend",
+  },
+  resolvedModel: {
+    ko: "해결된 모델",
+    en: "Resolved model",
+    ja: "解決されたモデル",
+  },
+  modelOverride: {
+    ko: "모델 override",
+    en: "Model override",
+    ja: "モデル override",
+  },
+  timeoutMs: {
+    ko: "타임아웃(ms)",
+    en: "Timeout (ms)",
+    ja: "タイムアウト (ms)",
+  },
+  retryPolicy: {
+    ko: "재시도 정책",
+    en: "Retry policy",
+    ja: "再試行ポリシー",
+  },
+  requiredCapabilities: {
+    ko: "필수 capability",
+    en: "Required capabilities",
+    ja: "必須 capability",
+  },
+  resolutionStatus: {
+    ko: "해결 상태",
+    en: "Resolution status",
+    ja: "解決状態",
+  },
+  bindingDisabledInspectorNotice: {
+    ko: "이 binding은 비활성화되어 있어 runtime에서 선택되지 않습니다.",
+    en: "This binding is disabled and will not be selected at runtime.",
+    ja: "この binding は無効化されているため runtime では選択されません。",
+  },
+  primaryProfileMissingInspectorNotice: {
+    ko: "primary backend profile을 찾을 수 없습니다. binding 구성이 끊겨 있습니다.",
+    en: "The primary backend profile cannot be found. This binding is broken.",
+    ja: "primary backend profile が見つかりません。この binding は壊れています。",
+  },
+  primaryCapabilityMismatchInspectorNotice: {
+    ko: "primary backend가 이 feature에 필요한 capability를 제공하지 않습니다.",
+    en: "The primary backend does not advertise the capabilities required for this feature.",
+    ja: "primary backend がこの feature に必要な capability を持っていません。",
+  },
+  primaryProfileNotReadyInspectorNotice: {
+    ko: "primary backend가 비활성화되었거나 health 상태가 좋지 않습니다.",
+    en: "The primary backend is disabled or not healthy enough to serve this feature.",
+    ja: "primary backend が無効、またはこの feature を処理するのに十分な health 状態ではありません。",
   },
   nextServerState: {
     ko: "다음 서버 상태",
