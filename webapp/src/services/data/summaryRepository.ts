@@ -23,6 +23,7 @@ import type {
   SummaryBlock,
   SummaryFreshness,
   SummaryMode,
+  SummaryMutationTrigger,
   SummaryPresetApplyScope,
   SummaryPresetSelection,
   SummaryPresetSelectionSource,
@@ -30,10 +31,13 @@ import type {
   SummaryPartition,
   SummaryPartitionReason,
   SummaryPartitionStatus,
+  SummaryRegenerationScope,
   SummaryRun,
   SummaryRunScope,
   SummaryRunStatus,
+  SummaryRunTrigger,
 } from "../../domain/session";
+import { resolveSummaryStalePropagation } from "../../domain/summaryRuntime";
 
 function cloneSupportingSnippets(
   snippets: LocalSummarySupportingSnippet[]
@@ -76,6 +80,7 @@ function cloneLocalPresetSuggestion(
 function mapLocalSummaryPartition(partition: LocalSummaryPartition): SummaryPartition {
   return {
     ...partition,
+    turnIds: partition.turnIds ? [...partition.turnIds] : undefined,
     status: partition.status as SummaryPartitionStatus,
     reason: partition.reason as SummaryPartitionReason,
   };
@@ -86,6 +91,8 @@ function mapLocalSummaryRun(run: LocalSummaryRun): SummaryRun {
     ...run,
     mode: run.mode as SummaryMode,
     scope: run.scope as SummaryRunScope,
+    regenerationScope: run.regenerationScope as SummaryRegenerationScope,
+    trigger: run.trigger as SummaryRunTrigger,
     selectionSource: run.selectionSource as SummaryPresetSelectionSource,
     status: run.status as SummaryRunStatus,
     partitionIds: [...run.partitionIds],
@@ -102,6 +109,8 @@ function mapLocalPublishedSummary(summary: LocalPublishedSummary): PublishedSumm
     supportingSnippets: cloneSupportingSnippets(summary.supportingSnippets),
     blocks: cloneBlocks(summary.blocks),
     stalePartitionIds: [...summary.stalePartitionIds],
+    staleReason: summary.staleReason ?? null,
+    staleAt: summary.staleAt ?? null,
   };
 }
 
@@ -124,24 +133,30 @@ export async function createSummaryPartition(input: {
   sessionId: string;
   startTurnId: string;
   endTurnId: string;
+  turnIds?: string[];
   turnCount: number;
   startedAt: string;
   endedAt: string;
   status: SummaryPartitionStatus;
   reason: SummaryPartitionReason;
   sourceRevision: string;
+  staleReason?: SummaryMutationTrigger | null;
+  staleAt?: string | null;
 }): Promise<SummaryPartition> {
   const payload: LocalSummaryPartition = {
     id: input.id ?? uuid(),
     sessionId: input.sessionId,
     startTurnId: input.startTurnId,
     endTurnId: input.endTurnId,
+    turnIds: input.turnIds ? [...input.turnIds] : undefined,
     turnCount: input.turnCount,
     startedAt: input.startedAt,
     endedAt: input.endedAt,
     status: input.status as LocalSummaryPartitionStatus,
     reason: input.reason as LocalSummaryPartitionReason,
     sourceRevision: input.sourceRevision,
+    staleReason: input.staleReason ?? null,
+    staleAt: input.staleAt ?? null,
   };
   await appDb.summaryPartitions.put(payload);
   return mapLocalSummaryPartition(payload);
@@ -160,6 +175,9 @@ export async function updateSummaryPartition(
   if (patch.endedAt !== undefined) {
     updates.endedAt = patch.endedAt;
   }
+  if (patch.turnIds !== undefined) {
+    updates.turnIds = patch.turnIds ? [...patch.turnIds] : undefined;
+  }
   if (patch.status !== undefined) {
     updates.status = patch.status as LocalSummaryPartitionStatus;
   }
@@ -169,6 +187,12 @@ export async function updateSummaryPartition(
   if (patch.sourceRevision !== undefined) {
     updates.sourceRevision = patch.sourceRevision;
   }
+  if (patch.staleReason !== undefined) {
+    updates.staleReason = patch.staleReason;
+  }
+  if (patch.staleAt !== undefined) {
+    updates.staleAt = patch.staleAt;
+  }
   await appDb.summaryPartitions.update(id, updates);
 }
 
@@ -177,6 +201,8 @@ export async function createSummaryRun(input: {
   sessionId: string;
   mode: SummaryMode;
   scope: SummaryRunScope;
+  regenerationScope?: SummaryRegenerationScope | null;
+  trigger?: SummaryRunTrigger | null;
   partitionIds?: string[];
   presetId?: string;
   presetVersion?: string;
@@ -184,6 +210,12 @@ export async function createSummaryRun(input: {
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision: string;
+  timeoutMs?: number | null;
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs: number;
+  } | null;
+  fallbackBackendProfileId?: string | null;
   requestedAt?: string;
   completedAt?: string | null;
   status: SummaryRunStatus;
@@ -195,6 +227,8 @@ export async function createSummaryRun(input: {
     sessionId: input.sessionId,
     mode: input.mode as LocalSummaryMode,
     scope: input.scope as LocalSummaryRunScope,
+    regenerationScope: input.regenerationScope ?? null,
+    trigger: input.trigger ?? null,
     partitionIds: [...(input.partitionIds ?? [])],
     presetId: input.presetId,
     presetVersion: input.presetVersion,
@@ -203,6 +237,9 @@ export async function createSummaryRun(input: {
     providerLabel: input.providerLabel ?? undefined,
     model: input.model ?? undefined,
     sourceRevision: input.sourceRevision,
+    timeoutMs: input.timeoutMs ?? null,
+    retryPolicy: input.retryPolicy ?? null,
+    fallbackBackendProfileId: input.fallbackBackendProfileId ?? null,
     requestedAt: input.requestedAt ?? new Date().toISOString(),
     completedAt: input.completedAt ?? null,
     status: input.status as LocalSummaryRunStatus,
@@ -225,6 +262,12 @@ export async function updateSummaryRun(
   if (patch.partitionIds !== undefined) {
     updates.partitionIds = [...patch.partitionIds];
   }
+  if (patch.regenerationScope !== undefined) {
+    updates.regenerationScope = patch.regenerationScope;
+  }
+  if (patch.trigger !== undefined) {
+    updates.trigger = patch.trigger;
+  }
   if (patch.presetId !== undefined) {
     updates.presetId = patch.presetId;
   }
@@ -240,6 +283,15 @@ export async function updateSummaryRun(
   }
   if (patch.model !== undefined) {
     updates.model = patch.model ?? undefined;
+  }
+  if (patch.timeoutMs !== undefined) {
+    updates.timeoutMs = patch.timeoutMs ?? null;
+  }
+  if (patch.retryPolicy !== undefined) {
+    updates.retryPolicy = patch.retryPolicy ?? null;
+  }
+  if (patch.fallbackBackendProfileId !== undefined) {
+    updates.fallbackBackendProfileId = patch.fallbackBackendProfileId ?? null;
   }
   if (patch.requestedAt !== undefined) {
     updates.requestedAt = patch.requestedAt;
@@ -275,6 +327,8 @@ export async function upsertPublishedSummary(input: {
   blocks?: SummaryBlock[];
   freshness?: SummaryFreshness;
   stalePartitionIds?: string[];
+  staleReason?: SummaryMutationTrigger | null;
+  staleAt?: string | null;
 }): Promise<PublishedSummary> {
   const payload: LocalPublishedSummary = {
     id: input.id ?? `${input.sessionId}-${input.mode}`,
@@ -292,6 +346,8 @@ export async function upsertPublishedSummary(input: {
     blocks: cloneLocalBlocks(input.blocks ?? []),
     freshness: (input.freshness ?? "fresh") as LocalSummaryFreshness,
     stalePartitionIds: [...(input.stalePartitionIds ?? [])],
+    staleReason: input.staleReason ?? null,
+    staleAt: input.staleAt ?? null,
   };
   await appDb.publishedSummaries.put(payload);
   return mapLocalPublishedSummary(payload);
@@ -371,31 +427,69 @@ export async function markSessionSummaryStateStale(
   sessionId: string,
   sourceRevision: string
 ): Promise<void> {
+  await markSummaryStateStaleByMutation({
+    sessionId,
+    sourceRevision,
+    trigger: "partition_boundary_change",
+  });
+}
+
+export async function markSummaryStateStaleByMutation(input: {
+  sessionId: string;
+  sourceRevision: string;
+  trigger: SummaryMutationTrigger;
+  turnId?: string;
+  partitionId?: string;
+  staleAt?: string;
+}): Promise<void> {
+  const partitions = await listSummaryPartitions(input.sessionId);
+  const propagation = resolveSummaryStalePropagation({
+    summaryState: { partitions },
+    trigger: input.trigger,
+    turnId: input.turnId,
+    partitionId: input.partitionId,
+    staleAt: input.staleAt,
+  });
+
   await appDb.transaction(
     "rw",
     [appDb.summaryPartitions, appDb.publishedSummaries],
     async () => {
       await appDb.summaryPartitions
         .where("sessionId")
-        .equals(sessionId)
+        .equals(input.sessionId)
         .modify((partition) => {
+          if (
+            propagation.affectedPartitionIds.length > 0 &&
+            !propagation.affectedPartitionIds.includes(partition.id)
+          ) {
+            return;
+          }
           partition.status = "stale";
-          partition.sourceRevision = sourceRevision;
+          partition.sourceRevision = input.sourceRevision;
+          partition.staleReason = input.trigger;
+          partition.staleAt = propagation.staleAt;
         });
-
-      const stalePartitionIds = (
-        await appDb.summaryPartitions.where("sessionId").equals(sessionId).toArray()
-      ).map((partition) => partition.id);
 
       await appDb.publishedSummaries
         .where("sessionId")
-        .equals(sessionId)
+        .equals(input.sessionId)
         .modify((summary) => {
+          const affectsSummary =
+            summary.partitionIds.length === 0 ||
+            summary.partitionIds.some((partitionId) =>
+              propagation.affectedPartitionIds.includes(partitionId)
+            );
+          if (!affectsSummary) {
+            return;
+          }
           summary.freshness = "stale";
+          summary.staleReason = input.trigger;
+          summary.staleAt = propagation.staleAt;
           summary.stalePartitionIds =
             summary.partitionIds.length > 0
               ? summary.partitionIds.filter((partitionId) =>
-                  stalePartitionIds.includes(partitionId)
+                  propagation.affectedPartitionIds.includes(partitionId)
                 )
               : [];
         });

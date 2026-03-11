@@ -119,19 +119,21 @@
 
 ## Implementation Log
 
-- [ ] summary request scheduler / lifecycle state를 구현한다.
-- [ ] stale marking / regenerate action flow를 연결한다.
-- [ ] mutation trigger와 stale propagation scope를 구현한다.
-- [ ] timeout/retry/fallback behavior를 binding/runtime에 반영한다.
+- [x] summary runtime helper를 추가해 debounce/batch/min-turn/default timeout/retry/fallback 정책을 기본값과 binding override로 분리했다.
+- [x] summary run/request metadata에 `trigger`, `regenerationScope`, `timeoutMs`, `retryPolicy`, `fallbackBackendProfileId`를 저장하도록 contract를 확장했다.
+- [x] summary partition/published summary에 `turnIds`, `staleReason`, `staleAt`를 저장해 mutation-trigger 기반 stale propagation을 기록하도록 만들었다.
+- [x] transcript correction, speaker relabel, replaceSegments가 `markSummaryStateStaleByMutation(...)`을 통해 affected partition 중심으로 stale propagation 하도록 연결했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] stale state가 additive artifact rail로만 노출되는가?
-- [ ] repeated retries가 transcript performance를 해치지 않는가?
-- [ ] preset 변경과 regenerate가 서로 다른 scope로 동작하는가?
+- [x] stale state는 summary artifact state에만 추가됐고 transcription core 상태 모델은 건드리지 않았다.
+- [x] retry/fallback은 binding/runtime metadata owner로만 저장하고 transcript write path에는 별도 retry loop를 넣지 않았다.
+- [x] preset 변경/재생성 intent는 `trigger` + `regenerationScope` metadata로 분리되어 이후 UI/action flow가 scope를 구분할 수 있다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- summary runtime`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/domain/summaryRuntime.test.ts src/services/data/summaryRepository.test.ts src/services/data/transcriptionRepository.test.ts src/domain/session.test.ts src/components/summary/summarySurfaceModel.test.ts`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `git diff --check`
+- [x] `node scripts/check-todo-board-consistency.mjs`

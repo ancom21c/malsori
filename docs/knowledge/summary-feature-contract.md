@@ -38,3 +38,10 @@ This note captures the durable invariants for the summary feature so later imple
 - Summary failure is an artifact failure, not a transcription failure.
 - Binding or provider issues should hide or disable summary surfaces without breaking the core STT flows.
 - Summary provider/model selection remains operator-managed through feature bindings rather than new public settings fields.
+
+## Runtime Lifecycle
+
+- Realtime summary runtime uses binding-owned guardrails for debounce, batching, timeout, retry, and fallback backend selection.
+- Transcript mutation triggers are first-class: `late_final_turn`, `segment_correction`, `speaker_relabel`, and `partition_boundary_change`.
+- Mutation handling marks only the affected contiguous partitions stale when turn-level coverage is known, while session-scope/full summaries also become stale when their partition scope overlaps the changed range.
+- Preset changes and retries must preserve explicit run intent through `trigger` and `regenerationScope` metadata so the UI can distinguish `apply from now`, `rerun all`, manual regenerate, and automatic realtime batches.

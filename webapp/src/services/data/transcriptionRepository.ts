@@ -1,7 +1,7 @@
 import { liveQuery } from "dexie";
 import { v4 as uuid } from "uuid";
 import { appDb } from "../../data/app-db";
-import { markSessionSummaryStateStale } from "./summaryRepository";
+import { markSummaryStateStaleByMutation } from "./summaryRepository";
 import type {
   LocalTranscription,
   LocalTranscriptionKind,
@@ -306,7 +306,12 @@ export async function replaceSegments(
       );
     }
   });
-  await markSessionSummaryStateStale(transcriptionId, now);
+  await markSummaryStateStaleByMutation({
+    sessionId: transcriptionId,
+    sourceRevision: now,
+    trigger: "partition_boundary_change",
+    staleAt: now,
+  });
 }
 
 export async function updateSegmentCorrection(
@@ -330,7 +335,13 @@ export async function updateSegmentCorrection(
     await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
   });
   if (transcriptionId) {
-    await markSessionSummaryStateStale(transcriptionId, now);
+    await markSummaryStateStaleByMutation({
+      sessionId: transcriptionId,
+      sourceRevision: now,
+      trigger: "segment_correction",
+      turnId: segmentId,
+      staleAt: now,
+    });
   }
 }
 
@@ -357,7 +368,12 @@ export async function updateSegmentSpeakerLabel(
       await appDb.transcriptions.update(transcriptionId, { updatedAt: now });
     }
   });
-  await markSessionSummaryStateStale(transcriptionId, now);
+  await markSummaryStateStaleByMutation({
+    sessionId: transcriptionId,
+    sourceRevision: now,
+    trigger: "speaker_relabel",
+    staleAt: now,
+  });
 }
 
 export async function updateSingleSegmentSpeakerLabel(
@@ -377,7 +393,13 @@ export async function updateSingleSegmentSpeakerLabel(
     await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
   });
   if (transcriptionId) {
-    await markSessionSummaryStateStale(transcriptionId, now);
+    await markSummaryStateStaleByMutation({
+      sessionId: transcriptionId,
+      sourceRevision: now,
+      trigger: "speaker_relabel",
+      turnId: segmentId,
+      staleAt: now,
+    });
   }
 }
 

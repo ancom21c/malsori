@@ -182,12 +182,20 @@ export interface LocalSummaryPartition {
   sessionId: string;
   startTurnId: string;
   endTurnId: string;
+  turnIds?: string[];
   turnCount: number;
   startedAt: string;
   endedAt: string;
   status: LocalSummaryPartitionStatus;
   reason: LocalSummaryPartitionReason;
   sourceRevision: string;
+  staleReason?:
+    | "late_final_turn"
+    | "segment_correction"
+    | "speaker_relabel"
+    | "partition_boundary_change"
+    | null;
+  staleAt?: string | null;
 }
 
 export interface LocalSummaryRun {
@@ -195,6 +203,15 @@ export interface LocalSummaryRun {
   sessionId: string;
   mode: LocalSummaryMode;
   scope: LocalSummaryRunScope;
+  regenerationScope?: "partition" | "mode" | "session" | null;
+  trigger?:
+    | "realtime_batch"
+    | "session_ready"
+    | "manual_regenerate"
+    | "manual_retry"
+    | "preset_apply_from_now"
+    | "preset_rerun_all"
+    | null;
   partitionIds: string[];
   presetId?: string;
   presetVersion?: string;
@@ -202,6 +219,12 @@ export interface LocalSummaryRun {
   providerLabel?: string;
   model?: string;
   sourceRevision: string;
+  timeoutMs?: number | null;
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs: number;
+  } | null;
+  fallbackBackendProfileId?: string | null;
   requestedAt: string;
   completedAt?: string | null;
   status: LocalSummaryRunStatus;
@@ -225,6 +248,13 @@ export interface LocalPublishedSummary {
   blocks: LocalSummaryBlock[];
   freshness: LocalSummaryFreshness;
   stalePartitionIds: string[];
+  staleReason?:
+    | "late_final_turn"
+    | "segment_correction"
+    | "speaker_relabel"
+    | "partition_boundary_change"
+    | null;
+  staleAt?: string | null;
 }
 
 export interface LocalSummaryPresetSuggestion {

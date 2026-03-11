@@ -48,6 +48,22 @@ export type SummaryRunStatus = Extract<ArtifactStatus, "pending" | "ready" | "fa
 
 export type SummaryFreshness = "fresh" | "stale";
 
+export type SummaryMutationTrigger =
+  | "late_final_turn"
+  | "segment_correction"
+  | "speaker_relabel"
+  | "partition_boundary_change";
+
+export type SummaryRunTrigger =
+  | "realtime_batch"
+  | "session_ready"
+  | "manual_regenerate"
+  | "manual_retry"
+  | "preset_apply_from_now"
+  | "preset_rerun_all";
+
+export type SummaryRegenerationScope = "partition" | "mode" | "session";
+
 export type SummarySupportedMode = "realtime" | "full" | "both";
 
 export type SummaryPresetSelectionSource = "default" | "auto" | "manual";
@@ -73,10 +89,18 @@ export interface ArtifactRequestRecord {
   presetId?: string;
   presetVersion?: string;
   selectionSource?: SummaryPresetSelectionSource;
+  trigger?: SummaryRunTrigger | null;
+  regenerationScope?: SummaryRegenerationScope | null;
   summaryMode?: SummaryMode;
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision?: string | null;
+  timeoutMs?: number | null;
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs: number;
+  } | null;
+  fallbackBackendProfileId?: string | null;
   partitionIds?: string[];
   supportingSnippets: ArtifactSupportingSnippet[];
 }
@@ -128,12 +152,15 @@ export interface SummaryPartition {
   sessionId: string;
   startTurnId: string;
   endTurnId: string;
+  turnIds?: string[];
   turnCount: number;
   startedAt: string;
   endedAt: string;
   status: SummaryPartitionStatus;
   reason: SummaryPartitionReason;
   sourceRevision: string;
+  staleReason?: SummaryMutationTrigger | null;
+  staleAt?: string | null;
 }
 
 export interface SummaryBlock {
@@ -149,6 +176,8 @@ export interface SummaryRun {
   sessionId: string;
   mode: SummaryMode;
   scope: SummaryRunScope;
+  regenerationScope?: SummaryRegenerationScope | null;
+  trigger?: SummaryRunTrigger | null;
   partitionIds: string[];
   presetId?: string;
   presetVersion?: string;
@@ -156,6 +185,12 @@ export interface SummaryRun {
   providerLabel?: string | null;
   model?: string | null;
   sourceRevision: string;
+  timeoutMs?: number | null;
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs: number;
+  } | null;
+  fallbackBackendProfileId?: string | null;
   requestedAt: string;
   completedAt?: string | null;
   status: SummaryRunStatus;
@@ -179,6 +214,8 @@ export interface PublishedSummary {
   blocks: SummaryBlock[];
   freshness: SummaryFreshness;
   stalePartitionIds: string[];
+  staleReason?: SummaryMutationTrigger | null;
+  staleAt?: string | null;
 }
 
 export interface SessionSummaryArtifactInput {
@@ -518,10 +555,15 @@ function createSummaryRequestRecord(run: SummaryRun): ArtifactRequestRecord {
     presetId: run.presetId,
     presetVersion: run.presetVersion,
     selectionSource: run.selectionSource,
+    trigger: run.trigger ?? null,
+    regenerationScope: run.regenerationScope ?? null,
     summaryMode: run.mode,
     providerLabel: run.providerLabel ?? null,
     model: run.model ?? null,
     sourceRevision: run.sourceRevision,
+    timeoutMs: run.timeoutMs ?? null,
+    retryPolicy: run.retryPolicy ?? null,
+    fallbackBackendProfileId: run.fallbackBackendProfileId ?? null,
     partitionIds: [...run.partitionIds],
     supportingSnippets: rollupSupportingSnippets({
       supportingSnippets: [],
