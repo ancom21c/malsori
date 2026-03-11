@@ -29,7 +29,7 @@ summary feature spec와 backend settings UI review findings를 구현 가능한 
 | T1003 | P1 | Summary surface UX for realtime/detail | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1003-summary-surface-ux.md` |
 | T1004 | P1 | Summary runtime freshness + regeneration lifecycle | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1004-summary-runtime-freshness-lifecycle.md` |
 | T1005 | P1 | Backend live apply/reset safety | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1005-backend-live-apply-safety.md` |
-| T1006 | P2 | Backend form semantics + credential affordance hardening | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1006-backend-form-semantics-hardening.md` |
+| T1006 | P2 | Backend form semantics + credential affordance hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-summary-backend-loop/T1006-backend-form-semantics-hardening.md` |
 | T1007 | P1 | Backend binding operator inspector UX | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-summary-backend-loop/T1007-backend-binding-operator-inspector-ux.md` |
 
 ## 이번 루프 우선순위

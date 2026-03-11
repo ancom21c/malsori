@@ -116,6 +116,10 @@ import {
   resolveBackendRuntimeActionAvailability,
   type BackendRuntimeAction,
 } from "./settingsBackendRuntimeModel";
+import {
+  resolveBackendAdminTokenFieldSpec,
+  resolveBackendPresetFieldSpecs,
+} from "./settingsBackendFormModel";
 
 const operatorBackendBindingsEnabled = ["1", "true", "yes", "on"].includes(
   (import.meta.env.VITE_FEATURE_OPERATOR_BACKEND_BINDINGS ?? "").toLowerCase()
@@ -1046,6 +1050,15 @@ export default function SettingsPage() {
     () => buildServerDefaultRuntimeSnapshot(),
     []
   );
+  const backendAdminTokenFieldSpec = useMemo(() => resolveBackendAdminTokenFieldSpec(), []);
+  const backendPresetFieldSpecs = useMemo(
+    () =>
+      resolveBackendPresetFieldSpecs({
+        hasStoredClientId: Boolean(backendPresetForm.storedClientId),
+        hasStoredClientSecret: Boolean(backendPresetForm.storedClientSecret),
+      }),
+    [backendPresetForm.storedClientId, backendPresetForm.storedClientSecret]
+  );
 
   useEffect(() => {
     setSelectedPresetId(null);
@@ -1956,15 +1969,15 @@ export default function SettingsPage() {
                   margin="normal"
                 />
                 <Stack spacing={2} sx={{ mt: 2 }}>
-                  <TextField
-                    label={t("pythonApiBaseUrl")}
-                    value={connectionDraft.apiBaseUrl}
-                    onChange={(event) => handleConnectionDraftChange("apiBaseUrl", event.target.value)}
-                    type="text"
-                    inputProps={{
-                      inputMode: "url",
-                      autoCapitalize: "off",
-                      autoCorrect: "off",
+                <TextField
+                  label={t("pythonApiBaseUrl")}
+                  value={connectionDraft.apiBaseUrl}
+                  onChange={(event) => handleConnectionDraftChange("apiBaseUrl", event.target.value)}
+                  type="url"
+                  inputProps={{
+                    inputMode: "url",
+                    autoCapitalize: "off",
+                    autoCorrect: "off",
                       spellCheck: "false",
                     }}
                     name="python-api-base-url"
@@ -1992,7 +2005,7 @@ export default function SettingsPage() {
                         onChange={(event) =>
                           handleConnectionDraftChange("adminApiBaseUrl", event.target.value)
                         }
-                        type="text"
+                        type="url"
                         inputProps={{
                           inputMode: "url",
                           autoCapitalize: "off",
@@ -2487,11 +2500,18 @@ export default function SettingsPage() {
 
                 <TextField
                   label={t("backendAdminToken")}
-                  type="password"
+                  type={backendAdminTokenFieldSpec.type}
                   value={backendAdminToken}
                   onChange={(event) => setBackendAdminToken(event.target.value)}
-                  placeholder="X-Malsori-Admin-Token"
-                  helperText={t("backendAdminTokenHelperDetailed")}
+                  name={backendAdminTokenFieldSpec.name}
+                  autoComplete={backendAdminTokenFieldSpec.autoComplete}
+                  placeholder={backendAdminTokenFieldSpec.placeholder}
+                  inputProps={{
+                    autoCapitalize: "off",
+                    autoCorrect: "off",
+                    spellCheck: "false",
+                  }}
+                  helperText={t(backendAdminTokenFieldSpec.helperTextKey)}
                 />
 
                 {!backendOperatorAvailable && (
@@ -2797,6 +2817,9 @@ export default function SettingsPage() {
                         <Stack spacing={2}>
                           <TextField
                             label={t("presetName")}
+                            name={backendPresetFieldSpecs.presetName.name}
+                            autoComplete={backendPresetFieldSpecs.presetName.autoComplete}
+                            type={backendPresetFieldSpecs.presetName.type}
                             value={backendPresetForm.name}
                             onChange={(event) =>
                               setBackendPresetForm((prev) => ({ ...prev, name: event.target.value }))
@@ -2804,6 +2827,9 @@ export default function SettingsPage() {
                           />
                           <TextField
                             label={t("explanation")}
+                            name={backendPresetFieldSpecs.description.name}
+                            autoComplete={backendPresetFieldSpecs.description.autoComplete}
+                            type={backendPresetFieldSpecs.description.type}
                             value={backendPresetForm.description}
                             onChange={(event) =>
                               setBackendPresetForm((prev) => ({
@@ -2835,6 +2861,9 @@ export default function SettingsPage() {
                           </FormControl>
                           <TextField
                             label={t("apiBaseUrl")}
+                            name={backendPresetFieldSpecs.apiBaseUrl.name}
+                            autoComplete={backendPresetFieldSpecs.apiBaseUrl.autoComplete}
+                            type={backendPresetFieldSpecs.apiBaseUrl.type}
                             value={backendPresetForm.apiBaseUrl}
                             onChange={(event) =>
                               setBackendPresetForm((prev) => ({
@@ -2842,7 +2871,14 @@ export default function SettingsPage() {
                                 apiBaseUrl: event.target.value,
                               }))
                             }
-                            placeholder="https://openapi.vito.ai"
+                            placeholder={backendPresetFieldSpecs.apiBaseUrl.placeholder}
+                            helperText={t(backendPresetFieldSpecs.apiBaseUrl.helperTextKey)}
+                            inputProps={{
+                              inputMode: "url",
+                              autoCapitalize: "off",
+                              autoCorrect: "off",
+                              spellCheck: "false",
+                            }}
                           />
                           <FormControlLabel
                             control={
@@ -2877,7 +2913,9 @@ export default function SettingsPage() {
                               <Stack spacing={0.5}>
                                 <TextField
                                   label={t("clientId")}
-                                  type="password"
+                                  name={backendPresetFieldSpecs.clientId.name}
+                                  autoComplete={backendPresetFieldSpecs.clientId.autoComplete}
+                                  type={backendPresetFieldSpecs.clientId.type}
                                   value={backendPresetForm.clientIdInput}
                                   onChange={(event) =>
                                     setBackendPresetForm((prev) => ({
@@ -2885,12 +2923,13 @@ export default function SettingsPage() {
                                       clientIdInput: event.target.value,
                                     }))
                                   }
-                                  placeholder={t("requiredForCloudDeployment")}
-                                  helperText={
-                                    backendPresetForm.storedClientId
-                                      ? t("thereIsASavedClientIdEnteringANewValueWillOverwriteIt")
-                                      : t("requiredForRtzrCloudDeployments")
-                                  }
+                                  placeholder={backendPresetFieldSpecs.clientId.placeholder}
+                                  helperText={t(backendPresetFieldSpecs.clientId.helperTextKey)}
+                                  inputProps={{
+                                    autoCapitalize: "off",
+                                    autoCorrect: "off",
+                                    spellCheck: "false",
+                                  }}
                                 />
                                 {backendPresetForm.storedClientId && (
                                   <Button
@@ -2906,7 +2945,9 @@ export default function SettingsPage() {
                               <Stack spacing={0.5}>
                                 <TextField
                                   label={t("clientSecret")}
-                                  type="password"
+                                  name={backendPresetFieldSpecs.clientSecret.name}
+                                  autoComplete={backendPresetFieldSpecs.clientSecret.autoComplete}
+                                  type={backendPresetFieldSpecs.clientSecret.type}
                                   value={backendPresetForm.clientSecretInput}
                                   onChange={(event) =>
                                     setBackendPresetForm((prev) => ({
@@ -2914,11 +2955,13 @@ export default function SettingsPage() {
                                       clientSecretInput: event.target.value,
                                     }))
                                   }
-                                  helperText={
-                                    backendPresetForm.storedClientSecret
-                                      ? t("thereIsASavedClientSecretEnteringANewValueWillOverwriteIt")
-                                      : t("requiredForRtzrCloudDeployments")
-                                  }
+                                  placeholder={backendPresetFieldSpecs.clientSecret.placeholder}
+                                  helperText={t(backendPresetFieldSpecs.clientSecret.helperTextKey)}
+                                  inputProps={{
+                                    autoCapitalize: "off",
+                                    autoCorrect: "off",
+                                    spellCheck: "false",
+                                  }}
                                 />
                                 {backendPresetForm.storedClientSecret && (
                                   <Button

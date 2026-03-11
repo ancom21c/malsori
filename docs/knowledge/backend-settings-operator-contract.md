@@ -27,3 +27,10 @@ This note captures the durable UX and safety rules for the operator-only backend
 - Pending state disables duplicate submit from the review dialog.
 - Success feedback must say what changed and how to revert.
 - Failure keeps the current server state intact, surfaces the error, and allows retry from the same review surface.
+
+## Form Semantics
+
+- Backend settings fields use explicit `name` and `autocomplete` metadata instead of relying on browser defaults.
+- Non-secret fields such as base URLs, preset names, descriptions, and client IDs default to non-password semantics so password managers do not treat them like login fields.
+- Secret fields such as admin tokens and client secrets stay masked by default and use helper copy that explains memory-only handling or overwrite behavior.
+- `Client ID` remains reviewable text; `Client Secret` remains masked. The two fields may not share the same affordance.

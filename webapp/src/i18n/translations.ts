@@ -350,9 +350,14 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "バックエンド管理者トークン",
   },
   backendAdminTokenHelperDetailed: {
-    ko: "내부 관리자 요청 시에만 사용하며 현재 페이지 메모리에만 유지됩니다. 로컬에 저장되지 않습니다.",
-    en: "Used only for internal admin requests and kept only in this page's memory. It is not saved locally.",
-    ja: "内部管理リクエスト時のみ使用され、このページのメモリにのみ保持されます。ローカルには保存されません。",
+    ko: "서버 상태 조회와 live apply/reset에만 사용합니다. 현재 페이지 메모리에만 유지되며 로컬에 저장되지 않습니다.",
+    en: "Used only for server-status checks and live apply/reset actions. It stays in page memory only and is never saved locally.",
+    ja: "サーバー状態の確認と live apply/reset にのみ使用します。このページのメモリにのみ保持され、ローカルには保存されません。",
+  },
+  backendPresetApiBaseUrlHelper: {
+    ko: "전체 API Base URL을 입력하세요. 이 값은 프리셋 저장 후 live apply 시 그대로 서버에 전달됩니다.",
+    en: "Enter the full API base URL. This saved value is sent to the server when you apply the preset live.",
+    ja: "完全な API Base URL を入力してください。この保存値は live apply 時にそのままサーバーへ送信されます。",
   },
   backendPresetsHaveBeenExported: {
     ko: "백엔드 프리셋을 내보냈습니다.",
@@ -574,10 +579,30 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Client ID",
     ja: "Client ID",
   },
+  clientIdFieldHelper: {
+    ko: "RTZR Cloud 배포에서 필요합니다. 저장하거나 적용하기 전에 값을 그대로 검토할 수 있도록 가리지 않습니다.",
+    en: "Required for RTZR Cloud deployments. It stays visible so operators can review it before saving or applying.",
+    ja: "RTZR Cloud 配置で必要です。保存または適用前に確認できるよう、非表示にしません。",
+  },
+  clientIdOverwriteHelper: {
+    ko: "저장된 Client ID가 있습니다. 새 값을 입력하면 교체되고, 지우기를 누르면 저장된 값을 제거합니다.",
+    en: "A Client ID is already saved. Enter a new value to replace it, or clear the saved value.",
+    ja: "保存済みの Client ID があります。新しい値を入力すると置き換わり、消去すると保存値を削除します。",
+  },
   clientSecret: {
     ko: "Client Secret",
     en: "Client Secret",
     ja: "Client Secret",
+  },
+  clientSecretFieldHelper: {
+    ko: "RTZR Cloud 배포에서 필요합니다. 기본적으로 가려 두며, 프리셋 저장이나 live apply 시에만 사용합니다.",
+    en: "Required for RTZR Cloud deployments. It stays masked by default and is used only when the preset is saved or applied live.",
+    ja: "RTZR Cloud 配置で必要です。既定ではマスクされ、プリセット保存または live apply 時にのみ使用されます。",
+  },
+  clientSecretOverwriteHelper: {
+    ko: "저장된 Client Secret이 있습니다. 새 값을 입력하면 교체되고, 지우기를 누르면 저장된 값을 제거합니다.",
+    en: "A Client Secret is already saved. Enter a new value to replace it, or clear the saved value.",
+    ja: "保存済みの Client Secret があります。新しい値を入力すると置き換わり、消去すると保存値を削除します。",
   },
   clearSavedClientId: {
     ko: "저장된 Client ID 지우기",
@@ -1849,16 +1874,6 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Requesting...",
     ja: "リクエスト中...",
   },
-  requiredForCloudDeployment: {
-    ko: "Cloud 배포 시 필수",
-    en: "Required for cloud deployment",
-    ja: "クラウド展開に必要",
-  },
-  requiredForRtzrCloudDeployments: {
-    ko: "RTZR Cloud 배포에서 필수입니다.",
-    en: "Required for RTZR Cloud deployments.",
-    ja: "RTZR クラウド展開に必要です。",
-  },
   requiredWhenCheckingOrApplyingServerSettings: {
     ko: "서버 상태 조회/적용 시 필요합니다. 로컬에 저장되지 않습니다.",
     en: "Required to check or apply server settings. Not saved locally.",
@@ -2348,16 +2363,6 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "다운로드할 전사 결과가 없습니다.",
     en: "There are no transcription results to download.",
     ja: "ダウンロードできる文字起こし結果はありません。",
-  },
-  thereIsASavedClientIdEnteringANewValueWillOverwriteIt: {
-    ko: "저장된 Client ID가 있습니다. 새 값을 입력하면 덮어씁니다.",
-    en: "There is a saved Client ID. Entering a new value will overwrite it.",
-    ja: "保存されたクライアント ID があります。新しい値を入力すると上書きされます。",
-  },
-  thereIsASavedClientSecretEnteringANewValueWillOverwriteIt: {
-    ko: "저장된 Client Secret이 있습니다. 새 값을 입력하면 덮어씁니다.",
-    en: "There is a saved Client Secret. Entering a new value will overwrite it.",
-    ja: "保存されたクライアント シークレットがあります。新しい値を入力すると上書きされます。",
   },
   thereIsRealTimeTranscriptionAlreadyUnderway: {
     ko: "이미 진행 중인 실시간 전사가 있습니다.",

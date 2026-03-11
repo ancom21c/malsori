@@ -113,19 +113,20 @@
 
 ## Implementation Log
 
-- [ ] field metadata와 helper copy를 정리한다.
-- [ ] `clientId`/`clientSecret` affordance를 분리한다.
-- [ ] URL field type/placeholder example을 정리한다.
-- [ ] validation/focus behavior를 필요한 범위만 갱신한다.
+- [x] backend form field spec model을 추가해 `name`, `autocomplete`, `type`, helper text 책임을 명시적으로 고정했다.
+- [x] `clientId`를 review 가능한 일반 텍스트 field로 바꾸고, `clientSecret`/admin token은 masked + `new-password` autofill semantics로 분리했다.
+- [x] backend preset API base URL, internal admin URL, public API base URL field를 URL semantics와 helper copy에 맞게 정리했다.
+- [x] overwrite/live-apply semantics를 설명하는 helper copy를 i18n에 추가하고 `SettingsPage`가 동일한 spec을 소비하도록 맞췄다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] browser/password-manager autofill이 operator flow를 방해하지 않는가?
-- [ ] `clientId` reviewability와 `clientSecret` secrecy가 동시에 유지되는가?
-- [ ] field semantics가 i18n helper copy와 일치하는가?
+- [x] non-secret field는 `autocomplete="off"`와 명시적 name으로 password-manager login autofill 가능성을 낮췄다.
+- [x] `clientId`는 reviewable text이고 `clientSecret`/admin token은 masked secret로 분리되어 affordance가 섞이지 않는다.
+- [x] helper copy가 memory-only token handling, overwrite semantics, live-apply 영향 설명과 일치한다.
 
 ## Verify
 
-- [ ] `npm --prefix webapp run test -- SettingsPage`
-- [ ] `npm --prefix webapp run lint`
-- [ ] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run test -- src/pages/settingsBackendFormModel.test.ts`
+- [x] `npm --prefix webapp run lint`
+- [x] `npm --prefix webapp run build`
+- [x] `git diff --check`
