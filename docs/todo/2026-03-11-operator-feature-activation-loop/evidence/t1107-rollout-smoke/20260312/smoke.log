@@ -1,0 +1,151 @@
+[1/8] Verify rollout
+deployment "malsori-malsori" successfully rolled out
+[2/8] Snapshot release resources
+WARNING: Kubernetes configuration file is group-readable. This is insecure. Location: /etc/rancher/k3s/k3s.yaml
+WARNING: Kubernetes configuration file is world-readable. This is insecure. Location: /etc/rancher/k3s/k3s.yaml
+NAME                                   READY   STATUS    RESTARTS   AGE
+pod/malsori-malsori-69c6849569-nfvpl   2/2     Running   0          46s
+
+NAME                      TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)           AGE
+service/malsori-malsori   ClusterIP   10.43.219.70   <none>        8000/TCP,80/TCP   118d
+
+NAME                                        CLASS     HOSTS                       ADDRESS          PORTS     AGE
+ingress.networking.k8s.io/malsori-malsori   traefik   malsori.ancom.duckdns.org   192.168.29.100   80, 443   118d
+[3/8] Verify SPA routes
+[cache] Verify service worker/cache asset contract
+[4/8] Verify API health contract
+health: status=ok deployment=cloud source=default backend_admin_enabled=False
+[5/8] Verify broker status contract
+google-status: enabled=False connected=False
+[6/8] Verify observability public exposure policy
+runtime-error: blocked on public ingress (404/405)
+[7/9] Verify backend endpoint contract
+backend-endpoint: disabled or blocked
+[8/9] Verify backend state alias contract
+backend-state: disabled or blocked
+[9/9] Verify backend binding admin contract
+backend-bindings: disabled or blocked
+Smoke checks passed for https://malsori.ancom.duckdns.org
+[10/10] Verify UI runtime contract
+{
+  "base_url": "https://malsori.ancom.duckdns.org",
+  "desktop_routes": {
+    "/": {
+      "status": 200,
+      "final_path": "/",
+      "root_text_length": 606,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/sessions": {
+      "status": 200,
+      "final_path": "/sessions",
+      "root_text_length": 606,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/settings": {
+      "status": 200,
+      "final_path": "/settings",
+      "root_text_length": 4534,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/realtime": {
+      "status": 200,
+      "final_path": "/realtime",
+      "root_text_length": 351,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/capture": {
+      "mode": "redirect",
+      "status": 200,
+      "final_path": "/capture/realtime",
+      "root_text_length": 351,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/capture/realtime": {
+      "status": 200,
+      "final_path": "/capture/realtime",
+      "root_text_length": 351,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/capture/file": {
+      "status": 200,
+      "final_path": "/capture/file",
+      "root_text_length": 606,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/translate": {
+      "mode": "redirect",
+      "status": 200,
+      "final_path": "/capture/realtime",
+      "root_text_length": 351,
+      "page_error_count": 0,
+      "console_error_count": 0
+    },
+    "/transcriptions/smoke-detail-empty": {
+      "mode": "empty",
+      "status": 200,
+      "final_path": "/transcriptions/smoke-detail-empty",
+      "root_text_length": 95,
+      "page_error_count": 0,
+      "console_error_count": 0,
+      "alert_count": 1
+    },
+    "/sessions/smoke-detail-empty": {
+      "mode": "empty",
+      "status": 200,
+      "final_path": "/sessions/smoke-detail-empty",
+      "root_text_length": 95,
+      "page_error_count": 0,
+      "console_error_count": 0,
+      "alert_count": 1
+    },
+    "/transcriptions/smoke-detail-ready": {
+      "mode": "ready",
+      "status": 200,
+      "final_path": "/transcriptions/smoke-detail-ready",
+      "root_text_length": 1132,
+      "page_error_count": 0,
+      "console_error_count": 0,
+      "card_count": 6,
+      "session_artifacts_mode": "hidden",
+      "has_session_workspace": false,
+      "has_ask_transcript": false
+    },
+    "/sessions/smoke-detail-ready": {
+      "mode": "ready",
+      "status": 200,
+      "final_path": "/sessions/smoke-detail-ready",
+      "root_text_length": 1132,
+      "page_error_count": 0,
+      "console_error_count": 0,
+      "card_count": 6,
+      "session_artifacts_mode": "hidden",
+      "has_session_workspace": false,
+      "has_ask_transcript": false
+    }
+  },
+  "mobile": {
+    "status": 200,
+    "root_text_length": 573,
+    "page_error_count": 0,
+    "console_error_count": 0,
+    "quick_fab_found": false,
+    "sticky_cta_found": true,
+    "overlap": null,
+    "skipped_reason": "missing_quick_fab_or_sticky_cta"
+  },
+  "checks": {
+    "detail_smoke_mode": "empty+ready(seed-indexeddb)",
+    "realtime_settings_toggle": {
+      "clicked": false
+    }
+  }
+}
+UI smoke checks passed for https://malsori.ancom.duckdns.org
