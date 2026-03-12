@@ -30,6 +30,7 @@ type BackendBindingOperatorPanelProps = {
   locale: string;
   disabled: boolean;
   loading: boolean;
+  revalidatingProfileId: string | null;
   error: string | null;
   lastSuccessAt: string | null;
   capabilitiesState: BackendCapabilitiesState | null;
@@ -44,6 +45,7 @@ type BackendBindingOperatorPanelProps = {
   onRefresh: () => void;
   onNewProfile: () => void;
   onSelectProfile: (profileId: string | null) => void;
+  onRevalidateSelectedProfileHealth: () => void;
   onProfileEditorChange: (value: string) => void;
   onFormatProfileEditor: () => void;
   onCopyProfileEditor: () => void;
@@ -83,6 +85,7 @@ export default function BackendBindingOperatorPanel({
   locale,
   disabled,
   loading,
+  revalidatingProfileId,
   error,
   lastSuccessAt,
   capabilitiesState,
@@ -97,6 +100,7 @@ export default function BackendBindingOperatorPanel({
   onRefresh,
   onNewProfile,
   onSelectProfile,
+  onRevalidateSelectedProfileHealth,
   onProfileEditorChange,
   onFormatProfileEditor,
   onCopyProfileEditor,
@@ -126,6 +130,14 @@ export default function BackendBindingOperatorPanel({
         profiles,
       }),
     [bindings, profiles, selectedBindingKey]
+  );
+  const selectedResolvedProfile = useMemo(
+    () =>
+      resolveSelectedBackendProfile(
+        profiles,
+        selectedBindingInspector.resolution?.resolvedBackendProfileId ?? null
+      ),
+    [profiles, selectedBindingInspector.resolution?.resolvedBackendProfileId]
   );
 
   const capabilitySummary =
@@ -166,6 +178,50 @@ export default function BackendBindingOperatorPanel({
       <Alert key={`${notice.code}-${index}`} severity={notice.severity} variant="outlined">
         {t(keyMap[notice.code])}
       </Alert>
+    );
+  };
+
+  const renderHealthSnapshotCard = (
+    label: string,
+    profile: BackendProfile | null,
+    fallbackValue: ReactNode = t("notConfigured")
+  ) => {
+    const checkedAt = profile?.health.checkedAt
+      ? formatLocalizedDateTime(profile.health.checkedAt, locale)
+      : null;
+
+    return (
+      <Card variant="outlined">
+        <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
+          <Stack spacing={0.75}>
+            <Typography variant="caption" color="text.secondary">
+              {label}
+            </Typography>
+            {profile ? (
+              <>
+                <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                  <Chip size="small" label={profile.label} />
+                  <Chip
+                    size="small"
+                    color={getBackendHealthTone(profile.health.status)}
+                    label={`${t("healthStatus")}: ${profile.health.status}`}
+                  />
+                </Stack>
+                <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+                  {profile.id}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {t("lastCheckedAt")}: {checkedAt ?? t("notConfigured")}
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {fallbackValue}
+              </Typography>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -388,7 +444,30 @@ export default function BackendBindingOperatorPanel({
                       label={t("defaultModel")}
                       value={selectedProfile.defaultModel ?? t("notConfigured")}
                     />
+                    <InspectorField
+                      label={t("lastCheckedAt")}
+                      value={
+                        selectedProfile.health.checkedAt
+                          ? formatLocalizedDateTime(selectedProfile.health.checkedAt, locale)
+                          : t("notConfigured")
+                      }
+                    />
                   </Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={onRevalidateSelectedProfileHealth}
+                    disabled={
+                      disabled ||
+                      !selectedProfile ||
+                      revalidatingProfileId === selectedProfile.id
+                    }
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    {revalidatingProfileId === selectedProfile.id
+                      ? t("checking")
+                      : t("recheckProfileHealth")}
+                  </Button>
                   <Stack spacing={0.5}>
                     <Typography variant="caption" color="text.secondary">
                       {t("availableCapabilities")}
@@ -605,6 +684,32 @@ export default function BackendBindingOperatorPanel({
                     {selectedBindingInspector.notices.map(renderInspectorNotice)}
                   </Stack>
 
+                  <Stack spacing={0.75}>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("healthReviewSnapshot")}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
+                        gap: 1,
+                      }}
+                    >
+                      {renderHealthSnapshotCard(
+                        t("primaryBackend"),
+                        selectedBindingInspector.primaryProfile
+                      )}
+                      {renderHealthSnapshotCard(
+                        t("resolvedBackend"),
+                        selectedResolvedProfile
+                      )}
+                      {renderHealthSnapshotCard(
+                        t("fallbackBackend"),
+                        selectedBindingInspector.fallbackProfile
+                      )}
+                    </Box>
+                  </Stack>
+
                   <Box
                     sx={{
                       display: "grid",
@@ -673,6 +778,28 @@ export default function BackendBindingOperatorPanel({
                       ))}
                     </Stack>
                   </Stack>
+                  {selectedBindingInspector.primaryProfile?.health.message ? (
+                    <Alert
+                      severity={getBackendHealthAlertSeverity(
+                        selectedBindingInspector.primaryProfile.health.status
+                      )}
+                      variant="outlined"
+                    >
+                      {selectedBindingInspector.primaryProfile.label}:{" "}
+                      {selectedBindingInspector.primaryProfile.health.message}
+                    </Alert>
+                  ) : null}
+                  {selectedBindingInspector.fallbackProfile?.health.message ? (
+                    <Alert
+                      severity={getBackendHealthAlertSeverity(
+                        selectedBindingInspector.fallbackProfile.health.status
+                      )}
+                      variant="outlined"
+                    >
+                      {selectedBindingInspector.fallbackProfile.label}:{" "}
+                      {selectedBindingInspector.fallbackProfile.health.message}
+                    </Alert>
+                  ) : null}
                 </Stack>
               ) : (
                 <Alert severity="info">{t("selectABindingToInspect")}</Alert>

@@ -163,7 +163,11 @@ describe("shared session domain model", () => {
             selectionSource: "auto",
             providerLabel: "OpenAI",
             model: "gpt-5-mini",
+            backendProfileId: "summary-primary",
+            usedFallback: false,
             sourceRevision: "rev-1",
+            sourceLanguage: "ko",
+            outputLanguage: "ko",
             requestedAt: "2026-03-10T00:03:00.000Z",
             completedAt: "2026-03-10T00:03:03.000Z",
             status: "ready",
@@ -198,7 +202,11 @@ describe("shared session domain model", () => {
             requestedAt: "2026-03-10T00:03:00.000Z",
             updatedAt: "2026-03-10T00:03:03.000Z",
             providerLabel: "OpenAI",
+            backendProfileId: "summary-primary",
+            usedFallback: false,
             sourceRevision: "rev-1",
+            sourceLanguage: "ko",
+            outputLanguage: "ko",
             partitionIds: ["partition-1"],
             supportingSnippets: [
               {
@@ -254,9 +262,15 @@ describe("shared session domain model", () => {
     expect(summary.content).toBe("The team agreed on the launch checklist.");
     expect(summary.summaryPresetId).toBe("meeting");
     expect(summary.presetSelectionSource).toBe("auto");
+    expect(summary.summarySourceLanguage).toBe("ko");
+    expect(summary.summaryOutputLanguage).toBe("ko");
+    expect(summary.summaryBackendProfileId).toBe("summary-primary");
+    expect(summary.summaryUsedFallback).toBe(false);
     expect(summary.requests).toHaveLength(2);
     expect(summary.requests[0].summaryMode).toBe("full");
     expect(summary.requests[0].selectionSource).toBe("auto");
+    expect(summary.requests[0].backendProfileId).toBe("summary-primary");
+    expect(summary.requests[0].outputLanguage).toBe("ko");
     expect(summary.supportingSnippets[0].turnId).toBe("turn-1");
   });
 

@@ -194,6 +194,18 @@ export function buildSummarySurfaceView(input: {
   }
 
   if (publishedSummary || latestReadyRun) {
+    if (latestRun?.status === "failed") {
+      return {
+        mode: input.mode,
+        status: "failed",
+        statusLabelKey: "artifactFailed",
+        helperTextKey: "summaryArtifactFailedHelper",
+        sections,
+        presetLabel: resolvedPreset.label,
+        presetBadgeKey: getPresetBadgeKey(selection),
+        providerLabel,
+      };
+    }
     if (publishedSummary?.freshness === "stale") {
       return {
         mode: input.mode,
@@ -249,6 +261,22 @@ export function buildSummarySurfaceView(input: {
       status: "failed",
       statusLabelKey: "artifactFailed",
       helperTextKey: "summaryArtifactFailedHelper",
+      sections: [],
+      presetLabel: resolvedPreset.label,
+      presetBadgeKey: getPresetBadgeKey(selection),
+      providerLabel,
+    };
+  }
+
+  if (
+    input.mode === "realtime" &&
+    (input.summaryState?.partitions ?? []).some((partition) => partition.status === "draft")
+  ) {
+    return {
+      mode: input.mode,
+      status: "pending",
+      statusLabelKey: "artifactPending",
+      helperTextKey: "summaryArtifactPendingHelper",
       sections: [],
       presetLabel: resolvedPreset.label,
       presetBadgeKey: getPresetBadgeKey(selection),

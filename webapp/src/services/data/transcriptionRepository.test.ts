@@ -17,6 +17,10 @@ import {
   saveSummaryPresetSelection,
   upsertPublishedSummary,
 } from "./summaryRepository";
+import {
+  buildTurnTranslationId,
+  upsertTurnTranslation,
+} from "./translationRepository";
 
 const SAMPLE_PCM_A = new Int16Array([0, 128, -128, 32767, -32768]).buffer;
 const SAMPLE_PCM_B = new Int16Array([42, -42]).buffer;
@@ -334,6 +338,18 @@ describe("transcriptionRepository", () => {
       applyScope: "regenerate_all",
       lockedByUser: true,
     });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, "turn-1", "en"),
+      sessionId: record.id,
+      turnId: "turn-1",
+      sourceRevision: record.updatedAt,
+      sourceText: "원문",
+      targetLanguage: "en",
+      text: "translation",
+      status: "ready",
+      requestedAt: "2026-03-10T00:00:04.000Z",
+      completedAt: "2026-03-10T00:00:05.000Z",
+    });
 
     await deleteTranscription(record.id);
 
@@ -365,6 +381,11 @@ describe("transcriptionRepository", () => {
     expect(remainingPublishedSummaries).toBe(0);
     const remainingPresetSelections = await appDb.summaryPresetSelections.count();
     expect(remainingPresetSelections).toBe(0);
+    const remainingTurnTranslations = await appDb.turnTranslations
+      .where("sessionId")
+      .equals(record.id)
+      .count();
+    expect(remainingTurnTranslations).toBe(0);
   });
 
   it("marks persisted summary partitions and published summaries stale after segment replacement", async () => {

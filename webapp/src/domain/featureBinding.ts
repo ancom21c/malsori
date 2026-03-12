@@ -1,5 +1,8 @@
-import type { BackendCapability, BackendHealthStatus, BackendProfile } from "./backendProfile";
-import { backendProfileSupportsCapability } from "./backendProfile";
+import type { BackendCapability, BackendProfile } from "./backendProfile";
+import {
+  backendProfileSupportsCapability,
+  isBackendHealthStatusUsable,
+} from "./backendProfile";
 
 export type FeatureKey =
   | "capture.realtime"
@@ -71,12 +74,6 @@ const FEATURE_CAPABILITY_REQUIREMENTS: Record<FeatureKey, BackendCapability[]> =
   "tts.stream": ["tts.stream"],
 };
 
-const USABLE_HEALTH_STATUSES = new Set<BackendHealthStatus>([
-  "unknown",
-  "healthy",
-  "degraded",
-]);
-
 function getRequiredCapabilities(featureKey: FeatureKey): BackendCapability[] {
   return FEATURE_CAPABILITY_REQUIREMENTS[featureKey];
 }
@@ -91,7 +88,7 @@ function supportsAllCapabilities(
 }
 
 function isUsableHealthStatus(profile: BackendProfile): boolean {
-  return USABLE_HEALTH_STATUSES.has(profile.health.status);
+  return isBackendHealthStatusUsable(profile.health.status);
 }
 
 function resolveProfile(

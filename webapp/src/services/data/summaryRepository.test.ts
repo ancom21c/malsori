@@ -8,6 +8,7 @@ import {
   markSummaryStateStaleByMutation,
   readSessionSummaryState,
   saveSummaryPresetSelection,
+  updateSummaryPartition,
   upsertPublishedSummary,
 } from "./summaryRepository";
 
@@ -43,7 +44,11 @@ describe("summaryRepository", () => {
       selectionSource: "auto",
       providerLabel: "OpenAI",
       model: "gpt-5-mini",
+      backendProfileId: "summary-primary",
+      usedFallback: false,
       sourceRevision: "rev-1",
+      sourceLanguage: "ko",
+      outputLanguage: "ko",
       timeoutMs: 30000,
       retryPolicy: { maxAttempts: 3, backoffMs: 1000 },
       fallbackBackendProfileId: "summary-fallback",
@@ -79,7 +84,11 @@ describe("summaryRepository", () => {
       requestedAt: run.requestedAt,
       updatedAt: "2026-03-11T00:03:12.000Z",
       providerLabel: "OpenAI",
+      backendProfileId: "summary-primary",
+      usedFallback: false,
       sourceRevision: "rev-1",
+      sourceLanguage: "ko",
+      outputLanguage: "ko",
       partitionIds: [partition.id],
       blocks: run.blocks,
       supportingSnippets: run.blocks[0].supportingSnippets,
@@ -115,9 +124,17 @@ describe("summaryRepository", () => {
     expect(state.runs[0].presetVersion).toBe("2026-03-11");
     expect(state.runs[0].trigger).toBe("realtime_batch");
     expect(state.runs[0].regenerationScope).toBe("partition");
+    expect(state.runs[0].backendProfileId).toBe("summary-primary");
+    expect(state.runs[0].usedFallback).toBe(false);
+    expect(state.runs[0].sourceLanguage).toBe("ko");
+    expect(state.runs[0].outputLanguage).toBe("ko");
     expect(state.runs[0].timeoutMs).toBe(30000);
     expect(state.runs[0].fallbackBackendProfileId).toBe("summary-fallback");
     expect(state.publishedSummaries).toHaveLength(1);
+    expect(state.publishedSummaries[0].backendProfileId).toBe("summary-primary");
+    expect(state.publishedSummaries[0].usedFallback).toBe(false);
+    expect(state.publishedSummaries[0].sourceLanguage).toBe("ko");
+    expect(state.publishedSummaries[0].outputLanguage).toBe("ko");
     expect(state.publishedSummaries[0].supportingSnippets[0].speakerLabel).toBe("Alice");
     expect(state.presetSelection?.selectedPresetId).toBe("meeting");
     expect(state.presetSelection?.selectionSource).toBe("auto");
@@ -203,5 +220,39 @@ describe("summaryRepository", () => {
     expect(state.runs).toHaveLength(0);
     expect(state.publishedSummaries).toHaveLength(0);
     expect(state.presetSelection).toBeNull();
+  });
+
+  it("updates draft partition boundaries before a realtime run is finalized", async () => {
+    await createSummaryPartition({
+      id: "partition-draft",
+      sessionId: "tx-3",
+      startTurnId: "turn-1",
+      endTurnId: "turn-1",
+      turnIds: ["turn-1"],
+      turnCount: 1,
+      startedAt: "2026-03-12T00:00:00.000Z",
+      endedAt: "2026-03-12T00:00:00.000Z",
+      status: "draft",
+      reason: "manual",
+      sourceRevision: "rev-1",
+    });
+
+    await updateSummaryPartition("partition-draft", {
+      endTurnId: "turn-3",
+      turnIds: ["turn-1", "turn-2", "turn-3"],
+      turnCount: 3,
+      endedAt: "2026-03-12T00:00:04.000Z",
+      status: "draft",
+      reason: "manual",
+      sourceRevision: "rev-2",
+    });
+
+    const state = await readSessionSummaryState("tx-3");
+
+    expect(state.partitions).toHaveLength(1);
+    expect(state.partitions[0].endTurnId).toBe("turn-3");
+    expect(state.partitions[0].turnIds).toEqual(["turn-1", "turn-2", "turn-3"]);
+    expect(state.partitions[0].turnCount).toBe(3);
+    expect(state.partitions[0].sourceRevision).toBe("rev-2");
   });
 });

@@ -330,6 +330,9 @@ export default function SettingsPage() {
   const [backendBindingStateError, setBackendBindingStateError] = useState<string | null>(null);
   const [backendBindingStateLastSuccessAt, setBackendBindingStateLastSuccessAt] =
     useState<string | null>(null);
+  const [revalidatingBackendProfileId, setRevalidatingBackendProfileId] = useState<string | null>(
+    null
+  );
   const [backendProfiles, setBackendProfiles] = useState<BackendProfile[]>([]);
   const [featureBindings, setFeatureBindings] = useState<FeatureBinding[]>([]);
   const [selectedBackendProfileId, setSelectedBackendProfileId] = useState<string | null>(null);
@@ -724,6 +727,79 @@ export default function SettingsPage() {
     t,
     selectedBackendProfileId,
     selectedFeatureBindingKey,
+  ]);
+
+  const handleRevalidateSelectedBackendProfileHealth = useCallback(async () => {
+    if (!apiBaseUrl.trim()) {
+      setBackendBindingStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
+      return;
+    }
+    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    if (!normalizedAdminApiBaseUrl) {
+      setBackendBindingStateError(t("internalAdminApiBaseUrlRequired"));
+      return;
+    }
+    const adminToken = backendAdminToken.trim();
+    if (!adminToken) {
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+      return;
+    }
+    if (!selectedBackendProfileId) {
+      setBackendBindingStateError(t("selectAProfileToInspect"));
+      return;
+    }
+
+    setRevalidatingBackendProfileId(selectedBackendProfileId);
+    setBackendBindingStateError(null);
+    try {
+      const response = await apiClient.getBackendProfileHealth(selectedBackendProfileId, {
+        adminToken,
+        refresh: true,
+      });
+      const now = new Date().toISOString();
+      setBackendProfiles((current) =>
+        current.map((profile) =>
+          profile.id === response.profileId
+            ? {
+                ...profile,
+                health: response.health,
+              }
+            : profile
+        )
+      );
+      const selectedProfile = backendProfiles.find(
+        (profile) => profile.id === response.profileId
+      );
+      if (selectedProfile) {
+        setBackendProfileEditorValue(
+          formatBackendProfileEditorValue({
+            ...selectedProfile,
+            health: response.health,
+          })
+        );
+      }
+      setBackendBindingStateLastSuccessAt(now);
+      setBackendProfileEditorError(null);
+      enqueueSnackbar(t("backendProfileHealthRefreshed"), {
+        variant: "success",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t("failedToLoadBackendState");
+      setBackendBindingStateError(message);
+      enqueueSnackbar(message, { variant: "error" });
+    } finally {
+      setRevalidatingBackendProfileId(null);
+    }
+  }, [
+    adminApiBaseUrl,
+    apiBaseUrl,
+    apiClient,
+    backendAdminToken,
+    backendProfiles,
+    enqueueSnackbar,
+    selectedBackendProfileId,
+    t,
   ]);
 
   const handleSelectBackendProfile = useCallback(
@@ -3011,6 +3087,7 @@ export default function SettingsPage() {
                               operatorActionsBlockedByDraft
                             }
                             loading={backendBindingStateLoading}
+                            revalidatingProfileId={revalidatingBackendProfileId}
                             error={backendBindingStateError}
                             lastSuccessAt={backendBindingStateLastSuccessAt}
                             capabilitiesState={backendBindingState}
@@ -3025,6 +3102,9 @@ export default function SettingsPage() {
                             onRefresh={() => void handleRefreshBackendBindingState()}
                             onNewProfile={() => handleSelectBackendProfile(null)}
                             onSelectProfile={handleSelectBackendProfile}
+                            onRevalidateSelectedProfileHealth={() =>
+                              void handleRevalidateSelectedBackendProfileHealth()
+                            }
                             onProfileEditorChange={(value) => {
                               setBackendProfileEditorValue(value);
                               setBackendProfileEditorError(null);

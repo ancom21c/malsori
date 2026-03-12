@@ -13,6 +13,12 @@ import {
   platformFeatureFlags,
   resolveRealtimeCapturePath,
 } from "./platformRoutes";
+import {
+  derivePlatformFeatureAvailability,
+  platformCapabilities,
+} from "./platformCapabilities";
+import { platformBackendBindingRuntime } from "./backendBindingRuntime";
+import { buildTranslateBindingPresentation } from "../pages/translateBindingModel";
 
 const TranscriptionListPage = lazy(
   () => import("../pages/TranscriptionListPage")
@@ -33,6 +39,12 @@ const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
 const UiConceptsPage = devOnlyUiConceptsEnabled
   ? lazy(() => import("../pages/UiConceptsPage"))
   : null;
+const translateRouteEnabled = buildTranslateBindingPresentation(
+  platformFeatureFlags,
+  platformCapabilities,
+  derivePlatformFeatureAvailability(platformFeatureFlags, platformCapabilities),
+  platformBackendBindingRuntime
+).finalTranslation.ready;
 
 function Loader() {
   return (
@@ -82,7 +94,7 @@ function createAppRouter() {
         <Route
           path="/translate"
           element={
-            platformFeatureFlags.realtimeTranslate && TranslatePage ? (
+            platformFeatureFlags.realtimeTranslate && translateRouteEnabled && TranslatePage ? (
               <TranslatePage />
             ) : (
               <Navigate to={resolveRealtimeCapturePath()} replace />

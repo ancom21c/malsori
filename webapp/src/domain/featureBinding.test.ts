@@ -81,6 +81,31 @@ describe("resolveFeatureBinding", () => {
     });
   });
 
+  it("does not keep degraded backends on the ready path", () => {
+    const degradedPrimary = createBackendProfile({
+      id: "translate-primary",
+      label: "Translate Primary",
+      kind: "translate",
+      baseUrl: "https://translate-primary.example.com",
+      capabilities: ["translate.turn_final"],
+      health: { status: "degraded" },
+    });
+    const binding = createFeatureBinding({
+      featureKey: "translate.turn_final",
+      primaryBackendProfileId: degradedPrimary.id,
+      fallbackBackendProfileId: translateFallback.id,
+      enabled: true,
+    });
+
+    expect(
+      resolveFeatureBinding(binding.featureKey, [binding], [degradedPrimary, translateFallback])
+    ).toMatchObject({
+      status: "fallback",
+      resolvedBackendProfileId: "translate-fallback",
+      usedFallback: true,
+    });
+  });
+
   it("returns misconfigured when the primary backend lacks required capabilities", () => {
     const binding = createFeatureBinding({
       featureKey: "artifact.summary",

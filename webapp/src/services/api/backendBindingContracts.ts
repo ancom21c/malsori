@@ -48,6 +48,12 @@ export interface RawBackendProfileRecord {
   health: RawBackendHealthSnapshot;
 }
 
+export interface RawBackendProfileHealthResponse {
+  profile_id: string;
+  refreshed?: boolean;
+  health: RawBackendHealthSnapshot;
+}
+
 export interface RawFeatureBindingRetryPolicy {
   max_attempts: number;
   backoff_ms: number;
@@ -112,6 +118,12 @@ export interface BackendCapabilitiesCatalog {
   };
 }
 
+export interface BackendProfileHealthResponse {
+  profileId: string;
+  refreshed: boolean;
+  health: BackendHealthSnapshot;
+}
+
 export function normalizeBackendAuthStrategy(
   raw: RawBackendAuthStrategy
 ): BackendAuthStrategy {
@@ -134,6 +146,16 @@ export function normalizeBackendHealthSnapshot(
     status: raw.status,
     checkedAt: raw.checked_at ?? undefined,
     message: raw.message ?? undefined,
+  };
+}
+
+export function normalizeBackendProfileHealthResponse(
+  raw: RawBackendProfileHealthResponse
+): BackendProfileHealthResponse {
+  return {
+    profileId: raw.profile_id,
+    refreshed: raw.refreshed ?? false,
+    health: normalizeBackendHealthSnapshot(raw.health),
   };
 }
 

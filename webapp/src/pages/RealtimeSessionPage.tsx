@@ -37,7 +37,7 @@ import {
   RecorderManager,
   type RecorderChunkInfo,
 } from "../services/audio/recorderManager";
-import type { LocalWordTiming, PresetConfig } from "../data/app-db";
+import { appDb, type LocalWordTiming, type PresetConfig } from "../data/app-db";
 import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
 import {
   buildTranscriptionDetailPath,
@@ -74,10 +74,25 @@ import {
   platformCapabilities,
 } from "../app/platformCapabilities";
 import { platformFeatureFlags } from "../app/platformRoutes";
-import { platformBackendBindingRuntime } from "../app/backendBindingRuntime";
-import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
-import { readSessionSummaryState } from "../services/data/summaryRepository";
 import {
+  findPlatformBackendProfile,
+  platformBackendBindingRuntime,
+} from "../app/backendBindingRuntime";
+import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
+import {
+  createSummaryPartition,
+  createSummaryRun,
+  readSessionSummaryState,
+  saveSummaryPresetSelection,
+  updateSummaryPartition,
+  updateSummaryRun,
+  upsertPublishedSummary,
+} from "../services/data/summaryRepository";
+import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
+import {
+  createManualSummaryPresetSelection,
+  listSummaryPresets,
+  resolveSummaryPreset,
   resolveSummaryPresetSelection,
 } from "../domain/summaryPreset";
 import SummarySurface from "../components/summary/SummarySurface";
@@ -85,6 +100,19 @@ import {
   buildSummarySurfaceView,
   type SummarySurfaceMode,
 } from "../components/summary/summarySurfaceModel";
+import {
+  buildSummaryRunLifecycleInput,
+  resolveRealtimeSummaryDraftWindow,
+  resolveRealtimeSummaryFinalizeDecision,
+  resolveSummaryRuntimePolicy,
+} from "../domain/summaryRuntime";
+import type {
+  SummaryPresetApplyScope,
+  SummaryPresetSelection,
+  SummaryPartitionReason,
+  SummaryRegenerationScope,
+  SummaryRunTrigger,
+} from "../domain/session";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
 
@@ -403,6 +431,32 @@ function extractSampleRateFromConfig(config: Record<string, unknown>): number {
   return FALLBACK_STREAM_SAMPLE_RATE;
 }
 
+function areStringArraysEqual(left: string[] | undefined, right: string[] | undefined) {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right || left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
+}
+
+function summarizeRealtimeBlocks(
+  blocks: Array<{ title?: string; content: string }>
+) {
+  return blocks
+    .map((block) => {
+      const title = block.title?.trim();
+      const content = block.content.trim();
+      if (!content) {
+        return null;
+      }
+      return title ? `${title}\n${content}` : content;
+    })
+    .filter((value): value is string => Boolean(value))
+    .join("\n\n");
+}
+
 export default function RealtimeSessionPage() {
   const compactRealtimeLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
   const featureAvailability = derivePlatformFeatureAvailability(
@@ -412,6 +466,7 @@ export default function RealtimeSessionPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const apiClient = useRtzrApiClient();
   const enqueueRealtimeSnackbar = useCallback(
     (message: string, options?: OptionsObject) =>
       enqueueSnackbar(message, {
@@ -555,6 +610,7 @@ export default function RealtimeSessionPage() {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [activeTranscriptionId, setActiveTranscriptionId] = useState<string | null>(null);
   const summaryModeTouchedRef = useRef(false);
+  const [realtimeSummaryTick, setRealtimeSummaryTick] = useState(0);
   const [summarySurfaceMode, setSummarySurfaceMode] = useState<SummarySurfaceMode>("off");
   const [streamingRequestJson, setStreamingRequestJson] = useState("");
   const cameraSupported =
@@ -619,11 +675,27 @@ export default function RealtimeSessionPage() {
   const waitingForFinalRef = useRef(false);
   const lastAudioSentAtRef = useRef<number | null>(null);
   const lastResultAtRef = useRef<number | null>(null);
+  const realtimeSummaryRunnerBusyRef = useRef(false);
   const connectionUxStateRef = useRef(connectionUxState);
   const streamingBufferMetricsRef = useRef<StreamingBufferMetrics>({
     ...EMPTY_STREAMING_BUFFER_METRICS,
   });
   const suppressRecorderOnStopRef = useRef(false);
+  const activeTranscription = useLiveQuery(async () => {
+    if (!activeTranscriptionId) {
+      return null;
+    }
+    return (await appDb.transcriptions.get(activeTranscriptionId)) ?? null;
+  }, [activeTranscriptionId]);
+  const persistedRealtimeSegments = useLiveQuery(async () => {
+    if (!activeTranscriptionId) {
+      return [];
+    }
+    return await appDb.segments
+      .where("transcriptionId")
+      .equals(activeTranscriptionId)
+      .sortBy("startMs");
+  }, [activeTranscriptionId]);
   const summaryState = useLiveQuery(async () => {
     if (!activeTranscriptionId) {
       return null;
@@ -642,6 +714,11 @@ export default function RealtimeSessionPage() {
     sessionState === "countdown" ||
     sessionState === "stopping" ||
     sessionState === "saving";
+  const summaryCaptureActive =
+    sessionState === "recording" ||
+    sessionState === "paused" ||
+    sessionState === "connecting" ||
+    sessionState === "countdown";
 
   const latencyLevel = classifyRealtimeLatencyLevel(lastLatencyMs, latencyStaleMs);
   const preferredSummaryMode = useMemo<SummarySurfaceMode>(() => {
@@ -667,14 +744,51 @@ export default function RealtimeSessionPage() {
       ),
     []
   );
+  const summaryFeatureBinding = useMemo(
+    () =>
+      platformBackendBindingRuntime.bindings.find(
+        (binding) => binding.featureKey === "artifact.summary"
+      ) ?? null,
+    []
+  );
+  const summaryResolvedProfile = useMemo(
+    () =>
+      findPlatformBackendProfile(
+        summaryBinding.resolution?.resolvedBackendProfileId,
+        platformBackendBindingRuntime
+      ),
+    [summaryBinding]
+  );
+  const summaryRuntimePolicy = useMemo(
+    () => resolveSummaryRuntimePolicy(summaryFeatureBinding),
+    [summaryFeatureBinding]
+  );
+  const persistedSummaryTurns = useMemo(
+    () =>
+      (persistedRealtimeSegments ?? [])
+        .filter((segment) => segment.text.trim().length > 0)
+        .map((segment) => ({
+          id: segment.id,
+          text: segment.text,
+          speakerLabel: segment.speaker_label ?? segment.spk ?? null,
+          language: segment.language ?? null,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+        })),
+    [persistedRealtimeSegments]
+  );
+  const fullSummaryPresetOptions = useMemo(
+    () => listSummaryPresets().map((preset) => ({ value: preset.id, label: preset.label })),
+    []
+  );
   const synthesizedSummaryState = useMemo(() => {
     const sessionId = activeTranscriptionId ?? "realtime-preview";
     const fallbackSelection = resolveSummaryPresetSelection({
       sessionId,
-      turns: segments.slice(0, 6).map((segment) => ({
+      turns: persistedSummaryTurns.slice(0, 6).map((segment) => ({
         id: segment.id,
         text: segment.text,
-        speakerLabel: segment.speakerLabel,
+        speakerLabel: segment.speakerLabel ?? undefined,
       })),
       requestedMode: summarySurfaceMode === "off" ? "realtime" : summarySurfaceMode,
     });
@@ -685,15 +799,548 @@ export default function RealtimeSessionPage() {
       publishedSummaries: summaryState?.publishedSummaries ?? [],
       presetSelection: summaryState?.presetSelection ?? fallbackSelection,
     };
-  }, [activeTranscriptionId, segments, summaryState, summarySurfaceMode]);
-  const summarySurfaceView = useMemo(
+  }, [activeTranscriptionId, persistedSummaryTurns, summaryState, summarySurfaceMode]);
+  const fullSummarySelection = useMemo<SummaryPresetSelection | null>(() => {
+    if (!activeTranscriptionId) {
+      return null;
+    }
+    return resolveSummaryPresetSelection({
+      sessionId: activeTranscriptionId,
+      turns: persistedSummaryTurns.map((turn) => ({
+        id: turn.id,
+        text: turn.text,
+        speakerLabel: turn.speakerLabel ?? undefined,
+      })),
+      requestedMode: "full",
+      currentSelection: summaryState?.presetSelection ?? null,
+    });
+  }, [activeTranscriptionId, persistedSummaryTurns, summaryState?.presetSelection]);
+  const realtimeSummarySelection = useMemo<SummaryPresetSelection | null>(() => {
+    if (!activeTranscriptionId) {
+      return null;
+    }
+    return resolveSummaryPresetSelection({
+      sessionId: activeTranscriptionId,
+      turns: persistedSummaryTurns.map((turn) => ({
+        id: turn.id,
+        text: turn.text,
+        speakerLabel: turn.speakerLabel ?? undefined,
+      })),
+      requestedMode: "realtime",
+      currentSelection: summaryState?.presetSelection ?? null,
+    });
+  }, [activeTranscriptionId, persistedSummaryTurns, summaryState?.presetSelection]);
+  const realtimeSummaryDraftWindow = useMemo(
     () =>
-      buildSummarySurfaceView({
-        mode: summarySurfaceMode,
-        summaryState: synthesizedSummaryState,
-        binding: summaryBinding,
+      resolveRealtimeSummaryDraftWindow({
+        turns: persistedSummaryTurns.map((turn) => ({
+          id: turn.id,
+          startMs: turn.startMs,
+          endMs: turn.endMs,
+        })),
+        partitions: summaryState?.partitions ?? [],
       }),
-    [summaryBinding, summarySurfaceMode, synthesizedSummaryState]
+    [persistedSummaryTurns, summaryState?.partitions]
+  );
+  const realtimeDraftPartition = useMemo(
+    () =>
+      (summaryState?.partitions ?? [])
+        .filter((partition) => partition.status === "draft")
+        .sort((left, right) => left.startedAt.localeCompare(right.startedAt))[0] ?? null,
+    [summaryState?.partitions]
+  );
+  const staleRealtimePartitions = useMemo(
+    () =>
+      (summaryState?.partitions ?? [])
+        .filter((partition) => partition.status === "stale")
+        .sort((left, right) => left.startedAt.localeCompare(right.startedAt)),
+    [summaryState?.partitions]
+  );
+  const latestRealtimeFailedRunPartitionIds = useMemo(
+    () =>
+      summaryState?.runs.find(
+        (run) => run.mode === "realtime" && run.status === "failed"
+      )?.partitionIds ?? [],
+    [summaryState?.runs]
+  );
+  const summarySurfaceView = useMemo(() => {
+    const view = buildSummarySurfaceView({
+      mode: summarySurfaceMode,
+      summaryState: synthesizedSummaryState,
+      binding: summaryBinding,
+    });
+    return {
+      ...view,
+      providerLabel: view.providerLabel ?? summaryResolvedProfile?.label ?? null,
+    };
+  }, [summaryBinding, summaryResolvedProfile, summarySurfaceMode, synthesizedSummaryState]);
+  const fullSummaryHasCurrentContent =
+    summarySurfaceView.status === "ready" ||
+    summarySurfaceView.status === "stale" ||
+    summarySurfaceView.status === "updating";
+  const fullSummaryActionLabelKey: "summaryGenerate" | "summaryRegenerate" | "summaryRetry" =
+    summarySurfaceView.status === "failed"
+      ? "summaryRetry"
+      : fullSummaryHasCurrentContent
+        ? "summaryRegenerate"
+        : "summaryGenerate";
+  const fullSummaryActionTrigger: SummaryRunTrigger =
+    summarySurfaceView.status === "failed" ? "manual_retry" : "manual_regenerate";
+  const fullSummaryApplyScopeHelperKey: "summaryPresetApplyFromNowHelper" | "summaryPresetRegenerateAllHelper" =
+    fullSummarySelection?.applyScope === "regenerate_all"
+      ? "summaryPresetRegenerateAllHelper"
+      : "summaryPresetApplyFromNowHelper";
+  const fullSummaryControlsDisabled =
+    summarySurfaceView.status === "pending" || summarySurfaceView.status === "updating";
+  const realtimeSummaryActionLabelKey: "summaryRegenerate" | "summaryRetry" | null =
+    summarySurfaceView.status === "failed"
+      ? "summaryRetry"
+      : staleRealtimePartitions.length > 0 || summarySurfaceView.status === "stale"
+        ? "summaryRegenerate"
+        : null;
+  const realtimeSummaryActionTrigger: SummaryRunTrigger =
+    summarySurfaceView.status === "failed" ? "manual_retry" : "manual_regenerate";
+  const realtimeSummaryApplyScopeHelperKey: "summaryPresetApplyFromNowHelper" | "summaryPresetRegenerateAllHelper" =
+    realtimeSummarySelection?.applyScope === "regenerate_all"
+      ? "summaryPresetRegenerateAllHelper"
+      : "summaryPresetApplyFromNowHelper";
+  const realtimeSummaryControlsDisabled =
+    summarySurfaceView.status === "pending" || summarySurfaceView.status === "updating";
+  const runFullSummary = useCallback(
+    async (options: {
+      selection?: SummaryPresetSelection | null;
+      trigger: SummaryRunTrigger;
+      regenerationScope?: SummaryRegenerationScope | null;
+      successMessageKey?: "summaryGenerated" | "summaryRegenerated";
+    }) => {
+      if (!activeTranscriptionId) {
+        return false;
+      }
+      if (summaryBinding.statusLabelKey !== "artifactReady" || !summaryBinding.resolution) {
+        enqueueRealtimeSnackbar(t("summaryBindingNotReady"), { variant: "error" });
+        return false;
+      }
+      if (persistedSummaryTurns.length === 0) {
+        enqueueRealtimeSnackbar(t("summaryTranscriptEmpty"), { variant: "error" });
+        return false;
+      }
+
+      const now = new Date().toISOString();
+      const selection =
+        options.selection ??
+        resolveSummaryPresetSelection({
+          sessionId: activeTranscriptionId,
+          turns: persistedSummaryTurns.map((turn) => ({
+            id: turn.id,
+            text: turn.text,
+            speakerLabel: turn.speakerLabel ?? undefined,
+          })),
+          requestedMode: "full",
+          currentSelection: summaryState?.presetSelection ?? null,
+          now,
+        });
+      const preset = resolveSummaryPreset(selection.selectedPresetId);
+      const sourceLanguage = persistedSummaryTurns[0]?.language ?? null;
+      const outputLanguage =
+        preset.language && preset.language !== "auto" ? preset.language : sourceLanguage;
+      const sourceRevision = activeTranscription?.updatedAt ?? now;
+
+      let pendingRunId: string | null = null;
+
+      try {
+        await saveSummaryPresetSelection(selection);
+        const pendingRun = await createSummaryRun({
+          sessionId: activeTranscriptionId,
+          mode: "full",
+          scope: "session",
+          trigger: options.trigger,
+          regenerationScope: options.regenerationScope ?? null,
+          partitionIds: [],
+          presetId: selection.selectedPresetId,
+          presetVersion: selection.selectedPresetVersion,
+          selectionSource: selection.selectionSource,
+          providerLabel: summaryResolvedProfile?.label ?? null,
+          model: summaryBinding.resolution?.resolvedModel ?? null,
+          backendProfileId: summaryBinding.resolution?.resolvedBackendProfileId ?? null,
+          usedFallback: summaryBinding.resolution?.usedFallback ?? false,
+          sourceRevision,
+          sourceLanguage,
+          outputLanguage,
+          timeoutMs: summaryFeatureBinding?.timeoutMs ?? null,
+          retryPolicy: summaryFeatureBinding?.retryPolicy ?? null,
+          fallbackBackendProfileId: summaryFeatureBinding?.fallbackBackendProfileId ?? null,
+          requestedAt: now,
+          status: "pending",
+          blocks: [],
+        });
+        pendingRunId = pendingRun.id;
+
+        const response = await apiClient.requestFullSummary({
+          sessionId: activeTranscriptionId,
+          title: activeTranscription?.title ?? t("realTimeTranscription"),
+          sourceRevision,
+          sourceLanguage,
+          outputLanguage,
+          selectionSource: selection.selectionSource,
+          trigger: options.trigger,
+          regenerationScope: options.regenerationScope ?? null,
+          preset: {
+            id: preset.id,
+            version: preset.version,
+            label: preset.label,
+            description: preset.description,
+            language: preset.language,
+            outputSchema: preset.outputSchema.map((section) => ({
+              id: section.id,
+              label: section.label,
+              kind: section.kind,
+              required: section.required,
+            })),
+          },
+          turns: persistedSummaryTurns,
+        });
+
+        await updateSummaryRun(pendingRun.id, {
+          status: "ready",
+          completedAt: response.completedAt,
+          providerLabel: response.binding.providerLabel,
+          model: response.binding.model ?? null,
+          backendProfileId: response.binding.resolvedBackendProfileId,
+          usedFallback: response.binding.usedFallback,
+          sourceLanguage: response.sourceLanguage ?? sourceLanguage,
+          outputLanguage: response.outputLanguage ?? outputLanguage,
+          timeoutMs: response.binding.timeoutMs ?? summaryFeatureBinding?.timeoutMs ?? null,
+          retryPolicy: response.binding.retryPolicy ?? summaryFeatureBinding?.retryPolicy ?? null,
+          fallbackBackendProfileId:
+            response.binding.fallbackBackendProfileId ??
+            summaryFeatureBinding?.fallbackBackendProfileId ??
+            null,
+          errorMessage: null,
+          blocks: response.blocks,
+        });
+        await upsertPublishedSummary({
+          sessionId: activeTranscriptionId,
+          mode: "full",
+          runId: pendingRun.id,
+          title: response.title,
+          content: response.content,
+          requestedAt: response.requestedAt,
+          updatedAt: response.completedAt,
+          providerLabel: response.binding.providerLabel,
+          backendProfileId: response.binding.resolvedBackendProfileId,
+          usedFallback: response.binding.usedFallback,
+          sourceRevision: response.sourceRevision,
+          sourceLanguage: response.sourceLanguage ?? sourceLanguage,
+          outputLanguage: response.outputLanguage ?? outputLanguage,
+          partitionIds: response.partitionIds,
+          supportingSnippets: response.supportingSnippets,
+          blocks: response.blocks,
+          freshness: "fresh",
+        });
+        enqueueRealtimeSnackbar(t(options.successMessageKey ?? "summaryGenerated"), { variant: "success" });
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t("summaryProviderRequestFailed");
+        if (pendingRunId) {
+          await updateSummaryRun(pendingRunId, {
+            status: "failed",
+            completedAt: new Date().toISOString(),
+            errorMessage: message,
+          });
+        }
+        enqueueRealtimeSnackbar(message, { variant: "error" });
+        return false;
+      }
+    },
+    [
+      activeTranscription,
+      activeTranscriptionId,
+      apiClient,
+      enqueueRealtimeSnackbar,
+      persistedSummaryTurns,
+      summaryBinding,
+      summaryFeatureBinding,
+      summaryResolvedProfile,
+      summaryState?.presetSelection,
+      t,
+    ]
+  );
+  const rebuildRealtimePublishedSummary = useCallback(async () => {
+    if (!activeTranscriptionId) {
+      return;
+    }
+    const nextState = await readSessionSummaryState(activeTranscriptionId);
+    const readyRuns = nextState.runs
+      .filter((run) => run.mode === "realtime" && run.status === "ready")
+      .sort((left, right) => left.requestedAt.localeCompare(right.requestedAt));
+    if (readyRuns.length === 0) {
+      return;
+    }
+
+    const stalePartitionIds = nextState.partitions
+      .filter((partition) => partition.status === "stale")
+      .map((partition) => partition.id);
+    const visibleRuns = readyRuns.filter((run) =>
+      run.partitionIds.every((partitionId) => !stalePartitionIds.includes(partitionId))
+    );
+    const aggregateRuns = visibleRuns.length > 0 ? visibleRuns : readyRuns;
+    const blocks = aggregateRuns.flatMap((run) =>
+      run.blocks.map((block) => ({
+        ...block,
+        id: `${run.id}-${block.id}`,
+        supportingSnippets: block.supportingSnippets.map((snippet) => ({ ...snippet })),
+      }))
+    );
+    const latestRun = aggregateRuns[aggregateRuns.length - 1];
+    const requestedAt = aggregateRuns[0]?.requestedAt ?? latestRun.requestedAt;
+    const firstStalePartition =
+      nextState.partitions.find((partition) => stalePartitionIds.includes(partition.id)) ?? null;
+
+    await upsertPublishedSummary({
+      sessionId: activeTranscriptionId,
+      mode: "realtime",
+      runId: latestRun.id,
+      title: t("summaryLive"),
+      content: summarizeRealtimeBlocks(blocks),
+      requestedAt,
+      updatedAt: latestRun.completedAt ?? latestRun.requestedAt,
+      providerLabel: latestRun.providerLabel ?? null,
+      backendProfileId: latestRun.backendProfileId ?? null,
+      usedFallback: latestRun.usedFallback ?? null,
+      sourceRevision: latestRun.sourceRevision,
+      sourceLanguage: latestRun.sourceLanguage ?? null,
+      outputLanguage: latestRun.outputLanguage ?? null,
+      partitionIds: Array.from(new Set(aggregateRuns.flatMap((run) => run.partitionIds))),
+      supportingSnippets: blocks.flatMap((block) =>
+        block.supportingSnippets.map((snippet) => ({ ...snippet }))
+      ),
+      blocks,
+      freshness: stalePartitionIds.length > 0 ? "stale" : "fresh",
+      stalePartitionIds,
+      staleReason: firstStalePartition?.staleReason ?? null,
+      staleAt: firstStalePartition?.staleAt ?? null,
+    });
+  }, [activeTranscriptionId, t]);
+  const executeRealtimeSummaryPartition = useCallback(
+    async (input: {
+      partitionId: string;
+      turns: typeof persistedSummaryTurns;
+      selection?: SummaryPresetSelection | null;
+      trigger: SummaryRunTrigger;
+      partitionReason: SummaryPartitionReason;
+      successMessageKey?: "summaryGenerated" | "summaryRegenerated" | null;
+      notifyErrors?: boolean;
+    }) => {
+      if (!activeTranscriptionId) {
+        return false;
+      }
+      if (summaryBinding.statusLabelKey !== "artifactReady" || !summaryBinding.resolution) {
+        if (input.notifyErrors) {
+          enqueueRealtimeSnackbar(t("summaryBindingNotReady"), { variant: "error" });
+        }
+        return false;
+      }
+      if (input.turns.length === 0) {
+        if (input.notifyErrors) {
+          enqueueRealtimeSnackbar(t("summaryTranscriptEmpty"), { variant: "error" });
+        }
+        return false;
+      }
+
+      const now = new Date().toISOString();
+      const selection =
+        input.selection ??
+        realtimeSummarySelection ??
+        resolveSummaryPresetSelection({
+          sessionId: activeTranscriptionId,
+          turns: input.turns.map((turn) => ({
+            id: turn.id,
+            text: turn.text,
+            speakerLabel: turn.speakerLabel ?? undefined,
+          })),
+          requestedMode: "realtime",
+          currentSelection: summaryState?.presetSelection ?? null,
+          now,
+        });
+      const preset = resolveSummaryPreset(selection.selectedPresetId);
+      const sourceLanguage = input.turns[0]?.language ?? null;
+      const outputLanguage =
+        preset.language && preset.language !== "auto" ? preset.language : sourceLanguage;
+      const sourceRevision = activeTranscription?.updatedAt ?? now;
+
+      let pendingRunId: string | null = null;
+
+      try {
+        await saveSummaryPresetSelection(selection);
+        await updateSummaryPartition(input.partitionId, {
+          startTurnId: input.turns[0]?.id,
+          endTurnId: input.turns[input.turns.length - 1]?.id,
+          turnCount: input.turns.length,
+          turnIds: input.turns.map((turn) => turn.id),
+          endedAt: now,
+          status: "finalized",
+          reason: input.partitionReason,
+          sourceRevision,
+          staleReason: null,
+          staleAt: null,
+        });
+
+        const lifecycle = buildSummaryRunLifecycleInput({
+          sessionId: activeTranscriptionId,
+          mode: "realtime",
+          scope: "partition",
+          regenerationScope: "partition",
+          trigger: input.trigger,
+          partitionIds: [input.partitionId],
+          selection,
+          sourceRevision,
+          requestedAt: now,
+          binding: summaryFeatureBinding,
+        });
+        const pendingRun = await createSummaryRun({
+          ...lifecycle,
+          providerLabel: summaryResolvedProfile?.label ?? null,
+          model: summaryBinding.resolution?.resolvedModel ?? null,
+          backendProfileId: summaryBinding.resolution?.resolvedBackendProfileId ?? null,
+          usedFallback: summaryBinding.resolution?.usedFallback ?? false,
+          sourceLanguage,
+          outputLanguage,
+          blocks: [],
+        });
+        pendingRunId = pendingRun.id;
+
+        const response = await apiClient.requestFullSummary({
+          sessionId: activeTranscriptionId,
+          title: activeTranscription?.title ?? t("summaryLive"),
+          sourceRevision,
+          sourceLanguage,
+          outputLanguage,
+          selectionSource: selection.selectionSource,
+          trigger: input.trigger,
+          regenerationScope: "partition",
+          preset: {
+            id: preset.id,
+            version: preset.version,
+            label: preset.label,
+            description: preset.description,
+            language: preset.language,
+            outputSchema: preset.outputSchema.map((section) => ({
+              id: section.id,
+              label: section.label,
+              kind: section.kind,
+              required: section.required,
+            })),
+          },
+          turns: input.turns,
+        });
+
+        await updateSummaryRun(pendingRun.id, {
+          status: "ready",
+          completedAt: response.completedAt,
+          providerLabel: response.binding.providerLabel,
+          model: response.binding.model ?? null,
+          backendProfileId: response.binding.resolvedBackendProfileId,
+          usedFallback: response.binding.usedFallback,
+          sourceLanguage: response.sourceLanguage ?? sourceLanguage,
+          outputLanguage: response.outputLanguage ?? outputLanguage,
+          timeoutMs: response.binding.timeoutMs ?? summaryFeatureBinding?.timeoutMs ?? null,
+          retryPolicy: response.binding.retryPolicy ?? summaryFeatureBinding?.retryPolicy ?? null,
+          fallbackBackendProfileId:
+            response.binding.fallbackBackendProfileId ??
+            summaryFeatureBinding?.fallbackBackendProfileId ??
+            null,
+          errorMessage: null,
+          blocks: response.blocks,
+        });
+        await updateSummaryPartition(input.partitionId, {
+          status: "finalized",
+          reason: input.partitionReason,
+          sourceRevision: response.sourceRevision,
+          staleReason: null,
+          staleAt: null,
+        });
+        await rebuildRealtimePublishedSummary();
+        if (input.successMessageKey) {
+          enqueueRealtimeSnackbar(t(input.successMessageKey), { variant: "success" });
+        }
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t("summaryProviderRequestFailed");
+        if (pendingRunId) {
+          await updateSummaryRun(pendingRunId, {
+            status: "failed",
+            completedAt: new Date().toISOString(),
+            errorMessage: message,
+          });
+        }
+        if (input.notifyErrors) {
+          enqueueRealtimeSnackbar(message, { variant: "error" });
+        }
+        return false;
+      }
+    },
+    [
+      activeTranscription,
+      activeTranscriptionId,
+      apiClient,
+      enqueueRealtimeSnackbar,
+      rebuildRealtimePublishedSummary,
+      realtimeSummarySelection,
+      summaryBinding,
+      summaryFeatureBinding,
+      summaryResolvedProfile,
+      summaryState?.presetSelection,
+      t,
+    ]
+  );
+  const runRealtimeSummaryPartitionBatch = useCallback(
+    async (options: {
+      partitionIds: string[];
+      selection?: SummaryPresetSelection | null;
+      trigger: SummaryRunTrigger;
+      successMessageKey?: "summaryRegenerated" | null;
+    }) => {
+      if (!summaryState || options.partitionIds.length === 0) {
+        return false;
+      }
+      let successCount = 0;
+      for (const partitionId of options.partitionIds) {
+        const partition = summaryState.partitions.find((entry) => entry.id === partitionId);
+        if (!partition || !partition.turnIds || partition.turnIds.length === 0) {
+          continue;
+        }
+        const turns = persistedSummaryTurns.filter((turn) =>
+          partition.turnIds?.includes(turn.id)
+        );
+        const succeeded = await executeRealtimeSummaryPartition({
+          partitionId,
+          turns,
+          selection: options.selection,
+          trigger: options.trigger,
+          partitionReason: partition.reason,
+          successMessageKey: null,
+          notifyErrors: false,
+        });
+        if (succeeded) {
+          successCount += 1;
+        }
+      }
+      if (successCount > 0 && options.successMessageKey) {
+        enqueueRealtimeSnackbar(t(options.successMessageKey), { variant: "success" });
+      } else if (successCount === 0 && options.partitionIds.length > 0) {
+        enqueueRealtimeSnackbar(t("summaryProviderRequestFailed"), { variant: "error" });
+      }
+      return successCount > 0;
+    },
+    [
+      enqueueRealtimeSnackbar,
+      executeRealtimeSummaryPartition,
+      persistedSummaryTurns,
+      summaryState,
+      t,
+    ]
   );
   const handleSummaryModeChange = useCallback((mode: SummarySurfaceMode) => {
     summaryModeTouchedRef.current = true;
@@ -703,6 +1350,336 @@ export default function RealtimeSessionPage() {
     summaryModeTouchedRef.current = true;
     setSummarySurfaceMode((prev) => (prev === "off" ? preferredSummaryMode : "off"));
   }, [preferredSummaryMode]);
+  const handleFullSummaryPresetChange = useCallback((presetId: string) => {
+    if (!activeTranscriptionId || !fullSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      activeTranscriptionId,
+      presetId,
+      fullSummarySelection.applyScope,
+      {
+        suggestion: fullSummarySelection.suggestion ?? null,
+      }
+    );
+    void (async () => {
+      try {
+        await saveSummaryPresetSelection(nextSelection);
+        if (nextSelection.applyScope === "regenerate_all") {
+          await runFullSummary({
+            selection: nextSelection,
+            trigger: "preset_rerun_all",
+            regenerationScope: "session",
+            successMessageKey: "summaryRegenerated",
+          });
+        }
+      } catch (error) {
+        enqueueRealtimeSnackbar(
+          error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+          { variant: "error" }
+        );
+      }
+    })();
+  }, [activeTranscriptionId, enqueueRealtimeSnackbar, fullSummarySelection, runFullSummary, t]);
+  const handleFullSummaryApplyScopeChange = useCallback((scope: SummaryPresetApplyScope) => {
+    if (!activeTranscriptionId || !fullSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      activeTranscriptionId,
+      fullSummarySelection.selectedPresetId,
+      scope,
+      {
+        suggestion: fullSummarySelection.suggestion ?? null,
+      }
+    );
+    void saveSummaryPresetSelection(nextSelection).catch((error) => {
+      enqueueRealtimeSnackbar(
+        error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+        { variant: "error" }
+      );
+    });
+  }, [activeTranscriptionId, enqueueRealtimeSnackbar, fullSummarySelection, t]);
+  const handleFullSummaryAction = useCallback(() => {
+    void runFullSummary({
+      selection: fullSummarySelection,
+      trigger: fullSummaryActionTrigger,
+      regenerationScope: "session",
+      successMessageKey:
+        fullSummaryActionLabelKey === "summaryGenerate"
+          ? "summaryGenerated"
+          : "summaryRegenerated",
+    });
+  }, [
+    fullSummaryActionLabelKey,
+    fullSummaryActionTrigger,
+    fullSummarySelection,
+    runFullSummary,
+  ]);
+  const handleRealtimeSummaryPresetChange = useCallback((presetId: string) => {
+    if (!activeTranscriptionId || !realtimeSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      activeTranscriptionId,
+      presetId,
+      realtimeSummarySelection.applyScope,
+      {
+        suggestion: realtimeSummarySelection.suggestion ?? null,
+      }
+    );
+    void (async () => {
+      try {
+        await saveSummaryPresetSelection(nextSelection);
+        if (nextSelection.applyScope === "regenerate_all") {
+          await runRealtimeSummaryPartitionBatch({
+            partitionIds:
+              summaryState?.partitions
+                .filter((partition) => partition.status !== "draft")
+                .map((partition) => partition.id) ?? [],
+            selection: nextSelection,
+            trigger: "preset_rerun_all",
+            successMessageKey: "summaryRegenerated",
+          });
+        }
+      } catch (error) {
+        enqueueRealtimeSnackbar(
+          error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+          { variant: "error" }
+        );
+      }
+    })();
+  }, [
+    activeTranscriptionId,
+    enqueueRealtimeSnackbar,
+    realtimeSummarySelection,
+    runRealtimeSummaryPartitionBatch,
+    summaryState?.partitions,
+    t,
+  ]);
+  const handleRealtimeSummaryApplyScopeChange = useCallback((scope: SummaryPresetApplyScope) => {
+    if (!activeTranscriptionId || !realtimeSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      activeTranscriptionId,
+      realtimeSummarySelection.selectedPresetId,
+      scope,
+      {
+        suggestion: realtimeSummarySelection.suggestion ?? null,
+      }
+    );
+    void saveSummaryPresetSelection(nextSelection).catch((error) => {
+      enqueueRealtimeSnackbar(
+        error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+        { variant: "error" }
+      );
+    });
+  }, [activeTranscriptionId, enqueueRealtimeSnackbar, realtimeSummarySelection, t]);
+  const handleRealtimeSummaryAction = useCallback(() => {
+    const partitionIds =
+      realtimeSummaryActionLabelKey === "summaryRetry"
+        ? latestRealtimeFailedRunPartitionIds
+        : staleRealtimePartitions.map((partition) => partition.id);
+    void runRealtimeSummaryPartitionBatch({
+      partitionIds,
+      selection: realtimeSummarySelection,
+      trigger: realtimeSummaryActionTrigger,
+      successMessageKey: "summaryRegenerated",
+    });
+  }, [
+    latestRealtimeFailedRunPartitionIds,
+    realtimeSummaryActionLabelKey,
+    realtimeSummaryActionTrigger,
+    realtimeSummarySelection,
+    runRealtimeSummaryPartitionBatch,
+    staleRealtimePartitions,
+  ]);
+  useEffect(() => {
+    if (
+      !featureAvailability.sessionArtifactsVisible ||
+      !activeTranscriptionId ||
+      !activeTranscription ||
+      summaryBinding.statusLabelKey !== "artifactReady" ||
+      !summaryBinding.resolution ||
+      realtimeSummaryDraftWindow.turnCount === 0 ||
+      realtimeSummaryRunnerBusyRef.current
+    ) {
+      return;
+    }
+
+    const now = activeTranscription.updatedAt;
+    if (!realtimeDraftPartition) {
+      void createSummaryPartition({
+        sessionId: activeTranscriptionId,
+        startTurnId: realtimeSummaryDraftWindow.startTurnId ?? realtimeSummaryDraftWindow.turnIds[0],
+        endTurnId:
+          realtimeSummaryDraftWindow.endTurnId ??
+          realtimeSummaryDraftWindow.turnIds[realtimeSummaryDraftWindow.turnIds.length - 1],
+        turnIds: realtimeSummaryDraftWindow.turnIds,
+        turnCount: realtimeSummaryDraftWindow.turnCount,
+        startedAt: now,
+        endedAt: now,
+        status: "draft",
+        reason: "manual",
+        sourceRevision: activeTranscription.updatedAt,
+      });
+      return;
+    }
+
+    if (
+      realtimeDraftPartition.startTurnId === realtimeSummaryDraftWindow.startTurnId &&
+      realtimeDraftPartition.endTurnId === realtimeSummaryDraftWindow.endTurnId &&
+      realtimeDraftPartition.turnCount === realtimeSummaryDraftWindow.turnCount &&
+      areStringArraysEqual(realtimeDraftPartition.turnIds ?? [], realtimeSummaryDraftWindow.turnIds)
+    ) {
+      return;
+    }
+
+    void updateSummaryPartition(realtimeDraftPartition.id, {
+      startTurnId: realtimeSummaryDraftWindow.startTurnId ?? undefined,
+      endTurnId: realtimeSummaryDraftWindow.endTurnId ?? undefined,
+      turnCount: realtimeSummaryDraftWindow.turnCount,
+      turnIds: realtimeSummaryDraftWindow.turnIds,
+      endedAt: now,
+      status: "draft",
+      reason: realtimeDraftPartition.reason,
+      sourceRevision: activeTranscription.updatedAt,
+    });
+  }, [
+    activeTranscription,
+    activeTranscriptionId,
+    featureAvailability.sessionArtifactsVisible,
+    realtimeDraftPartition,
+    realtimeSummaryDraftWindow,
+    summaryBinding,
+  ]);
+  useEffect(() => {
+    if (
+      !featureAvailability.sessionArtifactsVisible ||
+      !activeTranscription ||
+      !realtimeDraftPartition ||
+      realtimeSummaryDraftWindow.turnCount === 0 ||
+      summaryBinding.statusLabelKey !== "artifactReady" ||
+      !summaryBinding.resolution ||
+      realtimeSummaryRunnerBusyRef.current
+    ) {
+      return;
+    }
+
+    const decision = resolveRealtimeSummaryFinalizeDecision({
+      draft: realtimeSummaryDraftWindow,
+      sessionActive: summaryCaptureActive,
+      lastSourceUpdatedAt: activeTranscription.updatedAt,
+      policy: summaryRuntimePolicy,
+      now: new Date().toISOString(),
+    });
+
+    if (!decision.shouldFinalize) {
+      if (decision.waitMs === null) {
+        return;
+      }
+      const timer = window.setTimeout(() => {
+        setRealtimeSummaryTick((tick) => tick + 1);
+      }, decision.waitMs);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    const draftTurns = persistedSummaryTurns.filter((turn) =>
+      realtimeSummaryDraftWindow.turnIds.includes(turn.id)
+    );
+    if (draftTurns.length === 0) {
+      return;
+    }
+
+    realtimeSummaryRunnerBusyRef.current = true;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await executeRealtimeSummaryPartition({
+          partitionId: realtimeDraftPartition.id,
+          turns: draftTurns,
+          selection: realtimeSummarySelection,
+          trigger: "realtime_batch",
+          partitionReason: decision.reason ?? "silence_gap",
+          successMessageKey: null,
+          notifyErrors: false,
+        });
+      } finally {
+        realtimeSummaryRunnerBusyRef.current = false;
+        if (!cancelled) {
+          setRealtimeSummaryTick((tick) => tick + 1);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTranscription,
+    executeRealtimeSummaryPartition,
+    featureAvailability.sessionArtifactsVisible,
+    persistedSummaryTurns,
+    realtimeDraftPartition,
+    realtimeSummaryDraftWindow,
+    realtimeSummarySelection,
+    realtimeSummaryTick,
+    summaryBinding,
+    summaryCaptureActive,
+    summaryRuntimePolicy,
+  ]);
+  const handleOpenSummaryDetail = useCallback(() => {
+    if (!activeTranscriptionId) {
+      return;
+    }
+    navigate(buildTranscriptionDetailPath(activeTranscriptionId));
+  }, [activeTranscriptionId, navigate]);
+  const realtimeSummarySurfaceControls =
+    summaryBinding.statusLabelKey === "artifactReady" &&
+    summarySurfaceMode === "full" &&
+    fullSummarySelection
+      ? {
+          presetOptions: fullSummaryPresetOptions,
+          selectedPresetId: fullSummarySelection.selectedPresetId,
+          onPresetChange: handleFullSummaryPresetChange,
+          applyScope: fullSummarySelection.applyScope,
+          onApplyScopeChange: handleFullSummaryApplyScopeChange,
+          applyScopeHelperKey: fullSummaryApplyScopeHelperKey,
+          primaryAction: {
+            labelKey: fullSummaryActionLabelKey,
+            onClick: handleFullSummaryAction,
+          },
+          secondaryAction: activeTranscriptionId
+            ? {
+                labelKey: "summaryOpenDetail" as const,
+                onClick: handleOpenSummaryDetail,
+              }
+            : null,
+          disabled: fullSummaryControlsDisabled,
+        }
+      : summaryBinding.statusLabelKey === "artifactReady" &&
+        summarySurfaceMode === "realtime" &&
+        realtimeSummarySelection
+        ? {
+            presetOptions: fullSummaryPresetOptions,
+            selectedPresetId: realtimeSummarySelection.selectedPresetId,
+            onPresetChange: handleRealtimeSummaryPresetChange,
+            applyScope: realtimeSummarySelection.applyScope,
+            onApplyScopeChange: handleRealtimeSummaryApplyScopeChange,
+            applyScopeHelperKey: realtimeSummaryApplyScopeHelperKey,
+            primaryAction: realtimeSummaryActionLabelKey
+              ? {
+                  labelKey: realtimeSummaryActionLabelKey,
+                  onClick: handleRealtimeSummaryAction,
+                }
+              : null,
+            disabled: realtimeSummaryControlsDisabled,
+          }
+      : undefined;
   const latencyChipColor: "default" | "success" | "warning" | "error" =
     latencyLevel === "stable"
       ? "success"
@@ -2117,6 +3094,7 @@ export default function RealtimeSessionPage() {
                   { value: "full", labelKey: "summaryFull" },
                 ]}
                 view={summarySurfaceView}
+                controls={realtimeSummarySurfaceControls}
               />
             ) : null}
 
@@ -2157,6 +3135,7 @@ export default function RealtimeSessionPage() {
                       { value: "full", labelKey: "summaryFull" },
                     ]}
                     view={summarySurfaceView}
+                    controls={realtimeSummarySurfaceControls}
                   />
                 </Box>
               ) : null}

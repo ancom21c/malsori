@@ -1,5 +1,12 @@
 import type { BackendCapability, BackendProfile } from "../../domain/backendProfile";
 import type { FeatureBinding, FeatureKey } from "../../domain/featureBinding";
+import type {
+  ArtifactSupportingSnippet,
+  SummaryBlock,
+  SummaryPresetSelectionSource,
+  SummaryRegenerationScope,
+  SummaryRunTrigger,
+} from "../../domain/session";
 
 export type TranscriptionStatus =
   | "queued"
@@ -191,4 +198,115 @@ export interface FeatureBindingUpsertPayload {
     maxAttempts: number;
     backoffMs: number;
   } | null;
+}
+
+export interface FullSummaryRequestPresetSection {
+  id: string;
+  label: string;
+  kind: "narrative" | "bullet_list" | "quote_list";
+  required: boolean;
+}
+
+export interface FullSummaryRequestPreset {
+  id: string;
+  version: string;
+  label: string;
+  description?: string | null;
+  language?: string | null;
+  outputSchema: FullSummaryRequestPresetSection[];
+}
+
+export interface FullSummaryRequestTurn {
+  id: string;
+  text: string;
+  speakerLabel?: string | null;
+  language?: string | null;
+  startMs?: number | null;
+  endMs?: number | null;
+}
+
+export interface FullSummaryRequest {
+  sessionId: string;
+  title?: string | null;
+  sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
+  selectionSource: SummaryPresetSelectionSource;
+  trigger: SummaryRunTrigger;
+  regenerationScope?: SummaryRegenerationScope | null;
+  preset: FullSummaryRequestPreset;
+  turns: FullSummaryRequestTurn[];
+}
+
+export interface FullSummaryResponse {
+  runId: string;
+  sessionId: string;
+  mode: "full";
+  scope: "session";
+  trigger: SummaryRunTrigger;
+  regenerationScope?: SummaryRegenerationScope | null;
+  presetId: string;
+  presetVersion: string;
+  selectionSource: SummaryPresetSelectionSource;
+  sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
+  requestedAt: string;
+  completedAt: string;
+  title: string;
+  content: string;
+  partitionIds: string[];
+  supportingSnippets: ArtifactSupportingSnippet[];
+  blocks: SummaryBlock[];
+  binding: {
+    featureKey: "artifact.summary";
+    resolvedBackendProfileId: string;
+    fallbackBackendProfileId?: string | null;
+    usedFallback: boolean;
+    providerLabel: string;
+    model?: string | null;
+    timeoutMs?: number | null;
+    retryPolicy?: {
+      maxAttempts: number;
+      backoffMs: number;
+    } | null;
+  };
+}
+
+export interface FinalTurnTranslationRequest {
+  sessionId: string;
+  turnId: string;
+  sourceRevision: string;
+  text: string;
+  speakerLabel?: string | null;
+  sourceLanguage?: string | null;
+  targetLanguage: string;
+  startMs?: number | null;
+  endMs?: number | null;
+}
+
+export interface FinalTurnTranslationResponse {
+  translationId: string;
+  sessionId: string;
+  turnId: string;
+  scope: "turn";
+  sourceRevision: string;
+  sourceLanguage?: string | null;
+  targetLanguage: string;
+  text: string;
+  requestedAt: string;
+  completedAt: string;
+  binding: {
+    featureKey: "translate.turn_final";
+    resolvedBackendProfileId: string;
+    fallbackBackendProfileId?: string | null;
+    usedFallback: boolean;
+    providerLabel: string;
+    model?: string | null;
+    timeoutMs?: number | null;
+    retryPolicy?: {
+      maxAttempts: number;
+      backoffMs: number;
+    } | null;
+  };
 }

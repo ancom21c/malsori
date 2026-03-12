@@ -1,0 +1,12 @@
+[
+  {
+    "feature_key": "artifact.summary",
+    "primary_backend_profile_id": "summary-primary",
+    "enabled": true
+  },
+  {
+    "feature_key": "translate.turn_final",
+    "primary_backend_profile_id": "translate-primary",
+    "enabled": true
+  }
+]

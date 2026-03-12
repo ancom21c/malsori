@@ -3,6 +3,8 @@ import type {
   SessionSummaryArtifactInput,
   SummaryMode,
   SummaryMutationTrigger,
+  SummaryPartition,
+  SummaryPartitionReason,
   SummaryPresetSelection,
   SummaryRegenerationScope,
   SummaryRunTrigger,
@@ -25,6 +27,27 @@ export interface SummaryStalePropagation {
   affectsSessionSummary: boolean;
   trigger: SummaryMutationTrigger;
   staleAt: string;
+}
+
+export interface SummaryRuntimeTurnWindow {
+  id: string;
+  startMs: number;
+  endMs: number;
+}
+
+export interface RealtimeSummaryDraftWindow {
+  turnIds: string[];
+  startTurnId: string | null;
+  endTurnId: string | null;
+  turnCount: number;
+  startMs: number | null;
+  endMs: number | null;
+}
+
+export interface RealtimeSummaryFinalizeDecision {
+  shouldFinalize: boolean;
+  reason: SummaryPartitionReason | null;
+  waitMs: number | null;
 }
 
 export interface SummaryRunLifecycleInput {
@@ -135,5 +158,96 @@ export function buildSummaryRunLifecycleInput(input: {
     fallbackBackendProfileId: policy.fallbackBackendProfileId,
     requestedAt: input.requestedAt ?? new Date().toISOString(),
     status: "pending",
+  };
+}
+
+export function resolveRealtimeSummaryDraftWindow(input: {
+  turns: SummaryRuntimeTurnWindow[];
+  partitions?: Pick<SummaryPartition, "status" | "turnIds">[] | null;
+}): RealtimeSummaryDraftWindow {
+  const coveredTurnIds = new Set(
+    (input.partitions ?? [])
+      .filter((partition) => partition.status !== "draft")
+      .flatMap((partition) => partition.turnIds ?? [])
+  );
+  const draftTurns = input.turns.filter((turn) => !coveredTurnIds.has(turn.id));
+  return {
+    turnIds: draftTurns.map((turn) => turn.id),
+    startTurnId: draftTurns[0]?.id ?? null,
+    endTurnId: draftTurns[draftTurns.length - 1]?.id ?? null,
+    turnCount: draftTurns.length,
+    startMs: draftTurns[0]?.startMs ?? null,
+    endMs: draftTurns[draftTurns.length - 1]?.endMs ?? null,
+  };
+}
+
+export function resolveRealtimeSummaryFinalizeDecision(input: {
+  draft: Pick<RealtimeSummaryDraftWindow, "turnCount" | "startMs" | "endMs">;
+  sessionActive: boolean;
+  lastSourceUpdatedAt?: string | null;
+  policy: Pick<
+    SummaryRuntimePolicy,
+    "realtimeDebounceMs" | "realtimeBatchWindowMs" | "realtimeMinTurnCount"
+  >;
+  now?: string;
+}): RealtimeSummaryFinalizeDecision {
+  if (input.draft.turnCount === 0) {
+    return {
+      shouldFinalize: false,
+      reason: null,
+      waitMs: null,
+    };
+  }
+
+  if (!input.sessionActive) {
+    return {
+      shouldFinalize: true,
+      reason: "session_end",
+      waitMs: 0,
+    };
+  }
+
+  if (input.draft.turnCount < input.policy.realtimeMinTurnCount) {
+    return {
+      shouldFinalize: false,
+      reason: null,
+      waitMs: null,
+    };
+  }
+
+  if (
+    input.draft.startMs !== null &&
+    input.draft.endMs !== null &&
+    input.draft.endMs - input.draft.startMs >= input.policy.realtimeBatchWindowMs
+  ) {
+    return {
+      shouldFinalize: true,
+      reason: "max_duration",
+      waitMs: 0,
+    };
+  }
+
+  const nowMs = Date.parse(input.now ?? new Date().toISOString());
+  const updatedAtMs = Date.parse(input.lastSourceUpdatedAt ?? "");
+  if (Number.isFinite(nowMs) && Number.isFinite(updatedAtMs)) {
+    const elapsedMs = Math.max(0, nowMs - updatedAtMs);
+    if (elapsedMs >= input.policy.realtimeDebounceMs) {
+      return {
+        shouldFinalize: true,
+        reason: "silence_gap",
+        waitMs: 0,
+      };
+    }
+    return {
+      shouldFinalize: false,
+      reason: null,
+      waitMs: Math.max(0, input.policy.realtimeDebounceMs - elapsedMs),
+    };
+  }
+
+  return {
+    shouldFinalize: false,
+    reason: null,
+    waitMs: input.policy.realtimeDebounceMs,
   };
 }

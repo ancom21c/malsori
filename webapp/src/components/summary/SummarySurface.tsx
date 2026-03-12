@@ -11,7 +11,10 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useI18n } from "../../i18n";
-import type { ArtifactSupportingSnippet } from "../../domain/session";
+import type {
+  ArtifactSupportingSnippet,
+  SummaryPresetApplyScope,
+} from "../../domain/session";
 import type {
   SummarySurfaceMode,
   SummarySurfaceView,
@@ -20,6 +23,32 @@ import type {
 export interface SummaryModeOption {
   value: SummarySurfaceMode;
   labelKey: "off" | "summaryLive" | "summaryFull";
+}
+
+export interface SummarySurfacePresetOption {
+  value: string;
+  label: string;
+}
+
+export interface SummarySurfaceAction {
+  labelKey: "summaryGenerate" | "summaryRegenerate" | "summaryRetry" | "summaryOpenDetail";
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "contained" | "outlined" | "text";
+}
+
+export interface SummarySurfaceControls {
+  presetOptions: SummarySurfacePresetOption[];
+  selectedPresetId: string;
+  onPresetChange: (presetId: string) => void;
+  applyScope: SummaryPresetApplyScope;
+  onApplyScopeChange: (scope: SummaryPresetApplyScope) => void;
+  applyScopeHelperKey:
+    | "summaryPresetApplyFromNowHelper"
+    | "summaryPresetRegenerateAllHelper";
+  primaryAction?: SummarySurfaceAction | null;
+  secondaryAction?: SummarySurfaceAction | null;
+  disabled?: boolean;
 }
 
 interface SummarySurfaceProps {
@@ -31,6 +60,7 @@ interface SummarySurfaceProps {
   modeOptions: SummaryModeOption[];
   view: SummarySurfaceView;
   onJumpToSnippet?: (snippet: ArtifactSupportingSnippet) => void;
+  controls?: SummarySurfaceControls;
 }
 
 function renderModeLabelKey(mode: SummarySurfaceMode): "off" | "summaryLive" | "summaryFull" {
@@ -53,6 +83,7 @@ export default function SummarySurface({
   modeOptions,
   view,
   onJumpToSnippet,
+  controls,
 }: SummarySurfaceProps) {
   const { t } = useI18n();
   const statusChipColor: "default" | "success" | "warning" | "error" =
@@ -111,6 +142,96 @@ export default function SummarySurface({
           ))}
         </Stack>
       </Stack>
+
+      {controls ? (
+        <Stack spacing={1}>
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              {t("summaryPreset")}
+            </Typography>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              {controls.presetOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  size="small"
+                  label={option.label}
+                  color={controls.selectedPresetId === option.value ? "primary" : "default"}
+                  variant={controls.selectedPresetId === option.value ? "filled" : "outlined"}
+                  clickable={!controls.disabled}
+                  onClick={() => {
+                    if (controls.disabled) {
+                      return;
+                    }
+                    controls.onPresetChange(option.value);
+                  }}
+                />
+              ))}
+            </Stack>
+          </Stack>
+
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              {t("summaryPresetScope")}
+            </Typography>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              <Chip
+                size="small"
+                label={t("summaryPresetApplyFromNow")}
+                color={controls.applyScope === "from_now" ? "secondary" : "default"}
+                variant={controls.applyScope === "from_now" ? "filled" : "outlined"}
+                clickable={!controls.disabled}
+                onClick={() => {
+                  if (controls.disabled) {
+                    return;
+                  }
+                  controls.onApplyScopeChange("from_now");
+                }}
+              />
+              <Chip
+                size="small"
+                label={t("summaryPresetRegenerateAll")}
+                color={controls.applyScope === "regenerate_all" ? "secondary" : "default"}
+                variant={controls.applyScope === "regenerate_all" ? "filled" : "outlined"}
+                clickable={!controls.disabled}
+                onClick={() => {
+                  if (controls.disabled) {
+                    return;
+                  }
+                  controls.onApplyScopeChange("regenerate_all");
+                }}
+              />
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              {t(controls.applyScopeHelperKey)}
+            </Typography>
+          </Stack>
+
+          {controls.primaryAction || controls.secondaryAction ? (
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              {controls.primaryAction ? (
+                <Button
+                  size="small"
+                  variant={controls.primaryAction.variant ?? "contained"}
+                  onClick={controls.primaryAction.onClick}
+                  disabled={controls.disabled || controls.primaryAction.disabled}
+                >
+                  {t(controls.primaryAction.labelKey)}
+                </Button>
+              ) : null}
+              {controls.secondaryAction ? (
+                <Button
+                  size="small"
+                  variant={controls.secondaryAction.variant ?? "outlined"}
+                  onClick={controls.secondaryAction.onClick}
+                  disabled={controls.disabled || controls.secondaryAction.disabled}
+                >
+                  {t(controls.secondaryAction.labelKey)}
+                </Button>
+              ) : null}
+            </Stack>
+          ) : null}
+        </Stack>
+      ) : null}
 
       <Divider />
 

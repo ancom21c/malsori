@@ -30,8 +30,10 @@ export interface TranslateWorkspaceTurnGroupPresentation {
     helperTextKey:
       | "translationProviderEnabledHelper"
       | "translationVariantPendingHelper"
+      | "translationVariantFailedHelper"
       | "translationUnavailableHelper";
     ready: boolean;
+    errorMessage?: string | null;
   };
 }
 
@@ -113,9 +115,10 @@ function buildSeedTurns(binding: TranslateBindingPresentation): SessionTurn[] {
 }
 
 function buildTurnGroups(
-  binding: TranslateBindingPresentation
+  binding: TranslateBindingPresentation,
+  turns: SessionTurn[]
 ): TranslateWorkspaceTurnGroupPresentation[] {
-  return buildSeedTurns(binding).map((turn) => {
+  return turns.map((turn) => {
     const translationVariant =
       turn.variants.find((variant) => variant.type === "translation") ?? null;
     const variantStatus = translationVariant?.status ?? "pending";
@@ -133,20 +136,27 @@ function buildTurnGroups(
         statusLabelKey: mapVariantStatusLabelKey(variantStatus),
         text: translationVariant?.text ?? "",
         helperTextKey:
-          variantStatus === "pending"
+          variantStatus === "failed"
+            ? "translationVariantFailedHelper"
+            : variantStatus === "pending"
             ? "translationVariantPendingHelper"
             : binding.finalTranslation.ready || binding.partialTranslation.ready
               ? "translationProviderEnabledHelper"
               : "translationUnavailableHelper",
         ready: variantStatus === "final" || variantStatus === "partial",
+        errorMessage: translationVariant?.errorMessage ?? null,
       },
     };
   });
 }
 
 export function buildTranslateWorkspacePresentation(
-  binding: TranslateBindingPresentation
+  binding: TranslateBindingPresentation,
+  input?: {
+    turns?: SessionTurn[];
+  }
 ): TranslateWorkspacePresentation {
+  const turns = input?.turns ?? buildSeedTurns(binding);
   return {
     showShell: binding.shellVisible,
     routeLabelKey: "autoDetectToEnglish",
@@ -170,6 +180,6 @@ export function buildTranslateWorkspacePresentation(
         translationReady: binding.partialTranslation.ready,
       },
     ],
-    turnGroups: buildTurnGroups(binding),
+    turnGroups: buildTurnGroups(binding, turns),
   };
 }

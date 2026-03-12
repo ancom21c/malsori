@@ -25,7 +25,11 @@ describe("BackendBindingOperatorPanel", () => {
       baseUrl: "https://summary.example.com",
       capabilities: ["artifact.summary"],
       enabled: true,
-      health: { status: "healthy" },
+      health: {
+        status: "healthy",
+        checkedAt: "2026-03-12T00:00:00.000Z",
+        message: "HTTP 200",
+      },
     }),
   ];
 
@@ -44,6 +48,7 @@ describe("BackendBindingOperatorPanel", () => {
         locale="en"
         disabled={false}
         loading={false}
+        revalidatingProfileId={null}
         error={null}
         lastSuccessAt="2026-03-11T00:00:00.000Z"
         capabilitiesState={{
@@ -67,6 +72,7 @@ describe("BackendBindingOperatorPanel", () => {
         onRefresh={() => undefined}
         onNewProfile={() => undefined}
         onSelectProfile={() => undefined}
+        onRevalidateSelectedProfileHealth={() => undefined}
         onProfileEditorChange={() => undefined}
         onFormatProfileEditor={() => undefined}
         onCopyProfileEditor={() => undefined}
@@ -84,7 +90,9 @@ describe("BackendBindingOperatorPanel", () => {
 
     expect(screen.getAllByText("Summary primary").length).toBeGreaterThan(0);
     expect(screen.getByText("primaryCapabilityMismatchInspectorNotice")).toBeTruthy();
-    expect(screen.getByText("resolvedBackend")).toBeTruthy();
+    expect(screen.getAllByText("resolvedBackend").length).toBeGreaterThan(0);
+    expect(screen.getByText("healthReviewSnapshot")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "recheckProfileHealth" })).toBeTruthy();
     expect(screen.getByText("requiredCapabilities")).toBeTruthy();
   });
 
@@ -94,6 +102,7 @@ describe("BackendBindingOperatorPanel", () => {
         locale="en"
         disabled={false}
         loading={false}
+        revalidatingProfileId={null}
         error={null}
         lastSuccessAt={null}
         capabilitiesState={null}
@@ -108,6 +117,7 @@ describe("BackendBindingOperatorPanel", () => {
         onRefresh={() => undefined}
         onNewProfile={() => undefined}
         onSelectProfile={() => undefined}
+        onRevalidateSelectedProfileHealth={() => undefined}
         onProfileEditorChange={() => undefined}
         onFormatProfileEditor={() => undefined}
         onCopyProfileEditor={() => undefined}

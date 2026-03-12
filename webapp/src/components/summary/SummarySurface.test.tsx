@@ -59,4 +59,68 @@ describe("SummarySurface", () => {
     fireEvent.click(screen.getByText("Let's ship next week."));
     expect(handleJump).toHaveBeenCalledTimes(1);
   });
+
+  it("renders preset scope and action controls for full summary mode", () => {
+    const handlePresetChange = vi.fn();
+    const handleApplyScopeChange = vi.fn();
+    const handlePrimaryAction = vi.fn();
+    const handleSecondaryAction = vi.fn();
+
+    render(
+      <SummarySurface
+        compactLayout={false}
+        open
+        onToggle={() => undefined}
+        selectedMode="full"
+        onModeChange={() => undefined}
+        modeOptions={[
+          { value: "off", labelKey: "off" },
+          { value: "realtime", labelKey: "summaryLive" },
+          { value: "full", labelKey: "summaryFull" },
+        ]}
+        view={{
+          mode: "full",
+          status: "stale",
+          statusLabelKey: "summaryStale",
+          helperTextKey: "summaryStaleHelper",
+          sections: [],
+          presetLabel: "Meeting",
+          presetBadgeKey: "summaryManualSelected",
+          providerLabel: "Summary provider",
+        }}
+        controls={{
+          presetOptions: [
+            { value: "meeting", label: "Meeting" },
+            { value: "lecture", label: "Lecture" },
+          ],
+          selectedPresetId: "meeting",
+          onPresetChange: handlePresetChange,
+          applyScope: "regenerate_all",
+          onApplyScopeChange: handleApplyScopeChange,
+          applyScopeHelperKey: "summaryPresetRegenerateAllHelper",
+          primaryAction: {
+            labelKey: "summaryRegenerate",
+            onClick: handlePrimaryAction,
+          },
+          secondaryAction: {
+            labelKey: "summaryOpenDetail",
+            onClick: handleSecondaryAction,
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByText("summaryPreset")).toBeTruthy();
+    expect(screen.getByText("summaryPresetRegenerateAllHelper")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Lecture"));
+    fireEvent.click(screen.getByText("summaryPresetApplyFromNow"));
+    fireEvent.click(screen.getByText("summaryRegenerate"));
+    fireEvent.click(screen.getByText("summaryOpenDetail"));
+
+    expect(handlePresetChange).toHaveBeenCalledWith("lecture");
+    expect(handleApplyScopeChange).toHaveBeenCalledWith("from_now");
+    expect(handlePrimaryAction).toHaveBeenCalledTimes(1);
+    expect(handleSecondaryAction).toHaveBeenCalledTimes(1);
+  });
 });

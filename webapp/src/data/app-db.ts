@@ -218,7 +218,11 @@ export interface LocalSummaryRun {
   selectionSource: LocalSummaryPresetSelectionSource;
   providerLabel?: string;
   model?: string;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   timeoutMs?: number | null;
   retryPolicy?: {
     maxAttempts: number;
@@ -242,7 +246,11 @@ export interface LocalPublishedSummary {
   requestedAt?: string | null;
   updatedAt: string;
   providerLabel?: string;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   partitionIds: string[];
   supportingSnippets: LocalSummarySupportingSnippet[];
   blocks: LocalSummaryBlock[];
@@ -279,6 +287,27 @@ export interface LocalSummaryPresetSelection {
   suggestion?: LocalSummaryPresetSuggestion | null;
 }
 
+export type LocalTurnTranslationStatus = "pending" | "ready" | "failed";
+
+export interface LocalTurnTranslation {
+  id: string;
+  sessionId: string;
+  turnId: string;
+  sourceRevision: string;
+  sourceText: string;
+  sourceLanguage?: string | null;
+  targetLanguage: string;
+  text: string;
+  status: LocalTurnTranslationStatus;
+  requestedAt: string;
+  completedAt?: string | null;
+  providerLabel?: string;
+  model?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
+  errorMessage?: string | null;
+}
+
 class AppDatabase extends Dexie {
   transcriptions!: Table<LocalTranscription, string>;
   segments!: Table<LocalSegment, string>;
@@ -292,6 +321,7 @@ class AppDatabase extends Dexie {
   summaryRuns!: Table<LocalSummaryRun, string>;
   publishedSummaries!: Table<LocalPublishedSummary, string>;
   summaryPresetSelections!: Table<LocalSummaryPresetSelection, string>;
+  turnTranslations!: Table<LocalTurnTranslation, string>;
 
   constructor() {
     super("rtzr-stt-webapp");
@@ -466,6 +496,27 @@ class AppDatabase extends Dexie {
         "id, sessionId, [sessionId+mode], mode, runId, updatedAt, freshness, sourceRevision",
       summaryPresetSelections:
         "sessionId, selectedPresetId, selectionSource, updatedAt",
+    });
+
+    this.version(11).stores({
+      transcriptions: "id, createdAt, kind, status, isCloudSynced",
+      segments: "id, transcriptionId, startMs",
+      audioChunks: "id, transcriptionId, chunkIndex",
+      videoChunks: "id, transcriptionId, chunkIndex",
+      presets: "id, type, isDefault",
+      settings: "key",
+      backendEndpoints: "id, deployment, isDefault, createdAt",
+      searchIndexes: "transcriptionId",
+      summaryPartitions:
+        "id, sessionId, [sessionId+status], startedAt, endedAt, sourceRevision",
+      summaryRuns:
+        "id, sessionId, [sessionId+status], mode, requestedAt, completedAt, sourceRevision",
+      publishedSummaries:
+        "id, sessionId, [sessionId+mode], mode, runId, updatedAt, freshness, sourceRevision",
+      summaryPresetSelections:
+        "sessionId, selectedPresetId, selectionSource, updatedAt",
+      turnTranslations:
+        "id, sessionId, [sessionId+targetLanguage], turnId, targetLanguage, status, requestedAt, sourceRevision",
     });
   }
 }

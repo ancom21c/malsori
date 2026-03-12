@@ -1,4 +1,8 @@
-import type { BackendHealthStatus, BackendProfile } from "../domain/backendProfile";
+import {
+  isBackendProfileOperational,
+  type BackendHealthStatus,
+  type BackendProfile,
+} from "../domain/backendProfile";
 import { resolveFeatureBinding, type FeatureBinding, type FeatureKey } from "../domain/featureBinding";
 
 export type BackendInspectorNoticeCode =
@@ -71,13 +75,6 @@ export function getBindingResolutionTone(
   }
 }
 
-function isProfileOperational(profile: BackendProfile): boolean {
-  if (!profile.enabled) {
-    return false;
-  }
-  return profile.health.status === "healthy" || profile.health.status === "degraded";
-}
-
 export function buildBindingInspectorState(input: {
   bindings: readonly FeatureBinding[];
   selectedBindingKey: FeatureKey | null;
@@ -124,7 +121,7 @@ export function buildBindingInspectorState(input: {
     );
     if (missingCapability) {
       notices.push({ code: "primary_capability_mismatch", severity: "error" });
-    } else if (!isProfileOperational(primaryProfile)) {
+    } else if (!isBackendProfileOperational(primaryProfile)) {
       notices.push({ code: "primary_not_ready", severity: "warning" });
     }
   }
@@ -132,7 +129,7 @@ export function buildBindingInspectorState(input: {
   if (binding.fallbackBackendProfileId) {
     if (!fallbackProfile) {
       notices.push({ code: "fallback_profile_missing", severity: "warning" });
-    } else if (!isProfileOperational(fallbackProfile)) {
+    } else if (!isBackendProfileOperational(fallbackProfile)) {
       notices.push({ code: "fallback_not_ready", severity: "warning" });
     }
   } else if (resolution.reason === "primary_unhealthy") {

@@ -73,6 +73,11 @@ export interface BackendProfileInput {
   health?: BackendHealthSnapshot;
 }
 
+const USABLE_BACKEND_HEALTH_STATUSES = new Set<BackendHealthStatus>([
+  "unknown",
+  "healthy",
+]);
+
 const AUTH_STRATEGIES_REQUIRING_REF = new Set<BackendAuthStrategyType>([
   "bearer_secret_ref",
   "header_token",
@@ -140,4 +145,14 @@ export function backendProfileSupportsCapability(
   capability: BackendCapability
 ): boolean {
   return profile.capabilities.includes(capability);
+}
+
+export function isBackendHealthStatusUsable(status: BackendHealthStatus): boolean {
+  return USABLE_BACKEND_HEALTH_STATUSES.has(status);
+}
+
+export function isBackendProfileOperational(
+  profile: Pick<BackendProfile, "enabled" | "health">
+): boolean {
+  return profile.enabled && isBackendHealthStatusUsable(profile.health.status);
 }

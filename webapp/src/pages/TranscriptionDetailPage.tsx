@@ -44,8 +44,15 @@ import {
   updateSegmentSpeakerLabel,
   updateSingleSegmentSpeakerLabel,
 } from "../services/data/transcriptionRepository";
-import { readSessionSummaryState } from "../services/data/summaryRepository";
+import {
+  createSummaryRun,
+  readSessionSummaryState,
+  saveSummaryPresetSelection,
+  updateSummaryRun,
+  upsertPublishedSummary,
+} from "../services/data/summaryRepository";
 import { createWavBlobFromPcmChunks } from "../services/audio/wavBuilder";
+import { useRtzrApiClient } from "../services/api/rtzrApiClientContext";
 import { SpeakerEditDialog } from "../components/SpeakerEditDialog";
 import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
 import { buildSessionDetailPath, resolveSessionsPath } from "../app/platformRoutes";
@@ -79,6 +86,18 @@ import {
   buildSummarySurfaceView,
   type SummarySurfaceMode,
 } from "../components/summary/summarySurfaceModel";
+import {
+  createManualSummaryPresetSelection,
+  listSummaryPresets,
+  resolveSummaryPreset,
+  resolveSummaryPresetSelection,
+} from "../domain/summaryPreset";
+import type {
+  SummaryPresetApplyScope,
+  SummaryPresetSelection,
+  SummaryRegenerationScope,
+  SummaryRunTrigger,
+} from "../domain/session";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -434,6 +453,7 @@ export default function TranscriptionDetailPage() {
   const { transcriptionId } = useParams<{ transcriptionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const apiClient = useRtzrApiClient();
   const { enqueueSnackbar } = useSnackbar();
   const { t, locale } = useI18n();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -475,6 +495,7 @@ export default function TranscriptionDetailPage() {
 
   const [speakerEditDialogOpen, setSpeakerEditDialogOpen] = useState(false);
   const summaryModeTouchedRef = useRef(false);
+  const summaryAutoRequestKeyRef = useRef<string | null>(null);
   const [summarySurfaceMode, setSummarySurfaceMode] = useState<SummarySurfaceMode>("off");
   const [speakerEditTarget, setSpeakerEditTarget] = useState<{
     segmentId: string;
@@ -503,6 +524,11 @@ export default function TranscriptionDetailPage() {
   const summaryState = useLiveQuery(async () => {
     if (!transcriptionId) return null;
     return await readSessionSummaryState(transcriptionId);
+  }, [transcriptionId]);
+
+  useEffect(() => {
+    summaryModeTouchedRef.current = false;
+    summaryAutoRequestKeyRef.current = null;
   }, [transcriptionId]);
 
   const {
@@ -659,6 +685,13 @@ export default function TranscriptionDetailPage() {
       ),
     []
   );
+  const summaryFeatureBinding = useMemo(
+    () =>
+      platformBackendBindingRuntime.bindings.find(
+        (binding) => binding.featureKey === "artifact.summary"
+      ) ?? null,
+    []
+  );
   const summaryResolvedProfile = useMemo(
     () =>
       findPlatformBackendProfile(
@@ -667,6 +700,39 @@ export default function TranscriptionDetailPage() {
       ),
     [summaryBinding]
   );
+  const fullSummaryTurns = useMemo(
+    () =>
+      (workspaceView?.turns ?? [])
+        .filter((turn) => turn.text.trim().length > 0)
+        .map((turn) => ({
+          id: turn.id,
+          text: turn.text,
+          speakerLabel: turn.speakerLabel ?? turn.speakerId ?? null,
+          language: turn.sourceLanguage ?? null,
+          startMs: turn.startMs,
+          endMs: turn.endMs,
+        })),
+    [workspaceView]
+  );
+  const fullSummaryPresetOptions = useMemo(
+    () => listSummaryPresets().map((preset) => ({ value: preset.id, label: preset.label })),
+    []
+  );
+  const fullSummarySelection = useMemo<SummaryPresetSelection | null>(() => {
+    if (!transcription) {
+      return null;
+    }
+    return resolveSummaryPresetSelection({
+      sessionId: transcription.id,
+      turns: fullSummaryTurns.map((turn) => ({
+        id: turn.id,
+        text: turn.text,
+        speakerLabel: turn.speakerLabel ?? undefined,
+      })),
+      requestedMode: "full",
+      currentSelection: summaryState?.presetSelection ?? null,
+    });
+  }, [fullSummaryTurns, summaryState?.presetSelection, transcription]);
   const summarySurfaceView = useMemo(() => {
     const view = buildSummarySurfaceView({
       mode: summarySurfaceMode,
@@ -678,6 +744,183 @@ export default function TranscriptionDetailPage() {
       providerLabel: view.providerLabel ?? summaryResolvedProfile?.label ?? null,
     };
   }, [summaryBinding, summaryResolvedProfile, summaryState, summarySurfaceMode]);
+  const fullSummaryHasCurrentContent =
+    summarySurfaceView.status === "ready" ||
+    summarySurfaceView.status === "stale" ||
+    summarySurfaceView.status === "updating";
+  const fullSummaryActionLabelKey: "summaryGenerate" | "summaryRegenerate" | "summaryRetry" =
+    summarySurfaceView.status === "failed"
+      ? "summaryRetry"
+      : fullSummaryHasCurrentContent
+        ? "summaryRegenerate"
+        : "summaryGenerate";
+  const fullSummaryActionTrigger: SummaryRunTrigger =
+    summarySurfaceView.status === "failed" ? "manual_retry" : "manual_regenerate";
+  const fullSummaryApplyScopeHelperKey: "summaryPresetApplyFromNowHelper" | "summaryPresetRegenerateAllHelper" =
+    fullSummarySelection?.applyScope === "regenerate_all"
+      ? "summaryPresetRegenerateAllHelper"
+      : "summaryPresetApplyFromNowHelper";
+  const fullSummaryControlsDisabled =
+    summarySurfaceView.status === "pending" || summarySurfaceView.status === "updating";
+  const runFullSummary = useCallback(
+    async (options: {
+      selection?: SummaryPresetSelection | null;
+      trigger: SummaryRunTrigger;
+      regenerationScope?: SummaryRegenerationScope | null;
+      successMessageKey?: "summaryGenerated" | "summaryRegenerated";
+    }) => {
+      if (!transcription || !workspaceView) {
+        return false;
+      }
+      if (summaryBinding.statusLabelKey !== "artifactReady" || !summaryBinding.resolution) {
+        enqueueSnackbar(t("summaryBindingNotReady"), { variant: "error" });
+        return false;
+      }
+      if (fullSummaryTurns.length === 0) {
+        enqueueSnackbar(t("summaryTranscriptEmpty"), { variant: "error" });
+        return false;
+      }
+
+      const now = new Date().toISOString();
+      const selection =
+        options.selection ??
+        resolveSummaryPresetSelection({
+          sessionId: transcription.id,
+          turns: fullSummaryTurns.map((turn) => ({
+            id: turn.id,
+            text: turn.text,
+            speakerLabel: turn.speakerLabel ?? undefined,
+          })),
+          requestedMode: "full",
+          currentSelection: summaryState?.presetSelection ?? null,
+          now,
+        });
+      const preset = resolveSummaryPreset(selection.selectedPresetId);
+      const sourceLanguage = workspaceView.languageCodes[0] ?? null;
+      const outputLanguage =
+        preset.language && preset.language !== "auto" ? preset.language : sourceLanguage;
+
+      let pendingRunId: string | null = null;
+
+      try {
+        await saveSummaryPresetSelection(selection);
+        const pendingRun = await createSummaryRun({
+          sessionId: transcription.id,
+          mode: "full",
+          scope: "session",
+          trigger: options.trigger,
+          regenerationScope: options.regenerationScope ?? null,
+          partitionIds: [],
+          presetId: selection.selectedPresetId,
+          presetVersion: selection.selectedPresetVersion,
+          selectionSource: selection.selectionSource,
+          providerLabel: summaryResolvedProfile?.label ?? null,
+          model: summaryBinding.resolution?.resolvedModel ?? null,
+          backendProfileId: summaryBinding.resolution?.resolvedBackendProfileId ?? null,
+          usedFallback: summaryBinding.resolution?.usedFallback ?? false,
+          sourceRevision: transcription.updatedAt,
+          sourceLanguage,
+          outputLanguage,
+          timeoutMs: summaryFeatureBinding?.timeoutMs ?? null,
+          retryPolicy: summaryFeatureBinding?.retryPolicy ?? null,
+          fallbackBackendProfileId: summaryFeatureBinding?.fallbackBackendProfileId ?? null,
+          requestedAt: now,
+          status: "pending",
+          blocks: [],
+        });
+        pendingRunId = pendingRun.id;
+
+        const response = await apiClient.requestFullSummary({
+          sessionId: transcription.id,
+          title: transcription.title,
+          sourceRevision: transcription.updatedAt,
+          sourceLanguage,
+          outputLanguage,
+          selectionSource: selection.selectionSource,
+          trigger: options.trigger,
+          regenerationScope: options.regenerationScope ?? null,
+          preset: {
+            id: preset.id,
+            version: preset.version,
+            label: preset.label,
+            description: preset.description,
+            language: preset.language,
+            outputSchema: preset.outputSchema.map((section) => ({
+              id: section.id,
+              label: section.label,
+              kind: section.kind,
+              required: section.required,
+            })),
+          },
+          turns: fullSummaryTurns,
+        });
+
+        await updateSummaryRun(pendingRun.id, {
+          status: "ready",
+          completedAt: response.completedAt,
+          providerLabel: response.binding.providerLabel,
+          model: response.binding.model ?? null,
+          backendProfileId: response.binding.resolvedBackendProfileId,
+          usedFallback: response.binding.usedFallback,
+          sourceLanguage: response.sourceLanguage ?? sourceLanguage,
+          outputLanguage: response.outputLanguage ?? outputLanguage,
+          timeoutMs: response.binding.timeoutMs ?? summaryFeatureBinding?.timeoutMs ?? null,
+          retryPolicy: response.binding.retryPolicy ?? summaryFeatureBinding?.retryPolicy ?? null,
+          fallbackBackendProfileId:
+            response.binding.fallbackBackendProfileId ??
+            summaryFeatureBinding?.fallbackBackendProfileId ??
+            null,
+          errorMessage: null,
+          blocks: response.blocks,
+        });
+        await upsertPublishedSummary({
+          sessionId: transcription.id,
+          mode: "full",
+          runId: pendingRun.id,
+          title: response.title,
+          content: response.content,
+          requestedAt: response.requestedAt,
+          updatedAt: response.completedAt,
+          providerLabel: response.binding.providerLabel,
+          backendProfileId: response.binding.resolvedBackendProfileId,
+          usedFallback: response.binding.usedFallback,
+          sourceRevision: response.sourceRevision,
+          sourceLanguage: response.sourceLanguage ?? sourceLanguage,
+          outputLanguage: response.outputLanguage ?? outputLanguage,
+          partitionIds: response.partitionIds,
+          supportingSnippets: response.supportingSnippets,
+          blocks: response.blocks,
+          freshness: "fresh",
+        });
+        enqueueSnackbar(t(options.successMessageKey ?? "summaryGenerated"), { variant: "success" });
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : t("summaryProviderRequestFailed");
+        if (pendingRunId) {
+          await updateSummaryRun(pendingRunId, {
+            status: "failed",
+            completedAt: new Date().toISOString(),
+            errorMessage: message,
+          });
+        }
+        enqueueSnackbar(message, { variant: "error" });
+        return false;
+      }
+    },
+    [
+      apiClient,
+      enqueueSnackbar,
+      fullSummaryTurns,
+      summaryBinding,
+      summaryFeatureBinding,
+      summaryResolvedProfile,
+      summaryState?.presetSelection,
+      t,
+      transcription,
+      workspaceView,
+    ]
+  );
   const handleSummaryModeChange = useCallback((mode: SummarySurfaceMode) => {
     summaryModeTouchedRef.current = true;
     setSummarySurfaceMode(mode);
@@ -686,6 +929,134 @@ export default function TranscriptionDetailPage() {
     summaryModeTouchedRef.current = true;
     setSummarySurfaceMode((prev) => (prev === "off" ? preferredSummaryMode : "off"));
   }, [preferredSummaryMode]);
+  const handleFullSummaryPresetChange = useCallback((presetId: string) => {
+    if (!transcription || !fullSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      transcription.id,
+      presetId,
+      fullSummarySelection.applyScope,
+      {
+        suggestion: fullSummarySelection.suggestion ?? null,
+      }
+    );
+    void (async () => {
+      try {
+        await saveSummaryPresetSelection(nextSelection);
+        if (nextSelection.applyScope === "regenerate_all") {
+          await runFullSummary({
+            selection: nextSelection,
+            trigger: "preset_rerun_all",
+            regenerationScope: "session",
+            successMessageKey: "summaryRegenerated",
+          });
+        }
+      } catch (error) {
+        enqueueSnackbar(
+          error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+          { variant: "error" }
+        );
+      }
+    })();
+  }, [enqueueSnackbar, fullSummarySelection, runFullSummary, t, transcription]);
+  const handleFullSummaryApplyScopeChange = useCallback((scope: SummaryPresetApplyScope) => {
+    if (!transcription || !fullSummarySelection) {
+      return;
+    }
+    const nextSelection = createManualSummaryPresetSelection(
+      transcription.id,
+      fullSummarySelection.selectedPresetId,
+      scope,
+      {
+        suggestion: fullSummarySelection.suggestion ?? null,
+      }
+    );
+    void saveSummaryPresetSelection(nextSelection).catch((error) => {
+      enqueueSnackbar(
+        error instanceof Error ? error.message : t("summaryPresetUpdateFailed"),
+        { variant: "error" }
+      );
+    });
+  }, [enqueueSnackbar, fullSummarySelection, t, transcription]);
+  const handleFullSummaryAction = useCallback(() => {
+    void runFullSummary({
+      selection: fullSummarySelection,
+      trigger: fullSummaryActionTrigger,
+      regenerationScope: "session",
+      successMessageKey:
+        fullSummaryActionLabelKey === "summaryGenerate"
+          ? "summaryGenerated"
+          : "summaryRegenerated",
+    });
+  }, [
+    fullSummaryActionLabelKey,
+    fullSummaryActionTrigger,
+    fullSummarySelection,
+    runFullSummary,
+  ]);
+  useEffect(() => {
+    if (
+      summarySurfaceMode !== "full" ||
+      summaryBinding.statusLabelKey !== "artifactReady" ||
+      !summaryBinding.resolution ||
+      !transcription
+    ) {
+      return;
+    }
+
+    const requestKey = `${transcription.id}:full`;
+    if (summaryAutoRequestKeyRef.current === requestKey) {
+      return;
+    }
+
+    const hasAnyFullPublishedSummary =
+      summaryState?.publishedSummaries.some((summary) => summary.mode === "full") ?? false;
+    const hasAnyFullRun =
+      summaryState?.runs.some((run) => run.mode === "full") ?? false;
+
+    if (hasAnyFullPublishedSummary || hasAnyFullRun) {
+      summaryAutoRequestKeyRef.current = requestKey;
+      return;
+    }
+    if (fullSummaryTurns.length === 0) {
+      return;
+    }
+
+    summaryAutoRequestKeyRef.current = requestKey;
+    void runFullSummary({
+      selection: fullSummarySelection,
+      trigger: "session_ready",
+      regenerationScope: null,
+      successMessageKey: "summaryGenerated",
+    });
+  }, [
+    fullSummarySelection,
+    fullSummaryTurns.length,
+    runFullSummary,
+    summaryBinding,
+    summaryState,
+    summarySurfaceMode,
+    transcription,
+  ]);
+  const detailSummarySurfaceControls =
+    summarySurfaceMode === "full" &&
+    summaryBinding.statusLabelKey === "artifactReady" &&
+    fullSummarySelection
+      ? {
+          presetOptions: fullSummaryPresetOptions,
+          selectedPresetId: fullSummarySelection.selectedPresetId,
+          onPresetChange: handleFullSummaryPresetChange,
+          applyScope: fullSummarySelection.applyScope,
+          onApplyScopeChange: handleFullSummaryApplyScopeChange,
+          applyScopeHelperKey: fullSummaryApplyScopeHelperKey,
+          primaryAction: {
+            labelKey: fullSummaryActionLabelKey,
+            onClick: handleFullSummaryAction,
+          },
+          disabled: fullSummaryControlsDisabled,
+        }
+      : undefined;
   const handleJumpToSummarySnippet = useCallback(
     (snippet: { turnId?: string; startMs?: number; endMs?: number }) => {
       if (snippet.turnId) {
@@ -2302,6 +2673,7 @@ export default function TranscriptionDetailPage() {
                     ]}
                     view={summarySurfaceView}
                     onJumpToSnippet={handleJumpToSummarySnippet}
+                    controls={detailSummarySurfaceControls}
                   />
 
                   <TextField

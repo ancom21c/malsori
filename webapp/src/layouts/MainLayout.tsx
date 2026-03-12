@@ -46,6 +46,12 @@ import {
   resolveSessionsPath,
   resolveTranslatePath,
 } from "../app/platformRoutes";
+import {
+  derivePlatformFeatureAvailability,
+  platformCapabilities,
+} from "../app/platformCapabilities";
+import { platformBackendBindingRuntime } from "../app/backendBindingRuntime";
+import { buildTranslateBindingPresentation } from "../pages/translateBindingModel";
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -61,6 +67,13 @@ type RouteChromePolicy = {
     sm: number;
   };
 };
+
+const translateRouteEnabled = buildTranslateBindingPresentation(
+  platformFeatureFlags,
+  platformCapabilities,
+  derivePlatformFeatureAvailability(platformFeatureFlags, platformCapabilities),
+  platformBackendBindingRuntime
+).finalTranslation.ready;
 
 function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
   if (pathname.startsWith("/realtime") || pathname.startsWith("/capture/realtime")) {
@@ -163,7 +176,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               path: resolveSessionsPath(),
               icon: <ListAltIcon fontSize="small" />,
             },
-            ...(platformFeatureFlags.realtimeTranslate
+            ...(platformFeatureFlags.realtimeTranslate && translateRouteEnabled
               ? [
                   {
                     key: "translate",

@@ -127,4 +127,85 @@ describe("summarySurfaceModel", () => {
     expect(view.presetBadgeKey).toBe("summaryManualSelected");
     expect(view.helperTextKey).toBe("summaryStaleHelper");
   });
+
+  it("preserves published content while surfacing the latest failed rerun", () => {
+    const view = buildSummarySurfaceView({
+      mode: "full",
+      summaryState: {
+        partitions: [],
+        runs: [
+          {
+            id: "run-2",
+            sessionId: "tx-1",
+            mode: "full",
+            scope: "session",
+            partitionIds: [],
+            presetId: "meeting",
+            presetVersion: "2026-03-11",
+            selectionSource: "manual",
+            sourceRevision: "rev-2",
+            requestedAt: "2026-03-11T00:01:00.000Z",
+            completedAt: "2026-03-11T00:01:10.000Z",
+            status: "failed",
+            errorMessage: "provider timeout",
+            blocks: [],
+          },
+        ],
+        publishedSummaries: [
+          {
+            id: "tx-1-full",
+            sessionId: "tx-1",
+            mode: "full",
+            runId: "run-1",
+            title: "Final summary",
+            content: "Published summary content",
+            updatedAt: "2026-03-11T00:00:40.000Z",
+            sourceRevision: "rev-1",
+            partitionIds: [],
+            supportingSnippets: [],
+            blocks: [],
+            freshness: "fresh",
+            stalePartitionIds: [],
+          },
+        ],
+        presetSelection: null,
+      },
+      binding: readyBinding,
+    });
+
+    expect(view.status).toBe("failed");
+    expect(view.statusLabelKey).toBe("artifactFailed");
+    expect(view.sections[0].content).toBe("Published summary content");
+  });
+
+  it("marks realtime draft partitions as pending before the first live run completes", () => {
+    const view = buildSummarySurfaceView({
+      mode: "realtime",
+      summaryState: {
+        partitions: [
+          {
+            id: "partition-draft",
+            sessionId: "tx-1",
+            startTurnId: "turn-1",
+            endTurnId: "turn-3",
+            turnIds: ["turn-1", "turn-2", "turn-3"],
+            turnCount: 3,
+            startedAt: "2026-03-12T00:00:00.000Z",
+            endedAt: "2026-03-12T00:00:04.000Z",
+            status: "draft",
+            reason: "manual",
+            sourceRevision: "rev-1",
+          },
+        ],
+        runs: [],
+        publishedSummaries: [],
+        presetSelection: null,
+      },
+      binding: readyBinding,
+    });
+
+    expect(view.status).toBe("pending");
+    expect(view.statusLabelKey).toBe("artifactPending");
+    expect(view.helperTextKey).toBe("summaryArtifactPendingHelper");
+  });
 });

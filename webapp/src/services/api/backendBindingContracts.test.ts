@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeBackendProfileHealthResponse,
   normalizeBackendProfileRecord,
   normalizeFeatureBindingRecord,
 } from "./backendBindingContracts";
@@ -83,6 +84,30 @@ describe("normalizeFeatureBindingRecord", () => {
         backoffMs: 500,
       },
       degradedBehavior: "source_only",
+    });
+  });
+});
+
+describe("normalizeBackendProfileHealthResponse", () => {
+  it("maps health revalidation payloads into frontend health snapshots", () => {
+    const normalized = normalizeBackendProfileHealthResponse({
+      profile_id: "summary-primary",
+      refreshed: true,
+      health: {
+        status: "degraded",
+        checked_at: "2026-03-12T00:00:00.000Z",
+        message: "HTTP 401",
+      },
+    });
+
+    expect(normalized).toEqual({
+      profileId: "summary-primary",
+      refreshed: true,
+      health: {
+        status: "degraded",
+        checkedAt: "2026-03-12T00:00:00.000Z",
+        message: "HTTP 401",
+      },
     });
   });
 });

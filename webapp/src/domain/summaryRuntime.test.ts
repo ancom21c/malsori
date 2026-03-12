@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildSummaryRunLifecycleInput,
   DEFAULT_SUMMARY_RUNTIME_POLICY,
+  resolveRealtimeSummaryDraftWindow,
+  resolveRealtimeSummaryFinalizeDecision,
   resolveSummaryRuntimePolicy,
   resolveSummaryStalePropagation,
 } from "./summaryRuntime";
@@ -98,5 +100,76 @@ describe("summaryRuntime", () => {
     expect(lifecycle.timeoutMs).toBe(30000);
     expect(lifecycle.retryPolicy.maxAttempts).toBe(3);
     expect(lifecycle.status).toBe("pending");
+  });
+
+  it("builds a draft window from uncovered contiguous turns only", () => {
+    const draft = resolveRealtimeSummaryDraftWindow({
+      turns: [
+        { id: "turn-1", startMs: 0, endMs: 1000 },
+        { id: "turn-2", startMs: 1000, endMs: 2200 },
+        { id: "turn-3", startMs: 2200, endMs: 3400 },
+      ],
+      partitions: [
+        {
+          status: "finalized",
+          turnIds: ["turn-1"],
+        },
+        {
+          status: "draft",
+          turnIds: ["stale-draft-turn"],
+        },
+      ],
+    });
+
+    expect(draft.turnIds).toEqual(["turn-2", "turn-3"]);
+    expect(draft.startTurnId).toBe("turn-2");
+    expect(draft.endTurnId).toBe("turn-3");
+    expect(draft.turnCount).toBe(2);
+    expect(draft.startMs).toBe(1000);
+    expect(draft.endMs).toBe(3400);
+  });
+
+  it("finalizes a realtime draft after debounce once the minimum turn count is met", () => {
+    const decision = resolveRealtimeSummaryFinalizeDecision({
+      draft: {
+        turnCount: 3,
+        startMs: 0,
+        endMs: 10000,
+      },
+      sessionActive: true,
+      lastSourceUpdatedAt: "2026-03-12T00:00:00.000Z",
+      now: "2026-03-12T00:00:04.000Z",
+      policy: {
+        realtimeDebounceMs: 2500,
+        realtimeBatchWindowMs: 15000,
+        realtimeMinTurnCount: 3,
+      },
+    });
+
+    expect(decision.shouldFinalize).toBe(true);
+    expect(decision.reason).toBe("silence_gap");
+    expect(decision.waitMs).toBe(0);
+  });
+
+  it("finalizes the remaining draft immediately when the session ends", () => {
+    const decision = resolveRealtimeSummaryFinalizeDecision({
+      draft: {
+        turnCount: 1,
+        startMs: 0,
+        endMs: 1400,
+      },
+      sessionActive: false,
+      lastSourceUpdatedAt: "2026-03-12T00:00:00.000Z",
+      now: "2026-03-12T00:00:00.500Z",
+      policy: {
+        realtimeDebounceMs: 2500,
+        realtimeBatchWindowMs: 15000,
+        realtimeMinTurnCount: 3,
+      },
+    });
+
+    expect(decision.shouldFinalize).toBe(true);
+    expect(decision.reason).toBe("session_end");
+    expect(decision.waitMs).toBe(0);
   });
 });

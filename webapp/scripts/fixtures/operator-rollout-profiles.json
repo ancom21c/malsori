@@ -1,0 +1,26 @@
+[
+  {
+    "id": "summary-primary",
+    "label": "Summary Primary",
+    "kind": "llm",
+    "base_url": "https://summary.internal.example",
+    "capabilities": ["artifact.summary", "artifact.qa"],
+    "enabled": true,
+    "default_model": "gpt-4.1-mini",
+    "health": {
+      "status": "healthy"
+    }
+  },
+  {
+    "id": "translate-primary",
+    "label": "Translate Primary",
+    "kind": "translate",
+    "base_url": "https://translate.internal.example",
+    "capabilities": ["translate.turn_final"],
+    "enabled": true,
+    "default_model": "translate-v1",
+    "health": {
+      "status": "healthy"
+    }
+  }
+]

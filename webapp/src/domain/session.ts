@@ -94,7 +94,11 @@ export interface ArtifactRequestRecord {
   summaryMode?: SummaryMode;
   providerLabel?: string | null;
   model?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision?: string | null;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   timeoutMs?: number | null;
   retryPolicy?: {
     maxAttempts: number;
@@ -184,7 +188,11 @@ export interface SummaryRun {
   selectionSource: SummaryPresetSelectionSource;
   providerLabel?: string | null;
   model?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   timeoutMs?: number | null;
   retryPolicy?: {
     maxAttempts: number;
@@ -208,7 +216,11 @@ export interface PublishedSummary {
   requestedAt?: string | null;
   updatedAt: string;
   providerLabel?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   partitionIds: string[];
   supportingSnippets: ArtifactSupportingSnippet[];
   blocks: SummaryBlock[];
@@ -288,6 +300,8 @@ export interface SessionArtifact {
   freshness?: SummaryFreshness | null;
   summaryMode?: SummaryMode | null;
   summarySourceRevision?: string | null;
+  summarySourceLanguage?: string | null;
+  summaryOutputLanguage?: string | null;
   summaryRunId?: string | null;
   summaryPartitionIds?: string[];
   stalePartitionIds?: string[];
@@ -295,6 +309,8 @@ export interface SessionArtifact {
   summaryPresetVersion?: string | null;
   presetSelectionSource?: SummaryPresetSelectionSource | null;
   presetSuggestion?: SummaryPresetSuggestion | null;
+  summaryBackendProfileId?: string | null;
+  summaryUsedFallback?: boolean | null;
   supportingSnippets: ArtifactSupportingSnippet[];
   requests: ArtifactRequestRecord[];
 }
@@ -560,7 +576,11 @@ function createSummaryRequestRecord(run: SummaryRun): ArtifactRequestRecord {
     summaryMode: run.mode,
     providerLabel: run.providerLabel ?? null,
     model: run.model ?? null,
+    backendProfileId: run.backendProfileId ?? null,
+    usedFallback: run.usedFallback ?? null,
     sourceRevision: run.sourceRevision,
+    sourceLanguage: run.sourceLanguage ?? null,
+    outputLanguage: run.outputLanguage ?? null,
     timeoutMs: run.timeoutMs ?? null,
     retryPolicy: run.retryPolicy ?? null,
     fallbackBackendProfileId: run.fallbackBackendProfileId ?? null,
@@ -635,6 +655,8 @@ function createSummarySessionArtifact(
       freshness,
       summaryMode: preferredSummary.mode,
       summarySourceRevision: preferredSummary.sourceRevision,
+      summarySourceLanguage: preferredSummary.sourceLanguage ?? null,
+      summaryOutputLanguage: preferredSummary.outputLanguage ?? null,
       summaryRunId: preferredSummary.runId,
       summaryPartitionIds: [...preferredSummary.partitionIds],
       stalePartitionIds,
@@ -648,6 +670,8 @@ function createSummarySessionArtifact(
         null,
       presetSelectionSource: selectedPreset?.selectionSource ?? null,
       presetSuggestion: selectedPreset?.suggestion ?? null,
+      summaryBackendProfileId: preferredSummary.backendProfileId ?? null,
+      summaryUsedFallback: preferredSummary.usedFallback ?? null,
       supportingSnippets: rollupSupportingSnippets(preferredSummary),
     };
   }
@@ -664,12 +688,16 @@ function createSummarySessionArtifact(
       requestedAt: latestRun.requestedAt,
       summaryMode: latestRun.mode,
       summarySourceRevision: latestRun.sourceRevision,
+      summarySourceLanguage: latestRun.sourceLanguage ?? null,
+      summaryOutputLanguage: latestRun.outputLanguage ?? null,
       summaryPartitionIds: [...latestRun.partitionIds],
       summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
       summaryPresetVersion:
         selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
       presetSelectionSource: selectedPreset?.selectionSource ?? null,
       presetSuggestion: selectedPreset?.suggestion ?? null,
+      summaryBackendProfileId: latestRun.backendProfileId ?? null,
+      summaryUsedFallback: latestRun.usedFallback ?? null,
     };
   }
 
@@ -693,6 +721,8 @@ function createSummarySessionArtifact(
             : "fresh",
       summaryMode: latestRun.mode,
       summarySourceRevision: latestRun.sourceRevision,
+      summarySourceLanguage: latestRun.sourceLanguage ?? null,
+      summaryOutputLanguage: latestRun.outputLanguage ?? null,
       summaryRunId: latestRun.id,
       summaryPartitionIds: [...latestRun.partitionIds],
       summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
@@ -700,6 +730,8 @@ function createSummarySessionArtifact(
         selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
       presetSelectionSource: selectedPreset?.selectionSource ?? null,
       presetSuggestion: selectedPreset?.suggestion ?? null,
+      summaryBackendProfileId: latestRun.backendProfileId ?? null,
+      summaryUsedFallback: latestRun.usedFallback ?? null,
       stalePartitionIds: summaryState.partitions
         .filter(
           (partition) =>
@@ -723,12 +755,16 @@ function createSummarySessionArtifact(
       errorMessage: latestRun.errorMessage ?? null,
       summaryMode: latestRun.mode,
       summarySourceRevision: latestRun.sourceRevision,
+      summarySourceLanguage: latestRun.sourceLanguage ?? null,
+      summaryOutputLanguage: latestRun.outputLanguage ?? null,
       summaryPartitionIds: [...latestRun.partitionIds],
       summaryPresetId: selectedPreset?.selectedPresetId ?? latestRun.presetId ?? null,
       summaryPresetVersion:
         selectedPreset?.selectedPresetVersion ?? latestRun.presetVersion ?? null,
       presetSelectionSource: selectedPreset?.selectionSource ?? null,
       presetSuggestion: selectedPreset?.suggestion ?? null,
+      summaryBackendProfileId: latestRun.backendProfileId ?? null,
+      summaryUsedFallback: latestRun.usedFallback ?? null,
     };
   }
 

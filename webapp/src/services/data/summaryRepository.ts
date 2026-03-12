@@ -164,11 +164,18 @@ export async function createSummaryPartition(input: {
 
 export async function updateSummaryPartition(
   id: string,
-  patch: Partial<
-    Omit<SummaryPartition, "id" | "sessionId" | "startTurnId" | "endTurnId" | "turnCount">
-  >
+  patch: Partial<Omit<SummaryPartition, "id" | "sessionId">>
 ): Promise<void> {
   const updates: Partial<LocalSummaryPartition> = {};
+  if (patch.startTurnId !== undefined) {
+    updates.startTurnId = patch.startTurnId;
+  }
+  if (patch.endTurnId !== undefined) {
+    updates.endTurnId = patch.endTurnId;
+  }
+  if (patch.turnCount !== undefined) {
+    updates.turnCount = patch.turnCount;
+  }
   if (patch.startedAt !== undefined) {
     updates.startedAt = patch.startedAt;
   }
@@ -209,7 +216,11 @@ export async function createSummaryRun(input: {
   selectionSource?: SummaryPresetSelectionSource;
   providerLabel?: string | null;
   model?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   timeoutMs?: number | null;
   retryPolicy?: {
     maxAttempts: number;
@@ -236,7 +247,11 @@ export async function createSummaryRun(input: {
       (input.selectionSource ?? "default") as LocalSummaryPresetSelectionSource,
     providerLabel: input.providerLabel ?? undefined,
     model: input.model ?? undefined,
+    backendProfileId: input.backendProfileId ?? null,
+    usedFallback: input.usedFallback ?? null,
     sourceRevision: input.sourceRevision,
+    sourceLanguage: input.sourceLanguage ?? null,
+    outputLanguage: input.outputLanguage ?? null,
     timeoutMs: input.timeoutMs ?? null,
     retryPolicy: input.retryPolicy ?? null,
     fallbackBackendProfileId: input.fallbackBackendProfileId ?? null,
@@ -284,8 +299,20 @@ export async function updateSummaryRun(
   if (patch.model !== undefined) {
     updates.model = patch.model ?? undefined;
   }
+  if (patch.backendProfileId !== undefined) {
+    updates.backendProfileId = patch.backendProfileId ?? null;
+  }
+  if (patch.usedFallback !== undefined) {
+    updates.usedFallback = patch.usedFallback ?? null;
+  }
   if (patch.timeoutMs !== undefined) {
     updates.timeoutMs = patch.timeoutMs ?? null;
+  }
+  if (patch.sourceLanguage !== undefined) {
+    updates.sourceLanguage = patch.sourceLanguage ?? null;
+  }
+  if (patch.outputLanguage !== undefined) {
+    updates.outputLanguage = patch.outputLanguage ?? null;
   }
   if (patch.retryPolicy !== undefined) {
     updates.retryPolicy = patch.retryPolicy ?? null;
@@ -321,7 +348,11 @@ export async function upsertPublishedSummary(input: {
   requestedAt?: string | null;
   updatedAt?: string;
   providerLabel?: string | null;
+  backendProfileId?: string | null;
+  usedFallback?: boolean | null;
   sourceRevision: string;
+  sourceLanguage?: string | null;
+  outputLanguage?: string | null;
   partitionIds?: string[];
   supportingSnippets?: SummaryBlock["supportingSnippets"];
   blocks?: SummaryBlock[];
@@ -340,7 +371,11 @@ export async function upsertPublishedSummary(input: {
     requestedAt: input.requestedAt ?? null,
     updatedAt: input.updatedAt ?? new Date().toISOString(),
     providerLabel: input.providerLabel ?? undefined,
+    backendProfileId: input.backendProfileId ?? null,
+    usedFallback: input.usedFallback ?? null,
     sourceRevision: input.sourceRevision,
+    sourceLanguage: input.sourceLanguage ?? null,
+    outputLanguage: input.outputLanguage ?? null,
     partitionIds: [...(input.partitionIds ?? [])],
     supportingSnippets: (input.supportingSnippets ?? []).map((snippet) => ({ ...snippet })),
     blocks: cloneLocalBlocks(input.blocks ?? []),

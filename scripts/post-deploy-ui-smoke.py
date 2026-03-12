@@ -243,21 +243,50 @@ def _seed_detail_ready_fixture(page: Page, transcription_id: str) -> None:
 
           const openDb = () =>
             new Promise((resolve, reject) => {
-              const request = window.indexedDB.open("rtzr-stt-webapp", 80);
-              request.onupgradeneeded = () => {
-                const db = request.result;
-                for (const [name, keyPath, indexes] of stores) {
-                  if (!db.objectStoreNames.contains(name)) {
-                    const store = db.createObjectStore(name, { keyPath });
-                    for (const indexName of indexes) {
-                      store.createIndex(indexName, indexName, { unique: false });
-                    }
-                  }
+              const resolveExistingVersion = async () => {
+                if (typeof window.indexedDB.databases !== "function") {
+                  return null;
                 }
+
+                const deadline = Date.now() + 5_000;
+                while (Date.now() < deadline) {
+                  const databases = await window.indexedDB.databases();
+                  const current = databases.find(
+                    (entry) => entry.name === "rtzr-stt-webapp" && typeof entry.version === "number"
+                  );
+                  if (current && typeof current.version === "number") {
+                    return current.version;
+                  }
+                  await new Promise((resolveTimeout) => window.setTimeout(resolveTimeout, 100));
+                }
+
+                return null;
               };
-              request.onsuccess = () => resolve(request.result);
-              request.onerror = () =>
-                reject(request.error || new Error("failed to open indexeddb"));
+
+              void resolveExistingVersion()
+                .then((currentVersion) => {
+                  const request =
+                    typeof currentVersion === "number"
+                      ? window.indexedDB.open("rtzr-stt-webapp", currentVersion)
+                      : window.indexedDB.open("rtzr-stt-webapp");
+                  request.onupgradeneeded = () => {
+                    const db = request.result;
+                    for (const [name, keyPath, indexes] of stores) {
+                      if (!db.objectStoreNames.contains(name)) {
+                        const store = db.createObjectStore(name, { keyPath });
+                        for (const indexName of indexes) {
+                          store.createIndex(indexName, indexName, { unique: false });
+                        }
+                      }
+                    }
+                  };
+                  request.onsuccess = () => resolve(request.result);
+                  request.onerror = () =>
+                    reject(request.error || new Error("failed to open indexeddb"));
+                })
+                .catch((error) => {
+                  reject(error || new Error("failed to resolve indexeddb version"));
+                });
             });
 
           const db = await openDb();

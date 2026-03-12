@@ -474,6 +474,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Saved the backend profile.",
     ja: "backend profile を保存しました。",
   },
+  backendProfileHealthRefreshed: {
+    ko: "backend profile health 상태를 다시 확인했습니다.",
+    en: "Revalidated the backend profile health snapshot.",
+    ja: "backend profile の health snapshot を再確認しました。",
+  },
   backendProfileDeleted: {
     ko: "backend profile을 삭제했습니다.",
     en: "Deleted the backend profile.",
@@ -2564,6 +2569,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Sessions",
     ja: "セッション",
   },
+  session: {
+    ko: "세션",
+    en: "Session",
+    ja: "セッション",
+  },
   realtimeTranslateTitle: {
     ko: "실시간 번역 워크스페이스",
     en: "Real-time Translate",
@@ -2580,9 +2590,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "キャプチャワークスペースを開く",
   },
   translationShellHelper: {
-    ko: "번역 provider가 아직 연결되지 않아도 캡처 세션을 깨지 않도록 source-first shell만 먼저 노출합니다.",
-    en: "Expose the translator shell without risking capture regressions. Source turns stay authoritative until a translation provider is enabled.",
-    ja: "翻訳 provider が 아직 없어도 capture regression 없이 source-first shell 만 먼저 노출합니다.",
+    ko: "final turn 번역만 먼저 붙여도 source transcript는 그대로 유지됩니다. provider failure는 이 워크스페이스 안에만 격리됩니다.",
+    en: "The first slice attaches only final-turn translations while keeping the source transcript authoritative. Provider failures stay isolated inside this workspace.",
+    ja: "最初のスライスでは final turn 翻訳だけを追加し、source transcript はそのまま維持します。provider failure はこのワークスペース内にだけ隔離されます。",
   },
   translationRoute: {
     ko: "번역 경로",
@@ -2679,6 +2689,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "The source turn stays visible first, and the translated variant attaches later under the same group when the provider is ready.",
     ja: "source turn は先に表示され、translated variant は provider の準備が整うと同じグループの下にあとから追加されます。",
   },
+  translationVariantFailedHelper: {
+    ko: "번역 요청이 실패해도 원문 transcript는 그대로 유지됩니다. 실패한 turn만 다시 요청하면 됩니다.",
+    en: "A failed translation request does not affect the source transcript. Retry only the failed turns.",
+    ja: "翻訳リクエストが失敗しても source transcript には影響しません。失敗した turn だけ再試行できます。",
+  },
   translationFinalSourceHelper: {
     ko: "확정된 source turn이 먼저 쌓이고, final translation binding이 준비되면 이 turn 아래에 번역 variant가 붙습니다.",
     en: "Final source turns accumulate first. When the final translation binding is ready, translated variants attach under those turns.",
@@ -2703,6 +2718,51 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "부분 turn 번역 레인",
     en: "Partial-turn translation lane",
     ja: "部分ターン翻訳レーン",
+  },
+  translationTargetLanguage: {
+    ko: "대상 언어",
+    en: "Target language",
+    ja: "対象言語",
+  },
+  translationRetryFailed: {
+    ko: "실패 turn 다시 번역",
+    en: "Retry failed turns",
+    ja: "失敗した turn を再翻訳",
+  },
+  translationNoRealtimeSession: {
+    ko: "아직 realtime 세션이 없어 source turn을 붙일 수 없습니다. 먼저 캡처를 시작한 뒤 이 화면으로 돌아오세요.",
+    en: "There is no realtime session yet, so no source turns can attach here. Start capture first, then return to this workspace.",
+    ja: "まだ realtime session がないため、ここに source turn を表示できません。先に capture を始めてからこのワークスペースに戻ってください。",
+  },
+  translationBindingNotReady: {
+    ko: "translate.turn_final binding이 아직 준비되지 않았습니다.",
+    en: "The translate.turn_final binding is not ready yet.",
+    ja: "translate.turn_final binding がまだ準備できていません。",
+  },
+  translationProviderMisconfigured: {
+    ko: "번역 provider 설정이나 credential이 아직 준비되지 않았습니다.",
+    en: "The translation provider configuration or credentials are not ready yet.",
+    ja: "翻訳 provider の設定または credential がまだ準備できていません。",
+  },
+  translationProviderRequestFailed: {
+    ko: "번역 provider 요청에 실패했습니다.",
+    en: "The translation provider request failed.",
+    ja: "翻訳 provider リクエストに失敗しました。",
+  },
+  translationProviderResponseInvalid: {
+    ko: "번역 provider 응답을 해석할 수 없습니다.",
+    en: "The translation provider response could not be parsed.",
+    ja: "翻訳 provider の応答を解釈できませんでした。",
+  },
+  translationTurnTextEmpty: {
+    ko: "비어 있지 않은 source turn이 있어야 번역을 요청할 수 있습니다.",
+    en: "A non-empty source turn is required before translation can run.",
+    ja: "翻訳を実行するには空でない source turn が必要です。",
+  },
+  translationTargetLanguageRequired: {
+    ko: "대상 언어를 먼저 선택해야 합니다.",
+    en: "Select a target language before requesting translation.",
+    ja: "翻訳をリクエストする前に対象言語を選択してください。",
   },
   waiting: {
     ko: "대기 중",
@@ -3489,6 +3549,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Health status",
     ja: "ヘルス状態",
   },
+  lastCheckedAt: {
+    ko: "마지막 확인 시각",
+    en: "Last checked",
+    ja: "最終確認時刻",
+  },
+  recheckProfileHealth: {
+    ko: "health 다시 확인",
+    en: "Recheck health",
+    ja: "health を再確認",
+  },
+  healthReviewSnapshot: {
+    ko: "health 검토 스냅샷",
+    en: "Health review snapshot",
+    ja: "health review snapshot",
+  },
   profileId: {
     ko: "프로필 ID",
     en: "Profile ID",
@@ -3778,6 +3853,96 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "기본값 적용",
     en: "Safe default",
     ja: "既定値適用",
+  },
+  summaryGenerated: {
+    ko: "전체 요약을 생성했습니다.",
+    en: "Generated the full summary.",
+    ja: "全体要約を生成しました。",
+  },
+  summaryRegenerated: {
+    ko: "전체 요약을 다시 생성했습니다.",
+    en: "Regenerated the full summary.",
+    ja: "全体要約を再生成しました。",
+  },
+  summaryGenerate: {
+    ko: "요약 생성",
+    en: "Generate",
+    ja: "要約生成",
+  },
+  summaryRegenerate: {
+    ko: "다시 생성",
+    en: "Regenerate",
+    ja: "再生成",
+  },
+  summaryRetry: {
+    ko: "다시 시도",
+    en: "Retry",
+    ja: "再試行",
+  },
+  summaryOpenDetail: {
+    ko: "세부 보기",
+    en: "Open detail",
+    ja: "詳細を開く",
+  },
+  summaryPreset: {
+    ko: "프리셋",
+    en: "Preset",
+    ja: "プリセット",
+  },
+  summaryPresetScope: {
+    ko: "적용 범위",
+    en: "Apply scope",
+    ja: "適用範囲",
+  },
+  summaryPresetApplyFromNow: {
+    ko: "다음부터 적용",
+    en: "Apply from now",
+    ja: "次回から適用",
+  },
+  summaryPresetRegenerateAll: {
+    ko: "전체 다시 생성",
+    en: "Regenerate all",
+    ja: "全体を再生成",
+  },
+  summaryPresetApplyFromNowHelper: {
+    ko: "프리셋 변경은 다음 full summary run부터 적용됩니다. 현재 요약은 유지됩니다.",
+    en: "Preset changes apply to the next full-summary run. The current summary stays in place.",
+    ja: "プリセット変更は次の full summary run から適用されます。現在の summary は維持されます。",
+  },
+  summaryPresetRegenerateAllHelper: {
+    ko: "프리셋을 바꾸면 현재 세션 전체 요약을 같은 범위로 다시 생성합니다.",
+    en: "Changing the preset regenerates the current session-wide summary against the same scope.",
+    ja: "プリセットを変えると、現在のセッション全体 summary を同じ範囲で再生成します。",
+  },
+  summaryPresetUpdateFailed: {
+    ko: "summary preset 변경을 저장하지 못했습니다.",
+    en: "The summary preset change could not be saved.",
+    ja: "summary preset の変更を保存できませんでした。",
+  },
+  summaryTranscriptEmpty: {
+    ko: "요약할 transcript turn이 아직 없습니다.",
+    en: "There are no transcript turns available for summary generation yet.",
+    ja: "要約できる transcript turn がまだありません。",
+  },
+  summaryBindingNotReady: {
+    ko: "summary binding이 아직 준비되지 않았습니다.",
+    en: "The summary binding is not ready yet.",
+    ja: "summary binding の準備がまだできていません。",
+  },
+  summaryProviderMisconfigured: {
+    ko: "summary provider 설정을 다시 확인해야 합니다.",
+    en: "The summary provider configuration needs to be reviewed.",
+    ja: "summary provider の設定を見直す必要があります。",
+  },
+  summaryProviderRequestFailed: {
+    ko: "summary provider 요청이 실패했습니다.",
+    en: "The summary provider request failed.",
+    ja: "summary provider へのリクエストに失敗しました。",
+  },
+  summaryProviderResponseInvalid: {
+    ko: "summary provider 응답을 해석하지 못했습니다.",
+    en: "The summary provider response could not be parsed.",
+    ja: "summary provider の応答を解釈できませんでした。",
   },
   actionItems: {
     ko: "액션 아이템",

@@ -129,6 +129,7 @@ export async function deleteTranscription(id: string) {
       appDb.summaryRuns,
       appDb.publishedSummaries,
       appDb.summaryPresetSelections,
+      appDb.turnTranslations,
     ],
     async () => {
       await appDb.audioChunks.where("transcriptionId").equals(id).delete();
@@ -139,6 +140,7 @@ export async function deleteTranscription(id: string) {
       await appDb.summaryRuns.where("sessionId").equals(id).delete();
       await appDb.publishedSummaries.where("sessionId").equals(id).delete();
       await appDb.summaryPresetSelections.delete(id);
+      await appDb.turnTranslations.where("sessionId").equals(id).delete();
       await appDb.transcriptions.delete(id);
     }
   );

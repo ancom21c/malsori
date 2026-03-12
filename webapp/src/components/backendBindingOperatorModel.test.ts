@@ -43,6 +43,27 @@ describe("backendBindingOperatorModel", () => {
     expect(inspector.notices).toEqual([]);
   });
 
+  it("treats unknown health as operational until a revalidation says otherwise", () => {
+    const binding = createFeatureBinding({
+      featureKey: "artifact.summary",
+      primaryBackendProfileId: "summary-primary",
+      enabled: true,
+    });
+    const uncheckedPrimary = createBackendProfile({
+      ...summaryPrimary,
+      health: { status: "unknown" },
+    });
+
+    const inspector = buildBindingInspectorState({
+      bindings: [binding],
+      selectedBindingKey: "artifact.summary",
+      profiles: [uncheckedPrimary],
+    });
+
+    expect(inspector.resolution?.status).toBe("ready");
+    expect(inspector.notices).toEqual([]);
+  });
+
   it("surfaces capability mismatch and missing fallback warnings", () => {
     const binding = createFeatureBinding({
       featureKey: "translate.turn_final",
@@ -91,6 +112,37 @@ describe("backendBindingOperatorModel", () => {
 
     expect(inspector.resolution?.status).toBe("fallback");
     expect(inspector.notices.map((notice) => notice.code)).toContain("fallback_active");
+  });
+
+  it("treats degraded health as not ready for operator resolution", () => {
+    const degradedPrimary = createBackendProfile({
+      ...summaryPrimary,
+      health: { status: "degraded" },
+    });
+    const fallback = createBackendProfile({
+      id: "summary-fallback",
+      label: "Summary fallback",
+      kind: "llm",
+      baseUrl: "https://fallback.example.com",
+      capabilities: ["artifact.summary"],
+      enabled: true,
+      health: { status: "healthy" },
+    });
+    const binding = createFeatureBinding({
+      featureKey: "artifact.summary",
+      primaryBackendProfileId: "summary-primary",
+      fallbackBackendProfileId: "summary-fallback",
+      enabled: true,
+    });
+
+    const inspector = buildBindingInspectorState({
+      bindings: [binding],
+      selectedBindingKey: "artifact.summary",
+      profiles: [degradedPrimary, fallback],
+    });
+
+    expect(inspector.resolution?.status).toBe("fallback");
+    expect(inspector.notices.map((notice) => notice.code)).toContain("primary_not_ready");
   });
 
   it("maps health and resolution tones for inspector chips", () => {
