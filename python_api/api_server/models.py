@@ -98,6 +98,20 @@ FeatureKey = Literal[
     "tts.stream",
 ]
 FeatureDegradedBehavior = Literal["hide", "disable", "source_only", "transcript_only", "retry"]
+SummaryMode = Literal["realtime", "full"]
+SummaryRunScope = Literal["partition", "session"]
+SummaryRunTrigger = Literal[
+    "realtime_batch",
+    "session_ready",
+    "manual_regenerate",
+    "manual_retry",
+    "preset_apply_from_now",
+    "preset_rerun_all",
+]
+SummaryRegenerationScope = Literal["partition", "mode", "session"]
+SummaryPresetSelectionSource = Literal["default", "auto", "manual"]
+SummaryPresetSectionKind = Literal["narrative", "bullet_list", "quote_list"]
+TranslationScope = Literal["turn"]
 
 
 class BackendCredentialRef(BaseModel):
@@ -167,6 +181,162 @@ class BackendProfilesResponse(BaseModel):
     """List response for operator-managed backend profiles."""
 
     profiles: list[BackendProfileRecord] = Field(default_factory=list)
+
+
+class BackendProfileHealthResponse(BaseModel):
+    """Health snapshot response for an operator-managed backend profile."""
+
+    profile_id: str = Field(..., min_length=1)
+    refreshed: bool = False
+    health: BackendHealthSnapshotModel
+
+
+class SummaryPresetSectionSchemaModel(BaseModel):
+    """Structured output section requested from the summary provider."""
+
+    id: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    kind: SummaryPresetSectionKind
+    required: bool = True
+
+
+class SummaryExecutionPresetModel(BaseModel):
+    """Preset metadata supplied by the client for summary execution."""
+
+    id: str = Field(..., min_length=1)
+    version: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    language: Optional[str] = None
+    output_schema: list[SummaryPresetSectionSchemaModel] = Field(default_factory=list)
+
+
+class SummaryExecutionTurnModel(BaseModel):
+    """Transcript turn snapshot supplied for provider-backed summary generation."""
+
+    id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
+    speaker_label: Optional[str] = None
+    language: Optional[str] = None
+    start_ms: Optional[int] = Field(default=None, ge=0)
+    end_ms: Optional[int] = Field(default=None, ge=0)
+
+
+class FullSummaryRequest(BaseModel):
+    """Public API request payload for a full-session summary run."""
+
+    session_id: str = Field(..., min_length=1)
+    title: Optional[str] = None
+    source_revision: str = Field(..., min_length=1)
+    source_language: Optional[str] = None
+    output_language: Optional[str] = None
+    selection_source: SummaryPresetSelectionSource = "default"
+    trigger: SummaryRunTrigger = "session_ready"
+    regeneration_scope: Optional[SummaryRegenerationScope] = None
+    preset: SummaryExecutionPresetModel
+    turns: list[SummaryExecutionTurnModel] = Field(default_factory=list, min_length=1)
+
+
+class SummarySupportingSnippetModel(BaseModel):
+    """Source-linked supporting snippet returned by the summary provider adapter."""
+
+    id: str = Field(..., min_length=1)
+    turn_id: Optional[str] = None
+    speaker_label: Optional[str] = None
+    start_ms: Optional[int] = Field(default=None, ge=0)
+    end_ms: Optional[int] = Field(default=None, ge=0)
+    text: str = Field(..., min_length=1)
+
+
+class SummaryBlockResultModel(BaseModel):
+    """Structured summary block returned to the webapp."""
+
+    id: str = Field(..., min_length=1)
+    kind: str = Field(..., min_length=1)
+    title: Optional[str] = None
+    content: str = Field(..., min_length=1)
+    supporting_snippets: list[SummarySupportingSnippetModel] = Field(default_factory=list)
+
+
+class SummaryExecutionBindingAuditModel(BaseModel):
+    """Resolved binding/profile metadata persisted alongside a summary run."""
+
+    feature_key: Literal["artifact.summary"] = "artifact.summary"
+    resolved_backend_profile_id: str = Field(..., min_length=1)
+    fallback_backend_profile_id: Optional[str] = None
+    used_fallback: bool = False
+    provider_label: str = Field(..., min_length=1)
+    model: Optional[str] = None
+    timeout_ms: Optional[int] = Field(default=None, ge=0)
+    retry_policy: Optional[FeatureBindingRetryPolicyModel] = None
+
+
+class FullSummaryResponse(BaseModel):
+    """Public API response payload for a full-session summary run."""
+
+    run_id: str = Field(..., min_length=1)
+    session_id: str = Field(..., min_length=1)
+    mode: Literal["full"] = "full"
+    scope: SummaryRunScope = "session"
+    trigger: SummaryRunTrigger
+    regeneration_scope: Optional[SummaryRegenerationScope] = None
+    preset_id: str = Field(..., min_length=1)
+    preset_version: str = Field(..., min_length=1)
+    selection_source: SummaryPresetSelectionSource
+    source_revision: str = Field(..., min_length=1)
+    source_language: Optional[str] = None
+    output_language: Optional[str] = None
+    requested_at: str = Field(..., min_length=1)
+    completed_at: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1)
+    partition_ids: list[str] = Field(default_factory=list)
+    supporting_snippets: list[SummarySupportingSnippetModel] = Field(default_factory=list)
+    blocks: list[SummaryBlockResultModel] = Field(default_factory=list)
+    binding: SummaryExecutionBindingAuditModel
+
+
+class FinalTurnTranslationRequest(BaseModel):
+    """Public API request payload for a final-turn translation run."""
+
+    session_id: str = Field(..., min_length=1)
+    turn_id: str = Field(..., min_length=1)
+    source_revision: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
+    speaker_label: Optional[str] = None
+    source_language: Optional[str] = None
+    target_language: str = Field(..., min_length=1)
+    start_ms: Optional[int] = Field(default=None, ge=0)
+    end_ms: Optional[int] = Field(default=None, ge=0)
+
+
+class TranslationExecutionBindingAuditModel(BaseModel):
+    """Resolved binding/profile metadata persisted alongside a translation run."""
+
+    feature_key: Literal["translate.turn_final"] = "translate.turn_final"
+    resolved_backend_profile_id: str = Field(..., min_length=1)
+    fallback_backend_profile_id: Optional[str] = None
+    used_fallback: bool = False
+    provider_label: str = Field(..., min_length=1)
+    model: Optional[str] = None
+    timeout_ms: Optional[int] = Field(default=None, ge=0)
+    retry_policy: Optional[FeatureBindingRetryPolicyModel] = None
+
+
+class FinalTurnTranslationResponse(BaseModel):
+    """Public API response payload for a translated final turn."""
+
+    translation_id: str = Field(..., min_length=1)
+    session_id: str = Field(..., min_length=1)
+    turn_id: str = Field(..., min_length=1)
+    scope: TranslationScope = "turn"
+    source_revision: str = Field(..., min_length=1)
+    source_language: Optional[str] = None
+    target_language: str = Field(..., min_length=1)
+    requested_at: str = Field(..., min_length=1)
+    completed_at: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
+    binding: TranslationExecutionBindingAuditModel
 
 
 class FeatureBindingsResponse(BaseModel):

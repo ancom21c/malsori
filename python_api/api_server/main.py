@@ -27,12 +27,14 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Query,
     Response,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
 from fastapi.responses import FileResponse
+import httpx
 import requests
 from websockets.exceptions import (
     ConnectionClosedError,
@@ -66,17 +68,24 @@ from .models import (
     BackendEndpointState,
     BackendEndpointUpdateRequest,
     BackendHealthSnapshotModel,
+    BackendProfileHealthResponse,
     BackendProfileRecord,
     BackendProfilesResponse,
     FeatureBindingRecord,
     FeatureBindingsResponse,
     FeatureKey,
+    FinalTurnTranslationRequest,
+    FinalTurnTranslationResponse,
+    FullSummaryRequest,
+    FullSummaryResponse,
     FrontendRuntimeErrorAck,
     FrontendRuntimeErrorReport,
     HealthStatusResponse,
     STTRequest,
     STTResponse,
     STTReturnObject,
+    SummaryBlockResultModel,
+    SummarySupportingSnippetModel,
 )
 from .stt_client import RTZRClient
 from .protos import vito_stt_client_pb2 as stt_pb2
@@ -254,6 +263,23 @@ _FILE_TRANSCRIBE_DIRNAME = "file_transcriptions"
 _BACKEND_CAPABILITY_KEYS = list(get_args(BackendCapability))
 _FEATURE_KEYS = list(get_args(FeatureKey))
 _LEGACY_CAPTURE_PROFILE_ID = "__legacy_stt_bridge__"
+_SUMMARY_FEATURE_KEY = "artifact.summary"
+_SUMMARY_REQUIRED_CAPABILITIES = {_SUMMARY_FEATURE_KEY}
+_PROVIDER_RUNTIME_FEATURE_KEYS = {
+    _SUMMARY_FEATURE_KEY,
+    "translate.turn_final",
+}
+_PROVIDER_RUNTIME_SUPPORTED_AUTH_TYPES = {"none", "bearer_secret_ref", "header_token"}
+_PROVIDER_RUNTIME_SUPPORTED_CREDENTIAL_KINDS = {"server_env", "operator_token"}
+_PROVIDER_OPERATIONAL_HEALTH_STATUSES = {"unknown", "healthy"}
+_SUMMARY_DEFAULT_TIMEOUT_MS = 30000
+_SUMMARY_DEFAULT_CHAT_PATH = "/chat/completions"
+_SUMMARY_PROMPT_VERSION = "2026-03-12"
+_TRANSLATE_FEATURE_KEY = "translate.turn_final"
+_TRANSLATE_REQUIRED_CAPABILITIES = {_TRANSLATE_FEATURE_KEY}
+_TRANSLATE_DEFAULT_TIMEOUT_MS = 20000
+_TRANSLATE_DEFAULT_CHAT_PATH = "/chat/completions"
+_TRANSLATE_PROMPT_VERSION = "2026-03-12"
 
 
 def _raise_api_error(
@@ -328,6 +354,236 @@ async def health_status() -> HealthStatusResponse:
         auth_enabled=settings.auth_enabled,
         source=_resolve_backend_source(),
         backend_admin_enabled=settings.backend_admin_enabled,
+    )
+
+
+@app.post("/v1/summary/full", response_model=FullSummaryResponse)
+async def request_full_summary(payload: FullSummaryRequest) -> FullSummaryResponse:
+    """Execute a provider-backed full-session summary using the current summary binding."""
+    if not payload.turns:
+        _raise_api_error(
+            400,
+            "SUMMARY_TRANSCRIPT_EMPTY",
+            "At least one transcript turn is required to generate a full summary.",
+        )
+
+    try:
+        settings = get_settings()
+    except RuntimeError:
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
+
+    binding, resolved_profile, used_fallback = _resolve_summary_binding_target(settings)
+    model = _resolve_summary_model(binding, resolved_profile)
+    source_language = _detect_summary_source_language(payload)
+    output_language = _resolve_summary_output_language(payload, source_language)
+    requested_at = _summary_timestamp()
+    summary_messages = _build_summary_provider_messages(
+        payload,
+        source_language=source_language,
+        output_language=output_language,
+    )
+    fallback_profile = (
+        None
+        if used_fallback
+        else _get_ready_fallback_profile(
+            settings,
+            binding.fallback_backend_profile_id,
+            _SUMMARY_REQUIRED_CAPABILITIES,
+            resolved_profile.id,
+        )
+    )
+    try:
+        provider_payload = await _request_summary_provider_payload(
+            settings=settings,
+            profile=resolved_profile,
+            binding=binding,
+            model=model,
+            messages=summary_messages,
+        )
+    except HTTPException as exc:
+        if fallback_profile is None or not _should_retry_provider_with_fallback(
+            exc,
+            {
+                "SUMMARY_PROVIDER_AUTH_UNSUPPORTED",
+                "SUMMARY_PROVIDER_MISCONFIGURED",
+                "SUMMARY_PROVIDER_REQUEST_FAILED",
+                "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            },
+        ):
+            raise
+        resolved_profile = fallback_profile
+        used_fallback = True
+        model = _resolve_summary_model(binding, resolved_profile)
+        provider_payload = await _request_summary_provider_payload(
+            settings=settings,
+            profile=resolved_profile,
+            binding=binding,
+            model=model,
+            messages=summary_messages,
+        )
+    completion_text = _extract_summary_completion_text(provider_payload)
+    title, content, blocks, supporting_snippets = _normalize_summary_provider_output(
+        _parse_summary_json_payload(completion_text),
+        payload,
+    )
+    completed_at = _summary_timestamp()
+
+    return FullSummaryResponse(
+        run_id=uuid.uuid4().hex,
+        session_id=payload.session_id,
+        mode="full",
+        scope="session",
+        trigger=payload.trigger,
+        regeneration_scope=payload.regeneration_scope,
+        preset_id=payload.preset.id,
+        preset_version=payload.preset.version,
+        selection_source=payload.selection_source,
+        source_revision=payload.source_revision,
+        source_language=source_language,
+        output_language=output_language,
+        requested_at=requested_at,
+        completed_at=completed_at,
+        title=title,
+        content=content,
+        partition_ids=[],
+        supporting_snippets=supporting_snippets,
+        blocks=blocks,
+        binding={
+            "feature_key": _SUMMARY_FEATURE_KEY,
+            "resolved_backend_profile_id": resolved_profile.id,
+            "fallback_backend_profile_id": binding.fallback_backend_profile_id,
+            "used_fallback": used_fallback,
+            "provider_label": resolved_profile.label,
+            "model": model,
+            "timeout_ms": _resolve_summary_timeout_ms(binding),
+            "retry_policy": (
+                {
+                    "max_attempts": binding.retry_policy.max_attempts,
+                    "backoff_ms": binding.retry_policy.backoff_ms,
+                }
+                if binding.retry_policy
+                else None
+            ),
+        },
+    )
+
+
+@app.post(
+    "/v1/translate/turn-final",
+    response_model=FinalTurnTranslationResponse,
+)
+async def request_final_turn_translation(
+    payload: FinalTurnTranslationRequest,
+) -> FinalTurnTranslationResponse:
+    """Execute a provider-backed final-turn translation using the current translate binding."""
+    if not payload.text.strip():
+        _raise_api_error(
+            400,
+            "TRANSLATE_TEXT_EMPTY",
+            "A non-empty source turn is required to generate a translation.",
+        )
+
+    if not payload.target_language.strip():
+        _raise_api_error(
+            400,
+            "TRANSLATE_TARGET_LANGUAGE_REQUIRED",
+            "A target language is required to generate a translation.",
+        )
+
+    try:
+        settings = get_settings()
+    except RuntimeError:
+        _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
+
+    binding, resolved_profile, used_fallback = _resolve_translate_binding_target(
+        settings
+    )
+    model = _resolve_translate_model(binding, resolved_profile)
+    source_language = _detect_translate_source_language(payload)
+    target_language = _resolve_translate_target_language(payload)
+    requested_at = _summary_timestamp()
+    translate_messages = _build_translate_provider_messages(
+        payload,
+        source_language=source_language,
+        target_language=target_language,
+    )
+    fallback_profile = (
+        None
+        if used_fallback
+        else _get_ready_fallback_profile(
+            settings,
+            binding.fallback_backend_profile_id,
+            _TRANSLATE_REQUIRED_CAPABILITIES,
+            resolved_profile.id,
+        )
+    )
+    try:
+        provider_payload = await _request_translate_provider_payload(
+            settings=settings,
+            profile=resolved_profile,
+            binding=binding,
+            model=model,
+            messages=translate_messages,
+        )
+    except HTTPException as exc:
+        if fallback_profile is None or not _should_retry_provider_with_fallback(
+            exc,
+            {
+                "TRANSLATE_PROVIDER_AUTH_UNSUPPORTED",
+                "TRANSLATE_PROVIDER_MISCONFIGURED",
+                "TRANSLATE_PROVIDER_REQUEST_FAILED",
+                "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            },
+        ):
+            raise
+        resolved_profile = fallback_profile
+        used_fallback = True
+        model = _resolve_translate_model(binding, resolved_profile)
+        provider_payload = await _request_translate_provider_payload(
+            settings=settings,
+            profile=resolved_profile,
+            binding=binding,
+            model=model,
+            messages=translate_messages,
+        )
+    translated_text, normalized_source_language = _normalize_translate_provider_output(
+        _parse_translate_json_payload(
+            _extract_translate_completion_text(provider_payload)
+        ),
+        payload,
+        source_language=source_language,
+        target_language=target_language,
+    )
+    completed_at = _summary_timestamp()
+
+    return FinalTurnTranslationResponse(
+        translation_id=uuid.uuid4().hex,
+        session_id=payload.session_id,
+        turn_id=payload.turn_id,
+        scope="turn",
+        source_revision=payload.source_revision,
+        source_language=normalized_source_language,
+        target_language=target_language,
+        requested_at=requested_at,
+        completed_at=completed_at,
+        text=translated_text,
+        binding={
+            "feature_key": _TRANSLATE_FEATURE_KEY,
+            "resolved_backend_profile_id": resolved_profile.id,
+            "fallback_backend_profile_id": binding.fallback_backend_profile_id,
+            "used_fallback": used_fallback,
+            "provider_label": resolved_profile.label,
+            "model": model,
+            "timeout_ms": _resolve_translate_timeout_ms(binding),
+            "retry_policy": (
+                {
+                    "max_attempts": binding.retry_policy.max_attempts,
+                    "backoff_ms": binding.retry_policy.backoff_ms,
+                }
+                if binding.retry_policy
+                else None
+            ),
+        },
     )
 
 
@@ -464,7 +720,1411 @@ def _normalize_backend_profile_record(
             "message": payload.health.message.strip() if payload.health.message else None,
         },
     }
-    return BackendProfileRecord.model_validate(data)
+    normalized = BackendProfileRecord.model_validate(data)
+    provider_contract_error = _provider_runtime_profile_contract_error(normalized)
+    if provider_contract_error:
+        raise ValueError(provider_contract_error)
+    return normalized
+
+
+_PROFILE_HEALTH_TIMEOUT = (3.0, 5.0)
+_PROFILE_HEALTH_HEADERS = {
+    "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+    "User-Agent": "malsori-backend-health/1.0",
+}
+
+
+def _backend_health_checked_at() -> str:
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+
+def _build_backend_profile_health_snapshot(
+    *,
+    status: Literal["unknown", "healthy", "degraded", "unreachable", "misconfigured"],
+    checked_at: str,
+    message: str,
+) -> BackendHealthSnapshotModel:
+    return BackendHealthSnapshotModel(
+        status=status,
+        checked_at=checked_at,
+        message=message.strip() or None,
+    )
+
+
+def _profile_uses_provider_runtime(profile: BackendProfileRecord) -> bool:
+    return any(
+        capability in _PROVIDER_RUNTIME_FEATURE_KEYS
+        for capability in profile.capabilities
+    )
+
+
+def _provider_runtime_profile_contract_error(
+    profile: BackendProfileRecord,
+) -> Optional[str]:
+    if not _profile_uses_provider_runtime(profile):
+        return None
+
+    if profile.transport != "http":
+        return (
+            "Provider-backed summary/translate profiles currently support only http transport."
+        )
+
+    auth_type = profile.auth_strategy.type
+    if auth_type not in _PROVIDER_RUNTIME_SUPPORTED_AUTH_TYPES:
+        return (
+            "Provider-backed summary/translate profiles currently support only "
+            "`none`, `bearer_secret_ref`, or `header_token` auth strategies."
+        )
+
+    if auth_type == "none":
+        return None
+
+    credential_ref = profile.auth_strategy.credential_ref
+    if credential_ref is None:
+        return "Auth strategy requires a credential reference before the backend can be used."
+
+    if credential_ref.kind not in _PROVIDER_RUNTIME_SUPPORTED_CREDENTIAL_KINDS:
+        return (
+            "Provider-backed summary/translate profiles currently support only "
+            "`server_env` or `operator_token` credential references."
+        )
+
+    return None
+
+
+def _provider_runtime_profile_readiness_error(
+    settings: Settings,
+    profile: BackendProfileRecord,
+) -> Optional[str]:
+    contract_error = _provider_runtime_profile_contract_error(profile)
+    if contract_error:
+        return contract_error
+
+    auth_type = profile.auth_strategy.type
+    credential_ref = profile.auth_strategy.credential_ref
+    if auth_type not in {"bearer_secret_ref", "header_token"} or credential_ref is None:
+        return None
+
+    if credential_ref.kind == "server_env":
+        env_name = credential_ref.id.strip()
+        if not env_name:
+            return "Credential reference must include a server environment variable name."
+        if (os.environ.get(env_name) or "").strip():
+            return None
+        return (
+            f"Server environment credential `{env_name}` is missing, so runtime cannot use this backend."
+        )
+
+    if credential_ref.kind == "operator_token":
+        if (settings.backend_admin_token or "").strip():
+            return None
+        return "Operator token auth is selected but BACKEND_ADMIN_TOKEN is not configured."
+
+    return None
+
+
+def _probe_backend_profile_health(
+    settings: Settings,
+    profile: BackendProfileRecord,
+) -> BackendHealthSnapshotModel:
+    checked_at = _backend_health_checked_at()
+
+    if not profile.enabled:
+        return _build_backend_profile_health_snapshot(
+            status="unknown",
+            checked_at=checked_at,
+            message="Profile is disabled. Runtime will not route traffic here until it is enabled.",
+        )
+
+    if (
+        profile.auth_strategy.type in {"bearer_secret_ref", "header_token"}
+        and profile.auth_strategy.credential_ref is None
+    ):
+        return _build_backend_profile_health_snapshot(
+            status="misconfigured",
+            checked_at=checked_at,
+            message="Auth strategy requires a credential reference before the backend can be used.",
+        )
+
+    provider_runtime_error = _provider_runtime_profile_readiness_error(settings, profile)
+    if provider_runtime_error:
+        return _build_backend_profile_health_snapshot(
+            status="misconfigured",
+            checked_at=checked_at,
+            message=provider_runtime_error,
+        )
+
+    if profile.transport != "http":
+        return _build_backend_profile_health_snapshot(
+            status="unknown",
+            checked_at=checked_at,
+            message=(
+                f"Automatic {profile.transport} health probes are not configured yet. "
+                "Review the endpoint, credentials, and recent failures manually."
+            ),
+        )
+
+    try:
+        response = requests.head(
+            profile.base_url,
+            headers=_PROFILE_HEALTH_HEADERS,
+            timeout=_PROFILE_HEALTH_TIMEOUT,
+            allow_redirects=True,
+            verify=settings.verify_ssl,
+        )
+        if response.status_code in {405, 501}:
+            response = requests.get(
+                profile.base_url,
+                headers=_PROFILE_HEALTH_HEADERS,
+                timeout=_PROFILE_HEALTH_TIMEOUT,
+                allow_redirects=True,
+                verify=settings.verify_ssl,
+            )
+    except requests.exceptions.SSLError as exc:
+        return _build_backend_profile_health_snapshot(
+            status="misconfigured",
+            checked_at=checked_at,
+            message=f"SSL verification failed while probing the backend: {exc}",
+        )
+    except requests.Timeout as exc:
+        return _build_backend_profile_health_snapshot(
+            status="unreachable",
+            checked_at=checked_at,
+            message=f"Health probe timed out while reaching the backend: {exc}",
+        )
+    except requests.RequestException as exc:
+        return _build_backend_profile_health_snapshot(
+            status="unreachable",
+            checked_at=checked_at,
+            message=f"Health probe failed before the backend responded: {exc}",
+        )
+
+    status_code = response.status_code
+    reason = response.reason.strip() if response.reason else ""
+    message_suffix = f" ({reason})" if reason else ""
+
+    if 200 <= status_code < 400:
+        return _build_backend_profile_health_snapshot(
+            status="healthy",
+            checked_at=checked_at,
+            message=f"Health probe reached the backend and received HTTP {status_code}{message_suffix}.",
+        )
+
+    if 400 <= status_code < 500:
+        return _build_backend_profile_health_snapshot(
+            status="misconfigured",
+            checked_at=checked_at,
+            message=(
+                "Health probe reached the backend but received "
+                f"HTTP {status_code}{message_suffix}. Review the base URL, path, or credentials."
+            ),
+        )
+
+    return _build_backend_profile_health_snapshot(
+        status="degraded",
+        checked_at=checked_at,
+        message=(
+            "Health probe reached the backend but the upstream returned "
+            f"HTTP {status_code}{message_suffix}."
+        ),
+    )
+
+
+def _refresh_backend_profile_health(
+    settings: Settings, profile: BackendProfileRecord
+) -> BackendProfileRecord:
+    refreshed_health = _probe_backend_profile_health(settings, profile)
+    refreshed_profile = profile.model_copy(
+        update={"health": refreshed_health},
+        deep=True,
+    )
+    upsert_backend_profile(settings.storage_base_dir, refreshed_profile)
+    return refreshed_profile
+
+
+def _summary_timestamp() -> str:
+    return datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
+
+
+def _backend_profile_supports_capabilities(
+    profile: BackendProfileRecord, required_capabilities: set[str]
+) -> bool:
+    return required_capabilities.issubset(set(profile.capabilities))
+
+
+def _backend_profile_is_operational(profile: BackendProfileRecord) -> bool:
+    return (
+        profile.enabled
+        and profile.health.status in _PROVIDER_OPERATIONAL_HEALTH_STATUSES
+    )
+
+
+def _backend_profile_is_ready_for_feature(
+    settings: Settings,
+    profile: BackendProfileRecord,
+    required_capabilities: set[str],
+) -> bool:
+    return (
+        _backend_profile_supports_capabilities(profile, required_capabilities)
+        and _backend_profile_is_operational(profile)
+        and _provider_runtime_profile_readiness_error(settings, profile) is None
+    )
+
+
+def _get_ready_fallback_profile(
+    settings: Settings,
+    fallback_profile_id: Optional[str],
+    required_capabilities: set[str],
+    selected_profile_id: Optional[str] = None,
+) -> Optional[BackendProfileRecord]:
+    if not fallback_profile_id or fallback_profile_id == selected_profile_id:
+        return None
+    fallback_profile = get_backend_profile(settings.storage_base_dir, fallback_profile_id)
+    if fallback_profile is None:
+        return None
+    if not _backend_profile_is_ready_for_feature(
+        settings, fallback_profile, required_capabilities
+    ):
+        return None
+    return fallback_profile
+
+
+def _api_error_code(exc: HTTPException) -> Optional[str]:
+    detail = exc.detail
+    if not isinstance(detail, dict):
+        return None
+    error = detail.get("error")
+    if not isinstance(error, dict):
+        return None
+    code = error.get("code")
+    return code if isinstance(code, str) else None
+
+
+def _should_retry_provider_with_fallback(
+    exc: HTTPException, allowed_codes: set[str]
+) -> bool:
+    if exc.status_code < 500:
+        return False
+    return (_api_error_code(exc) or "") in allowed_codes
+
+
+def _resolve_summary_binding_target(
+    settings: Settings,
+) -> tuple[FeatureBindingRecord, BackendProfileRecord, bool]:
+    binding = get_feature_binding(settings.storage_base_dir, _SUMMARY_FEATURE_KEY)
+    if binding is None:
+        _raise_api_error(
+            503,
+            "SUMMARY_BINDING_NOT_READY",
+            "Full summary is not configured yet.",
+            {"reason": "binding_missing"},
+        )
+
+    if not binding.enabled:
+        _raise_api_error(
+            503,
+            "SUMMARY_BINDING_NOT_READY",
+            "Full summary is disabled by the current binding.",
+            {"reason": "binding_disabled"},
+        )
+
+    primary_profile = get_backend_profile(
+        settings.storage_base_dir, binding.primary_backend_profile_id
+    )
+    if primary_profile is None:
+        _raise_api_error(
+            503,
+            "SUMMARY_BINDING_NOT_READY",
+            "The configured primary summary backend profile could not be found.",
+            {"reason": "profile_missing"},
+        )
+
+    primary_ready = _backend_profile_is_ready_for_feature(
+        settings, primary_profile, _SUMMARY_REQUIRED_CAPABILITIES
+    )
+
+    if primary_ready:
+        return binding, primary_profile, False
+
+    fallback_profile = _get_ready_fallback_profile(
+        settings,
+        binding.fallback_backend_profile_id,
+        _SUMMARY_REQUIRED_CAPABILITIES,
+        primary_profile.id,
+    )
+    fallback_ready = fallback_profile is not None
+
+    if fallback_ready:
+        return binding, fallback_profile, True
+
+    if not _backend_profile_supports_capabilities(
+        primary_profile, _SUMMARY_REQUIRED_CAPABILITIES
+    ):
+        _raise_api_error(
+            503,
+            "SUMMARY_BINDING_NOT_READY",
+            "The configured summary backend does not advertise the summary capability.",
+            {"reason": "capability_mismatch"},
+        )
+
+    provider_runtime_error = _provider_runtime_profile_readiness_error(
+        settings, primary_profile
+    )
+    if provider_runtime_error:
+        _raise_api_error(
+            503,
+            "SUMMARY_BINDING_NOT_READY",
+            "The configured summary backend is misconfigured right now.",
+            {
+                "reason": "primary_misconfigured",
+                "message": provider_runtime_error,
+            },
+        )
+
+    _raise_api_error(
+        503,
+        "SUMMARY_BINDING_NOT_READY",
+        "The configured summary backend is not operational right now.",
+        {"reason": "primary_unhealthy"},
+    )
+
+
+def _resolve_summary_credential_value(
+    settings: Settings,
+    profile: BackendProfileRecord,
+) -> str:
+    credential_ref = profile.auth_strategy.credential_ref
+    if credential_ref is None:
+        _raise_api_error(
+            503,
+            "SUMMARY_PROVIDER_MISCONFIGURED",
+            "The summary backend requires a credential reference before it can be used.",
+        )
+
+    if credential_ref.kind == "server_env":
+        env_name = credential_ref.id.strip()
+        token = (os.environ.get(env_name) or "").strip()
+        if token:
+            return token
+        _raise_api_error(
+            503,
+            "SUMMARY_PROVIDER_MISCONFIGURED",
+            "The summary backend credential is missing from the server environment.",
+            {"env_name": env_name},
+        )
+
+    if credential_ref.kind == "operator_token":
+        token = (settings.backend_admin_token or "").strip()
+        if token:
+            return token
+        _raise_api_error(
+            503,
+            "SUMMARY_PROVIDER_MISCONFIGURED",
+            "The operator token is not configured for summary backend authentication.",
+        )
+
+    _raise_api_error(
+        503,
+        "SUMMARY_PROVIDER_AUTH_UNSUPPORTED",
+        "The current summary credential source is not supported yet.",
+        {"credential_kind": credential_ref.kind},
+    )
+
+
+def _build_summary_auth_headers(
+    settings: Settings, profile: BackendProfileRecord
+) -> dict[str, str]:
+    auth_type = profile.auth_strategy.type
+    if auth_type == "none":
+        return {}
+
+    if auth_type == "bearer_secret_ref":
+        token = _resolve_summary_credential_value(settings, profile)
+        return {"Authorization": f"Bearer {token}"}
+
+    if auth_type == "header_token":
+        token = _resolve_summary_credential_value(settings, profile)
+        header_name = (
+            profile.metadata.get("auth_header_name", "Authorization").strip()
+            or "Authorization"
+        )
+        header_prefix = profile.metadata.get("auth_header_prefix", "").strip()
+        header_value = f"{header_prefix} {token}".strip() if header_prefix else token
+        return {header_name: header_value}
+
+    _raise_api_error(
+        503,
+        "SUMMARY_PROVIDER_AUTH_UNSUPPORTED",
+        "The configured summary backend auth strategy is not supported yet.",
+        {"auth_type": auth_type},
+    )
+
+
+def _resolve_summary_model(
+    binding: FeatureBindingRecord, profile: BackendProfileRecord
+) -> str:
+    model = (binding.model_override or profile.default_model or "").strip()
+    if model:
+        return model
+    _raise_api_error(
+        503,
+        "SUMMARY_PROVIDER_MISCONFIGURED",
+        "A summary model must be configured on the binding or backend profile.",
+    )
+
+
+def _resolve_summary_timeout_ms(binding: FeatureBindingRecord) -> int:
+    if binding.timeout_ms is not None and binding.timeout_ms > 0:
+        return binding.timeout_ms
+    return _SUMMARY_DEFAULT_TIMEOUT_MS
+
+
+def _resolve_summary_retry_attempts(binding: FeatureBindingRecord) -> int:
+    if binding.retry_policy is None:
+        return 1
+    return max(1, binding.retry_policy.max_attempts)
+
+
+def _resolve_summary_backoff_seconds(binding: FeatureBindingRecord) -> float:
+    if binding.retry_policy is None or binding.retry_policy.backoff_ms <= 0:
+        return 0.0
+    return binding.retry_policy.backoff_ms / 1000.0
+
+
+def _resolve_summary_chat_path(profile: BackendProfileRecord) -> str:
+    configured = (
+        profile.metadata.get("chat_completions_path")
+        or profile.metadata.get("chat_path")
+        or _SUMMARY_DEFAULT_CHAT_PATH
+    ).strip()
+    if not configured:
+        return _SUMMARY_DEFAULT_CHAT_PATH
+    return configured if configured.startswith("/") else f"/{configured}"
+
+
+def _detect_summary_source_language(payload: FullSummaryRequest) -> Optional[str]:
+    explicit = (payload.source_language or "").strip()
+    if explicit:
+        return explicit
+
+    counts: dict[str, int] = {}
+    for turn in payload.turns:
+        language = (turn.language or "").strip()
+        if not language:
+            continue
+        counts[language] = counts.get(language, 0) + 1
+
+    if not counts:
+        return None
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def _resolve_summary_output_language(
+    payload: FullSummaryRequest, source_language: Optional[str]
+) -> Optional[str]:
+    explicit = (payload.output_language or "").strip()
+    if explicit:
+        return explicit
+
+    preset_language = (payload.preset.language or "").strip()
+    if preset_language and preset_language.lower() != "auto":
+        return preset_language
+    return source_language
+
+
+def _build_summary_provider_messages(
+    payload: FullSummaryRequest,
+    source_language: Optional[str],
+    output_language: Optional[str],
+) -> list[dict[str, str]]:
+    preset_schema = [
+        {
+            "id": section.id,
+            "label": section.label,
+            "kind": section.kind,
+            "required": section.required,
+        }
+        for section in payload.preset.output_schema
+    ]
+    turns = [
+        {
+            "id": turn.id,
+            "speakerLabel": turn.speaker_label,
+            "language": turn.language,
+            "startMs": turn.start_ms,
+            "endMs": turn.end_ms,
+            "text": turn.text,
+        }
+        for turn in payload.turns
+    ]
+    system_prompt = (
+        "You create full-session summaries from transcript turns. "
+        "Return only valid JSON with the shape "
+        '{"title": string, "blocks": [{"id": string, "title": string, "content": string | string[], '
+        '"source_turn_ids": string[]}]} '
+        "Do not wrap the JSON in markdown. "
+        "Use only block ids from the preset schema, keep their order, and only cite turn ids that appear in the transcript."
+    )
+    user_prompt = json.dumps(
+        {
+            "promptVersion": _SUMMARY_PROMPT_VERSION,
+            "session": {
+                "id": payload.session_id,
+                "title": payload.title,
+                "sourceRevision": payload.source_revision,
+                "sourceLanguage": source_language,
+                "outputLanguage": output_language,
+                "trigger": payload.trigger,
+                "regenerationScope": payload.regeneration_scope,
+            },
+            "preset": {
+                "id": payload.preset.id,
+                "version": payload.preset.version,
+                "label": payload.preset.label,
+                "description": payload.preset.description,
+                "language": payload.preset.language,
+                "outputSchema": preset_schema,
+            },
+            "transcriptTurns": turns,
+        },
+        ensure_ascii=False,
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def _extract_summary_completion_text(response_payload: Any) -> str:
+    if not isinstance(response_payload, dict):
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider returned an invalid response payload.",
+        )
+
+    choices = response_payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider response did not include any choices.",
+        )
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider returned an invalid choice payload.",
+        )
+
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider response did not include a message payload.",
+        )
+
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+
+    if isinstance(content, list):
+        fragments: list[str] = []
+        for item in content:
+            if isinstance(item, str) and item.strip():
+                fragments.append(item.strip())
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str) and text.strip():
+                    fragments.append(text.strip())
+        combined = "\n".join(fragment for fragment in fragments if fragment)
+        if combined.strip():
+            return combined.strip()
+
+    _raise_api_error(
+        502,
+        "SUMMARY_PROVIDER_RESPONSE_INVALID",
+        "The summary provider returned an empty completion message.",
+    )
+
+
+def _parse_summary_json_payload(text: str) -> Any:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    with contextlib.suppress(json.JSONDecodeError):
+        return json.loads(stripped)
+
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stripped):
+        if char not in "{[":
+            continue
+        with contextlib.suppress(json.JSONDecodeError):
+            payload, _ = decoder.raw_decode(stripped[index:])
+            return payload
+
+    _raise_api_error(
+        502,
+        "SUMMARY_PROVIDER_RESPONSE_INVALID",
+        "The summary provider did not return valid JSON output.",
+    )
+
+
+def _coerce_summary_block_content(raw_content: Any, section_kind: str) -> str:
+    if isinstance(raw_content, str):
+        return raw_content.strip()
+
+    if isinstance(raw_content, list):
+        lines: list[str] = []
+        for item in raw_content:
+            if isinstance(item, str) and item.strip():
+                lines.append(item.strip())
+            elif isinstance(item, dict):
+                text = item.get("text") or item.get("content") or item.get("quote")
+                if isinstance(text, str) and text.strip():
+                    lines.append(text.strip())
+        if not lines:
+            return ""
+        if section_kind == "narrative":
+            return " ".join(lines)
+        prefix = "> " if section_kind == "quote_list" else "- "
+        return "\n".join(f"{prefix}{line}" for line in lines)
+
+    return ""
+
+
+def _coerce_summary_turn_ids(raw_value: Any) -> list[str]:
+    if isinstance(raw_value, list):
+        return [
+            str(item).strip()
+            for item in raw_value
+            if isinstance(item, (str, int)) and str(item).strip()
+        ]
+    if isinstance(raw_value, str) and raw_value.strip():
+        return [raw_value.strip()]
+    return []
+
+
+def _build_summary_supporting_snippets(
+    block_id: str,
+    turn_ids: list[str],
+    turns_by_id: dict[str, Any],
+) -> list[SummarySupportingSnippetModel]:
+    snippets: list[SummarySupportingSnippetModel] = []
+    seen_turn_ids: set[str] = set()
+
+    for index, turn_id in enumerate(turn_ids):
+        if turn_id in seen_turn_ids:
+            continue
+        seen_turn_ids.add(turn_id)
+        turn = turns_by_id.get(turn_id)
+        if turn is None:
+            continue
+        snippets.append(
+            SummarySupportingSnippetModel(
+                id=f"{block_id}:{turn.id}:{index}",
+                turn_id=turn.id,
+                speaker_label=turn.speaker_label,
+                start_ms=turn.start_ms,
+                end_ms=turn.end_ms,
+                text=turn.text,
+            )
+        )
+        if len(snippets) >= 3:
+            break
+
+    return snippets
+
+
+def _compose_summary_content(blocks: list[SummaryBlockResultModel]) -> str:
+    lines = [
+        f"{block.title}: {block.content}" if block.title else block.content
+        for block in blocks
+        if block.content.strip()
+    ]
+    return "\n".join(lines).strip()
+
+
+def _normalize_summary_provider_output(
+    payload: Any,
+    request_payload: FullSummaryRequest,
+) -> tuple[str, str, list[SummaryBlockResultModel], list[SummarySupportingSnippetModel]]:
+    if not isinstance(payload, dict):
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider JSON output must be an object.",
+        )
+
+    turns_by_id = {turn.id: turn for turn in request_payload.turns}
+    raw_blocks = payload.get("blocks")
+    if isinstance(raw_blocks, dict):
+        raw_blocks = [
+            (
+                {"id": key, **value}
+                if isinstance(value, dict)
+                else {"id": key, "content": value}
+            )
+            for key, value in raw_blocks.items()
+        ]
+    if not isinstance(raw_blocks, list):
+        raw_blocks = []
+
+    raw_blocks_by_id: dict[str, dict[str, Any]] = {}
+    for raw_block in raw_blocks:
+        if not isinstance(raw_block, dict):
+            continue
+        raw_id = raw_block.get("id") or raw_block.get("kind")
+        if isinstance(raw_id, str) and raw_id.strip():
+            raw_blocks_by_id[raw_id.strip()] = raw_block
+
+    blocks: list[SummaryBlockResultModel] = []
+    for section in request_payload.preset.output_schema:
+        raw_block = raw_blocks_by_id.get(section.id, {})
+        block_content = _coerce_summary_block_content(
+            raw_block.get("content")
+            if isinstance(raw_block, dict) and "content" in raw_block
+            else (
+                raw_block.get("items")
+                if isinstance(raw_block, dict) and "items" in raw_block
+                else raw_block.get("quotes")
+                if isinstance(raw_block, dict) and "quotes" in raw_block
+                else raw_block.get("bullets")
+                if isinstance(raw_block, dict)
+                else None
+            ),
+            section.kind,
+        )
+        if not block_content:
+            continue
+        supporting_snippets = _build_summary_supporting_snippets(
+            section.id,
+            _coerce_summary_turn_ids(
+                raw_block.get("source_turn_ids")
+                if isinstance(raw_block, dict)
+                else None
+            ),
+            turns_by_id,
+        )
+        blocks.append(
+            SummaryBlockResultModel(
+                id=section.id,
+                kind=section.id,
+                title=(
+                    raw_block.get("title").strip()
+                    if isinstance(raw_block, dict)
+                    and isinstance(raw_block.get("title"), str)
+                    and raw_block.get("title").strip()
+                    else section.label
+                ),
+                content=block_content,
+                supporting_snippets=supporting_snippets,
+            )
+        )
+
+    if not blocks:
+        fallback_content = _coerce_summary_block_content(
+            payload.get("summary") or payload.get("content") or payload.get("overview"),
+            "narrative",
+        )
+        if not fallback_content:
+            _raise_api_error(
+                502,
+                "SUMMARY_PROVIDER_RESPONSE_INVALID",
+                "The summary provider JSON output did not include any usable blocks.",
+            )
+        fallback_section = (
+            request_payload.preset.output_schema[0]
+            if request_payload.preset.output_schema
+            else None
+        )
+        blocks.append(
+            SummaryBlockResultModel(
+                id=fallback_section.id if fallback_section else "overview",
+                kind=fallback_section.id if fallback_section else "overview",
+                title=fallback_section.label if fallback_section else request_payload.preset.label,
+                content=fallback_content,
+                supporting_snippets=[],
+            )
+        )
+
+    deduped_snippets: list[SummarySupportingSnippetModel] = []
+    seen_snippet_ids: set[str] = set()
+    for block in blocks:
+        for snippet in block.supporting_snippets:
+            if snippet.id in seen_snippet_ids:
+                continue
+            seen_snippet_ids.add(snippet.id)
+            deduped_snippets.append(snippet)
+
+    title = (
+        payload.get("title").strip()
+        if isinstance(payload.get("title"), str) and payload.get("title").strip()
+        else f"{request_payload.preset.label} summary"
+    )
+    content = _compose_summary_content(blocks)
+    if not content:
+        _raise_api_error(
+            502,
+            "SUMMARY_PROVIDER_RESPONSE_INVALID",
+            "The summary provider did not return any summary content.",
+        )
+
+    return title, content, blocks, deduped_snippets
+
+
+async def _request_summary_provider_payload(
+    *,
+    settings: Settings,
+    profile: BackendProfileRecord,
+    binding: FeatureBindingRecord,
+    model: str,
+    messages: list[dict[str, str]],
+) -> Any:
+    request_headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        **_build_summary_auth_headers(settings, profile),
+    }
+    timeout_seconds = max(1.0, _resolve_summary_timeout_ms(binding) / 1000.0)
+    retry_attempts = _resolve_summary_retry_attempts(binding)
+    backoff_seconds = _resolve_summary_backoff_seconds(binding)
+    request_url = f"{profile.base_url}{_resolve_summary_chat_path(profile)}"
+    request_body = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+
+    last_error_message = "Summary provider request failed."
+
+    async with httpx.AsyncClient(
+        verify=settings.verify_ssl,
+        http2=True,
+        follow_redirects=False,
+    ) as client:
+        for attempt in range(retry_attempts):
+            try:
+                response = await client.post(
+                    request_url,
+                    headers=request_headers,
+                    json=request_body,
+                    timeout=timeout_seconds,
+                )
+            except httpx.TimeoutException:
+                last_error_message = "Summary provider request timed out."
+            except httpx.RequestError as exc:
+                last_error_message = f"Summary provider request failed: {exc}"
+            else:
+                if response.status_code in {408, 429} or response.status_code >= 500:
+                    body_preview = _truncate_log_text(response.text, 400)
+                    last_error_message = (
+                        "Summary provider could not complete the request: "
+                        f"HTTP {response.status_code}"
+                        + (f" ({body_preview})" if body_preview else "")
+                    )
+                elif response.status_code >= 400:
+                    body_preview = _truncate_log_text(response.text, 400)
+                    _raise_api_error(
+                        502,
+                        "SUMMARY_PROVIDER_REQUEST_FAILED",
+                        "The summary provider rejected the request. Check the configured model, path, or credentials.",
+                        {
+                            "status_code": response.status_code,
+                            "response_body": body_preview,
+                        },
+                    )
+                else:
+                    with contextlib.suppress(ValueError):
+                        return response.json()
+                    _raise_api_error(
+                        502,
+                        "SUMMARY_PROVIDER_RESPONSE_INVALID",
+                        "The summary provider returned a non-JSON response.",
+                    )
+
+            if attempt + 1 < retry_attempts and backoff_seconds > 0:
+                await asyncio.sleep(backoff_seconds)
+
+    _raise_api_error(
+        502,
+        "SUMMARY_PROVIDER_REQUEST_FAILED",
+        "The summary provider could not complete the request.",
+        {"detail": last_error_message},
+    )
+
+
+def _resolve_translate_binding_target(
+    settings: Settings,
+) -> tuple[FeatureBindingRecord, BackendProfileRecord, bool]:
+    binding = get_feature_binding(settings.storage_base_dir, _TRANSLATE_FEATURE_KEY)
+    if binding is None:
+        _raise_api_error(
+            503,
+            "TRANSLATE_BINDING_NOT_READY",
+            "Final-turn translation is not configured yet.",
+            {"reason": "binding_missing"},
+        )
+
+    if not binding.enabled:
+        _raise_api_error(
+            503,
+            "TRANSLATE_BINDING_NOT_READY",
+            "Final-turn translation is disabled by the current binding.",
+            {"reason": "binding_disabled"},
+        )
+
+    primary_profile = get_backend_profile(
+        settings.storage_base_dir, binding.primary_backend_profile_id
+    )
+    if primary_profile is None:
+        _raise_api_error(
+            503,
+            "TRANSLATE_BINDING_NOT_READY",
+            "The configured primary translate backend profile could not be found.",
+            {"reason": "profile_missing"},
+        )
+
+    primary_ready = _backend_profile_is_ready_for_feature(
+        settings, primary_profile, _TRANSLATE_REQUIRED_CAPABILITIES
+    )
+    if primary_ready:
+        return binding, primary_profile, False
+
+    fallback_profile = _get_ready_fallback_profile(
+        settings,
+        binding.fallback_backend_profile_id,
+        _TRANSLATE_REQUIRED_CAPABILITIES,
+        primary_profile.id,
+    )
+    fallback_ready = fallback_profile is not None
+    if fallback_ready:
+        return binding, fallback_profile, True
+
+    if not _backend_profile_supports_capabilities(
+        primary_profile, _TRANSLATE_REQUIRED_CAPABILITIES
+    ):
+        _raise_api_error(
+            503,
+            "TRANSLATE_BINDING_NOT_READY",
+            "The configured translate backend does not advertise the final-turn translation capability.",
+            {"reason": "capability_mismatch"},
+        )
+
+    provider_runtime_error = _provider_runtime_profile_readiness_error(
+        settings, primary_profile
+    )
+    if provider_runtime_error:
+        _raise_api_error(
+            503,
+            "TRANSLATE_BINDING_NOT_READY",
+            "The configured translate backend is misconfigured right now.",
+            {
+                "reason": "primary_misconfigured",
+                "message": provider_runtime_error,
+            },
+        )
+
+    _raise_api_error(
+        503,
+        "TRANSLATE_BINDING_NOT_READY",
+        "The configured translate backend is not operational right now.",
+        {"reason": "primary_unhealthy"},
+    )
+
+
+def _resolve_translate_credential_value(
+    settings: Settings,
+    profile: BackendProfileRecord,
+) -> str:
+    credential_ref = profile.auth_strategy.credential_ref
+    if credential_ref is None:
+        _raise_api_error(
+            503,
+            "TRANSLATE_PROVIDER_MISCONFIGURED",
+            "The translate backend requires a credential reference before it can be used.",
+        )
+
+    if credential_ref.kind == "server_env":
+        env_name = credential_ref.id.strip()
+        token = (os.environ.get(env_name) or "").strip()
+        if token:
+            return token
+        _raise_api_error(
+            503,
+            "TRANSLATE_PROVIDER_MISCONFIGURED",
+            "The translate backend credential is missing from the server environment.",
+            {"env_name": env_name},
+        )
+
+    if credential_ref.kind == "operator_token":
+        token = (settings.backend_admin_token or "").strip()
+        if token:
+            return token
+        _raise_api_error(
+            503,
+            "TRANSLATE_PROVIDER_MISCONFIGURED",
+            "The operator token is not configured for translate backend authentication.",
+        )
+
+    _raise_api_error(
+        503,
+        "TRANSLATE_PROVIDER_AUTH_UNSUPPORTED",
+        "The current translate credential source is not supported yet.",
+        {"credential_kind": credential_ref.kind},
+    )
+
+
+def _build_translate_auth_headers(
+    settings: Settings, profile: BackendProfileRecord
+) -> dict[str, str]:
+    auth_type = profile.auth_strategy.type
+    if auth_type == "none":
+        return {}
+
+    if auth_type == "bearer_secret_ref":
+        token = _resolve_translate_credential_value(settings, profile)
+        return {"Authorization": f"Bearer {token}"}
+
+    if auth_type == "header_token":
+        token = _resolve_translate_credential_value(settings, profile)
+        header_name = (
+            profile.metadata.get("auth_header_name", "Authorization").strip()
+            or "Authorization"
+        )
+        header_prefix = profile.metadata.get("auth_header_prefix", "").strip()
+        header_value = f"{header_prefix} {token}".strip() if header_prefix else token
+        return {header_name: header_value}
+
+    _raise_api_error(
+        503,
+        "TRANSLATE_PROVIDER_AUTH_UNSUPPORTED",
+        "The configured translate backend auth strategy is not supported yet.",
+        {"auth_type": auth_type},
+    )
+
+
+def _resolve_translate_model(
+    binding: FeatureBindingRecord, profile: BackendProfileRecord
+) -> str:
+    model = (binding.model_override or profile.default_model or "").strip()
+    if model:
+        return model
+    _raise_api_error(
+        503,
+        "TRANSLATE_PROVIDER_MISCONFIGURED",
+        "A translate model must be configured on the binding or backend profile.",
+    )
+
+
+def _resolve_translate_timeout_ms(binding: FeatureBindingRecord) -> int:
+    if binding.timeout_ms is not None and binding.timeout_ms > 0:
+        return binding.timeout_ms
+    return _TRANSLATE_DEFAULT_TIMEOUT_MS
+
+
+def _resolve_translate_retry_attempts(binding: FeatureBindingRecord) -> int:
+    if binding.retry_policy is None:
+        return 1
+    return max(1, binding.retry_policy.max_attempts)
+
+
+def _resolve_translate_backoff_seconds(binding: FeatureBindingRecord) -> float:
+    if binding.retry_policy is None or binding.retry_policy.backoff_ms <= 0:
+        return 0.0
+    return binding.retry_policy.backoff_ms / 1000.0
+
+
+def _resolve_translate_chat_path(profile: BackendProfileRecord) -> str:
+    configured = (
+        profile.metadata.get("chat_completions_path")
+        or profile.metadata.get("chat_path")
+        or _TRANSLATE_DEFAULT_CHAT_PATH
+    ).strip()
+    if not configured:
+        return _TRANSLATE_DEFAULT_CHAT_PATH
+    return configured if configured.startswith("/") else f"/{configured}"
+
+
+def _detect_translate_source_language(
+    payload: FinalTurnTranslationRequest,
+) -> Optional[str]:
+    explicit = (payload.source_language or "").strip()
+    return explicit or None
+
+
+def _resolve_translate_target_language(
+    payload: FinalTurnTranslationRequest,
+) -> str:
+    target_language = payload.target_language.strip()
+    if target_language:
+        return target_language
+    _raise_api_error(
+        400,
+        "TRANSLATE_TARGET_LANGUAGE_REQUIRED",
+        "A target language is required to generate a translation.",
+    )
+
+
+def _build_translate_provider_messages(
+    payload: FinalTurnTranslationRequest,
+    source_language: Optional[str],
+    target_language: str,
+) -> list[dict[str, str]]:
+    system_prompt = (
+        "You translate final transcript turns. "
+        'Return only valid JSON with the shape {"translation": string, '
+        '"source_language": string | null, "target_language": string}. '
+        "Do not wrap the JSON in markdown and do not add commentary."
+    )
+    user_prompt = json.dumps(
+        {
+            "promptVersion": _TRANSLATE_PROMPT_VERSION,
+            "turn": {
+                "sessionId": payload.session_id,
+                "turnId": payload.turn_id,
+                "sourceRevision": payload.source_revision,
+                "speakerLabel": payload.speaker_label,
+                "sourceLanguage": source_language,
+                "targetLanguage": target_language,
+                "startMs": payload.start_ms,
+                "endMs": payload.end_ms,
+                "text": payload.text,
+            },
+        },
+        ensure_ascii=False,
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def _extract_translate_completion_text(response_payload: Any) -> str:
+    if not isinstance(response_payload, dict):
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider returned an invalid response payload.",
+        )
+
+    choices = response_payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider response did not include any choices.",
+        )
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider returned an invalid choice payload.",
+        )
+
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider response did not include a message payload.",
+        )
+
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+
+    if isinstance(content, list):
+        fragments: list[str] = []
+        for item in content:
+            if isinstance(item, str) and item.strip():
+                fragments.append(item.strip())
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str) and text.strip():
+                    fragments.append(text.strip())
+        combined = "\n".join(fragment for fragment in fragments if fragment)
+        if combined.strip():
+            return combined.strip()
+
+    _raise_api_error(
+        502,
+        "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+        "The translate provider returned an empty completion message.",
+    )
+
+
+def _parse_translate_json_payload(text: str) -> Any:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    with contextlib.suppress(json.JSONDecodeError):
+        return json.loads(stripped)
+
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stripped):
+        if char not in "{[":
+            continue
+        with contextlib.suppress(json.JSONDecodeError):
+            payload, _ = decoder.raw_decode(stripped[index:])
+            return payload
+
+    _raise_api_error(
+        502,
+        "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+        "The translate provider did not return valid JSON output.",
+    )
+
+
+def _normalize_translate_provider_output(
+    payload: Any,
+    request_payload: FinalTurnTranslationRequest,
+    *,
+    source_language: Optional[str],
+    target_language: str,
+) -> tuple[str, Optional[str]]:
+    if not isinstance(payload, dict):
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider JSON output must be an object.",
+        )
+
+    translated_text = (
+        payload.get("translation")
+        or payload.get("translated_text")
+        or payload.get("text")
+    )
+    if not isinstance(translated_text, str) or not translated_text.strip():
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider did not return translated text.",
+        )
+
+    normalized_source_language = (
+        payload.get("source_language").strip()
+        if isinstance(payload.get("source_language"), str)
+        and payload.get("source_language").strip()
+        else source_language
+    )
+    normalized_target_language = (
+        payload.get("target_language").strip()
+        if isinstance(payload.get("target_language"), str)
+        and payload.get("target_language").strip()
+        else target_language
+    )
+    if normalized_target_language != target_language:
+        _raise_api_error(
+            502,
+            "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+            "The translate provider returned an unexpected target language.",
+            {
+                "expected_target_language": target_language,
+                "returned_target_language": normalized_target_language,
+                "turn_id": request_payload.turn_id,
+            },
+        )
+
+    return translated_text.strip(), normalized_source_language
+
+
+async def _request_translate_provider_payload(
+    *,
+    settings: Settings,
+    profile: BackendProfileRecord,
+    binding: FeatureBindingRecord,
+    model: str,
+    messages: list[dict[str, str]],
+) -> Any:
+    request_headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        **_build_translate_auth_headers(settings, profile),
+    }
+    timeout_seconds = max(1.0, _resolve_translate_timeout_ms(binding) / 1000.0)
+    retry_attempts = _resolve_translate_retry_attempts(binding)
+    backoff_seconds = _resolve_translate_backoff_seconds(binding)
+    request_url = f"{profile.base_url}{_resolve_translate_chat_path(profile)}"
+    request_body = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+
+    last_error_message = "Translate provider request failed."
+
+    async with httpx.AsyncClient(
+        verify=settings.verify_ssl,
+        http2=True,
+        follow_redirects=False,
+    ) as client:
+        for attempt in range(retry_attempts):
+            try:
+                response = await client.post(
+                    request_url,
+                    headers=request_headers,
+                    json=request_body,
+                    timeout=timeout_seconds,
+                )
+            except httpx.TimeoutException:
+                last_error_message = "Translate provider request timed out."
+            except httpx.RequestError as exc:
+                last_error_message = f"Translate provider request failed: {exc}"
+            else:
+                if response.status_code in {408, 429} or response.status_code >= 500:
+                    body_preview = _truncate_log_text(response.text, 400)
+                    last_error_message = (
+                        "Translate provider could not complete the request: "
+                        f"HTTP {response.status_code}"
+                        + (f" ({body_preview})" if body_preview else "")
+                    )
+                elif response.status_code >= 400:
+                    body_preview = _truncate_log_text(response.text, 400)
+                    _raise_api_error(
+                        502,
+                        "TRANSLATE_PROVIDER_REQUEST_FAILED",
+                        "The translate provider rejected the request. Check the configured model, path, or credentials.",
+                        {
+                            "status_code": response.status_code,
+                            "response_body": body_preview,
+                        },
+                    )
+                else:
+                    with contextlib.suppress(ValueError):
+                        return response.json()
+                    _raise_api_error(
+                        502,
+                        "TRANSLATE_PROVIDER_RESPONSE_INVALID",
+                        "The translate provider returned a non-JSON response.",
+                    )
+
+            if attempt + 1 < retry_attempts and backoff_seconds > 0:
+                await asyncio.sleep(backoff_seconds)
+
+    _raise_api_error(
+        502,
+        "TRANSLATE_PROVIDER_REQUEST_FAILED",
+        "The translate provider could not complete the request.",
+        {"detail": last_error_message},
+    )
 
 
 def _normalize_feature_binding_record(
@@ -576,6 +2236,25 @@ async def get_backend_profile_record(
     return profile
 
 
+@app.get("/v1/backend/profiles/{profile_id}/health", response_model=BackendProfileHealthResponse)
+async def get_backend_profile_health(
+    profile_id: str,
+    refresh: bool = Query(default=False),
+    settings: Settings = Depends(_require_backend_admin),
+) -> BackendProfileHealthResponse:
+    """Return the current or freshly revalidated health snapshot for a backend profile."""
+    profile = get_backend_profile(settings.storage_base_dir, profile_id)
+    if profile is None:
+        _raise_api_error(404, "BACKEND_PROFILE_NOT_FOUND", "Backend profile was not found.")
+    if refresh:
+        profile = await asyncio.to_thread(_refresh_backend_profile_health, settings, profile)
+    return BackendProfileHealthResponse(
+        profile_id=profile.id,
+        refreshed=refresh,
+        health=profile.health,
+    )
+
+
 @app.put("/v1/backend/profiles/{profile_id}", response_model=BackendProfileRecord)
 async def put_backend_profile(
     profile_id: str,
@@ -585,7 +2264,7 @@ async def put_backend_profile(
     """Create or replace an operator-managed backend profile."""
     try:
         normalized_payload = _normalize_backend_profile_record(payload)
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         _raise_api_error(
             400,
             "BACKEND_PROFILE_INVALID",
