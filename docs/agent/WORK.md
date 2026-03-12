@@ -157,7 +157,6 @@
 - Validation: `npm --prefix webapp run i18n:check` -> PASS
 - Validation: `git diff --check` -> PASS
 - Notes/Risks: rebased `feature/update-rtzr-library` onto `main` after fast-forwarding local `main` to `origin/main` (`ddbe777` on 2026-03-12) and reapplied the optional-token work against the updated operator UI/runtime model. `ruff` is not installed in the current shell, so Python linting could not be executed here. `python_api/tests/test_backend_admin.py` stubs FastAPI's multipart dependency check at import time so the guard logic can be tested without changing the local Python environment.
-
 ## 2026-03-12: Local pip injection for dockerized private RTZR packages
 
 ### Goal
