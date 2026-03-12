@@ -13,6 +13,8 @@ services:
       PRONAIA_CLIENT_SECRET: ${PRONAIA_CLIENT_SECRET:-your_client_secret}
       STT_DEPLOYMENT: ${STT_DEPLOYMENT:-cloud}
       STT_VERIFY_SSL: ${STT_VERIFY_SSL:-1}
+      BACKEND_ADMIN_ENABLED: ${BACKEND_ADMIN_ENABLED:-0}
+      BACKEND_ADMIN_TOKEN_REQUIRED: ${BACKEND_ADMIN_TOKEN_REQUIRED:-1}
     ports:
       - "8173:8000"
     volumes:
@@ -23,6 +25,8 @@ services:
       context: ../../webapp
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+        VITE_ADMIN_API_BASE: ${VITE_ADMIN_API_BASE:-/api}
     container_name: malsori-webapp
     depends_on:
       - python-api

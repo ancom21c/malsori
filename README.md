@@ -60,7 +60,8 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
 - `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.
-- `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled; callers must send `X-Malsori-Admin-Token`.
+- `BACKEND_ADMIN_TOKEN_REQUIRED` – set to `0` to allow `/v1/backend/*` calls without `X-Malsori-Admin-Token`. Defaults to `1`.
+- `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled and `BACKEND_ADMIN_TOKEN_REQUIRED=1`; callers must send `X-Malsori-Admin-Token`.
 - `STT_STORAGE_PERSISTENT` – set to `1` when `STT_STORAGE_BASE_DIR` is backed by persistent storage (PVC).
 
 Example launch:
@@ -73,7 +74,7 @@ uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
 The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, `/v1/streaming` for realtime WebSocket relay, and `/v1/observability/runtime-error` for browser runtime error telemetry.  
-For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth when enabled.
+For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth unless `BACKEND_ADMIN_TOKEN_REQUIRED=0`.
 Production ingress should split public/internal surfaces: keep user routes (`/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`) public, and expose `/v1/backend/*` + `/v1/observability/runtime-error` on internal ingress only.
 
 #### Proxy Contract Mapping

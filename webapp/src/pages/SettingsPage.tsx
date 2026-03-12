@@ -82,7 +82,7 @@ import {
 } from "../utils/backendEndpointUrl";
 import { ContextCard, StatusChipSet, StudioPageShell, StudioJsonEditor } from "../components/studio";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
-import { normalizeAdminApiBaseUrl } from "../utils/baseUrl";
+import { resolveAdminApiBaseUrl } from "../utils/baseUrl";
 import {
   areConnectionSettingsDraftEqual,
   buildConnectionSettingsUpdatePlan,
@@ -128,6 +128,13 @@ const operatorBackendBindingsEnabled = ["1", "true", "yes", "on"].includes(
 const BackendBindingOperatorPanel = operatorBackendBindingsEnabled
   ? (lazy(() => import("../components/BackendBindingOperatorPanel")) as typeof import("../components/BackendBindingOperatorPanel").default)
   : null;
+
+const SETTINGS_RADIUS = {
+  section: "16px",
+  card: "14px",
+  panel: "12px",
+  inset: "10px",
+} as const;
 
 type SettingsTab = "file" | "streaming";
 
@@ -322,6 +329,7 @@ export default function SettingsPage() {
   const [backendMutationDialogAction, setBackendMutationDialogAction] =
     useState<BackendRuntimeAction | null>(null);
   const [backendAdminEnabled, setBackendAdminEnabled] = useState(false);
+  const [backendAdminTokenRequired, setBackendAdminTokenRequired] = useState(true);
   const [backendAdminToken, setBackendAdminToken] = useState("");
   const [backendBindingState, setBackendBindingState] = useState<BackendCapabilitiesState | null>(
     null
@@ -556,14 +564,16 @@ export default function SettingsPage() {
       setBackendStateError(null);
       setBackendStateLastSuccessAt(null);
       setBackendAdminEnabled(false);
+      setBackendAdminTokenRequired(true);
       return false;
     }
-    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    const normalizedAdminApiBaseUrl = resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl);
     if (!normalizedAdminApiBaseUrl) {
       setBackendState(null);
       setBackendStateError(null);
       setBackendStateLastSuccessAt(null);
       setBackendAdminEnabled(false);
+      setBackendAdminTokenRequired(true);
       return false;
     }
     setBackendStateLoading(true);
@@ -571,7 +581,9 @@ export default function SettingsPage() {
     try {
       const health = await apiClient.getHealthStatus();
       const adminEnabled = health.backendAdminEnabled ?? false;
+      const adminTokenRequired = health.backendAdminTokenRequired ?? true;
       setBackendAdminEnabled(adminEnabled);
+      setBackendAdminTokenRequired(adminTokenRequired);
       if (!adminEnabled) {
         setBackendState(null);
         setBackendStateLastSuccessAt(null);
@@ -585,6 +597,7 @@ export default function SettingsPage() {
       setBackendState(null);
       setBackendStateLastSuccessAt(null);
       setBackendAdminEnabled(false);
+      setBackendAdminTokenRequired(true);
       return false;
     } finally {
       setBackendStateLoading(false);
@@ -603,7 +616,7 @@ export default function SettingsPage() {
       setBackendStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
       return;
     }
-    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    const normalizedAdminApiBaseUrl = resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl);
     if (!normalizedAdminApiBaseUrl) {
       setBackendState(null);
       setBackendStateLastSuccessAt(null);
@@ -612,25 +625,29 @@ export default function SettingsPage() {
       return;
     }
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
-      setBackendState(null);
-      setBackendStateLastSuccessAt(null);
-      setBackendStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
-      return;
-    }
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
       const health = await apiClient.getHealthStatus();
       const adminEnabled = health.backendAdminEnabled ?? false;
+      const adminTokenRequired = health.backendAdminTokenRequired ?? true;
       setBackendAdminEnabled(adminEnabled);
+      setBackendAdminTokenRequired(adminTokenRequired);
       if (!adminEnabled) {
         setBackendState(null);
         setBackendStateLastSuccessAt(null);
         setBackendStateError(t("operatorSettingsUnavailableFromServer"));
         return;
       }
-      const state = await apiClient.getBackendEndpointState({ adminToken });
+      if (adminTokenRequired && !adminToken) {
+        setBackendState(null);
+        setBackendStateLastSuccessAt(null);
+        setBackendStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
+        return;
+      }
+      const state = await apiClient.getBackendEndpointState({
+        adminToken: adminToken || undefined,
+      });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
     } catch (error) {
@@ -648,14 +665,14 @@ export default function SettingsPage() {
       setBackendBindingStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
       return;
     }
-    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    const normalizedAdminApiBaseUrl = resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl);
     if (!normalizedAdminApiBaseUrl) {
       setBackendBindingState(null);
       setBackendBindingStateError(t("internalAdminApiBaseUrlRequired"));
       return;
     }
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       setBackendBindingState(null);
       setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
@@ -665,9 +682,9 @@ export default function SettingsPage() {
     setBackendBindingStateError(null);
     try {
       const [capabilities, profiles, bindings] = await Promise.all([
-        apiClient.getBackendCapabilities({ adminToken }),
-        apiClient.getBackendProfiles({ adminToken }),
-        apiClient.getFeatureBindings({ adminToken }),
+        apiClient.getBackendCapabilities({ adminToken: adminToken || undefined }),
+        apiClient.getBackendProfiles({ adminToken: adminToken || undefined }),
+        apiClient.getFeatureBindings({ adminToken: adminToken || undefined }),
       ]);
       setBackendBindingState(capabilities);
       setBackendProfiles(profiles);
@@ -724,6 +741,7 @@ export default function SettingsPage() {
     apiBaseUrl,
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     t,
     selectedBackendProfileId,
     selectedFeatureBindingKey,
@@ -734,13 +752,13 @@ export default function SettingsPage() {
       setBackendBindingStateError(t("pleaseCheckPythonApiBaseUrlAndRetryServerStatus"));
       return;
     }
-    const normalizedAdminApiBaseUrl = normalizeAdminApiBaseUrl(adminApiBaseUrl);
+    const normalizedAdminApiBaseUrl = resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl);
     if (!normalizedAdminApiBaseUrl) {
       setBackendBindingStateError(t("internalAdminApiBaseUrlRequired"));
       return;
     }
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
@@ -753,7 +771,7 @@ export default function SettingsPage() {
     setBackendBindingStateError(null);
     try {
       const response = await apiClient.getBackendProfileHealth(selectedBackendProfileId, {
-        adminToken,
+        adminToken: adminToken || undefined,
         refresh: true,
       });
       const now = new Date().toISOString();
@@ -796,6 +814,7 @@ export default function SettingsPage() {
     apiBaseUrl,
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     backendProfiles,
     enqueueSnackbar,
     selectedBackendProfileId,
@@ -880,13 +899,13 @@ export default function SettingsPage() {
 
   const handleSaveBackendProfileRecord = useCallback(async () => {
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
     try {
       const profile = parseBackendProfileEditorValue(backendProfileEditorValue);
-      await apiClient.upsertBackendProfile(profile, { adminToken });
+      await apiClient.upsertBackendProfile(profile, { adminToken: adminToken || undefined });
       setBackendProfileEditorError(null);
       enqueueSnackbar(t("backendProfileSaved"), { variant: "success" });
       setSelectedBackendProfileId(profile.id);
@@ -899,6 +918,7 @@ export default function SettingsPage() {
   }, [
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     backendProfileEditorValue,
     enqueueSnackbar,
     handleRefreshBackendBindingState,
@@ -907,11 +927,17 @@ export default function SettingsPage() {
 
   const handleDeleteBackendProfileRecord = useCallback(async () => {
     const adminToken = backendAdminToken.trim();
-    if (!adminToken || !selectedBackendProfileId) {
+    if (!selectedBackendProfileId) {
+      return;
+    }
+    if (backendAdminTokenRequired && !adminToken) {
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
     try {
-      await apiClient.deleteBackendProfile(selectedBackendProfileId, { adminToken });
+      await apiClient.deleteBackendProfile(selectedBackendProfileId, {
+        adminToken: adminToken || undefined,
+      });
       enqueueSnackbar(t("backendProfileDeleted"), { variant: "success" });
       setSelectedBackendProfileId(null);
       setBackendProfileEditorValue(buildEmptyBackendProfileEditorValue());
@@ -925,6 +951,7 @@ export default function SettingsPage() {
   }, [
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     enqueueSnackbar,
     handleRefreshBackendBindingState,
     selectedBackendProfileId,
@@ -933,13 +960,13 @@ export default function SettingsPage() {
 
   const handleSaveFeatureBindingRecord = useCallback(async () => {
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
     try {
       const binding = parseFeatureBindingEditorValue(featureBindingEditorValue);
-      await apiClient.upsertFeatureBinding(binding, { adminToken });
+      await apiClient.upsertFeatureBinding(binding, { adminToken: adminToken || undefined });
       setFeatureBindingEditorError(null);
       enqueueSnackbar(t("featureBindingSaved"), { variant: "success" });
       setSelectedFeatureBindingKey(binding.featureKey);
@@ -952,6 +979,7 @@ export default function SettingsPage() {
   }, [
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     enqueueSnackbar,
     featureBindingEditorValue,
     handleRefreshBackendBindingState,
@@ -960,11 +988,17 @@ export default function SettingsPage() {
 
   const handleDeleteFeatureBindingRecord = useCallback(async () => {
     const adminToken = backendAdminToken.trim();
-    if (!adminToken || !selectedFeatureBindingKey) {
+    if (!selectedFeatureBindingKey) {
+      return;
+    }
+    if (backendAdminTokenRequired && !adminToken) {
+      setBackendBindingStateError(t("enterAdminTokenBeforeCheckingServerSettings"));
       return;
     }
     try {
-      await apiClient.deleteFeatureBinding(selectedFeatureBindingKey, { adminToken });
+      await apiClient.deleteFeatureBinding(selectedFeatureBindingKey, {
+        adminToken: adminToken || undefined,
+      });
       enqueueSnackbar(t("featureBindingDeleted"), { variant: "success" });
       setSelectedFeatureBindingKey(null);
       setFeatureBindingEditorValue(buildEmptyFeatureBindingEditorValue());
@@ -978,6 +1012,7 @@ export default function SettingsPage() {
   }, [
     apiClient,
     backendAdminToken,
+    backendAdminTokenRequired,
     enqueueSnackbar,
     handleRefreshBackendBindingState,
     selectedFeatureBindingKey,
@@ -1049,9 +1084,12 @@ export default function SettingsPage() {
       : DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}";
   }, [presetType]);
   const apiConfigured = Boolean(apiBaseUrl.trim());
-  const adminApiConfigured = Boolean(adminApiBaseUrl.trim());
+  const resolvedAdminApiBaseUrl = resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl);
+  const adminApiConfigured = Boolean(resolvedAdminApiBaseUrl.trim());
   const backendDeploymentMode = backendState?.deployment ?? "cloud";
   const backendAdminTokenPresent = backendAdminToken.trim().length > 0;
+  const backendAdminTokenSatisfied =
+    !backendAdminTokenRequired || backendAdminTokenPresent;
   const operatorActionsBlockedByDraft = shouldBlockOperatorActions(
     connectionSettingsDirty,
     savingConnectionSettings
@@ -1065,9 +1103,17 @@ export default function SettingsPage() {
         ? t("saveConnectionSettingsToUseDraftValues")
       : !backendAdminEnabled
         ? t("operatorSettingsUnavailableFromServer")
-        : !backendAdminTokenPresent
+        : backendAdminTokenRequired && !backendAdminTokenPresent
           ? t("enterAdminTokenBeforeCheckingServerSettings")
           : null;
+  const backendOperatorBoundaryHelperText = operatorActionsBlockedByDraft
+    ? t("saveConnectionSettingsToUseDraftValues")
+    : backendAdminTokenRequired
+      ? t("operatorSettingsBoundaryHelper")
+      : t("operatorSettingsBoundaryHelperTokenOptional");
+  const backendOperatorToolsHelperText = backendAdminTokenRequired
+    ? t("operatorToolsHelper")
+    : t("operatorToolsHelperTokenOptional");
   const selectedPresetName = useMemo(() => {
     if (!selectedPresetId) {
       return presets.find((preset) => preset.isDefault)?.name;
@@ -1099,7 +1145,7 @@ export default function SettingsPage() {
       resolveBackendRuntimeActionAvailability({
         selectedBackendPreset,
         adminApiConfigured,
-        backendAdminTokenPresent,
+        backendAdminTokenSatisfied,
         operatorActionsBlockedByDraft,
         backendState,
         activeBackendPresetId,
@@ -1107,7 +1153,7 @@ export default function SettingsPage() {
     [
       activeBackendPresetId,
       adminApiConfigured,
-      backendAdminTokenPresent,
+      backendAdminTokenSatisfied,
       backendState,
       operatorActionsBlockedByDraft,
       selectedBackendPreset,
@@ -1485,7 +1531,7 @@ export default function SettingsPage() {
       enqueueSnackbar(t("pleaseSelectTheBackendPresetToApply"), { variant: "warning" });
       return false;
     }
-    if (!adminApiBaseUrl.trim()) {
+    if (!resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl).trim()) {
       enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
       return false;
     }
@@ -1503,7 +1549,7 @@ export default function SettingsPage() {
       return false;
     }
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
         variant: "warning",
       });
@@ -1518,7 +1564,7 @@ export default function SettingsPage() {
         clientId: selectedBackendPreset.clientId ?? null,
         clientSecret: selectedBackendPreset.clientSecret ?? null,
         verifySsl: selectedBackendPreset.verifySsl ?? true,
-      }, { adminToken });
+      }, { adminToken: adminToken || undefined });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
@@ -1545,12 +1591,12 @@ export default function SettingsPage() {
   };
 
   const handleResetBackendEndpoint = async (): Promise<boolean> => {
-    if (!adminApiBaseUrl.trim()) {
+    if (!resolveAdminApiBaseUrl(adminApiBaseUrl, apiBaseUrl).trim()) {
       enqueueSnackbar(t("internalAdminApiBaseUrlRequired"), { variant: "warning" });
       return false;
     }
     const adminToken = backendAdminToken.trim();
-    if (!adminToken) {
+    if (backendAdminTokenRequired && !adminToken) {
       enqueueSnackbar(t("enterAdminTokenBeforeApplyingServerSettings"), {
         variant: "warning",
       });
@@ -1559,7 +1605,9 @@ export default function SettingsPage() {
     setBackendStateLoading(true);
     setBackendStateError(null);
     try {
-      const state = await apiClient.resetBackendEndpoint({ adminToken });
+      const state = await apiClient.resetBackendEndpoint({
+        adminToken: adminToken || undefined,
+      });
       setBackendState(state);
       setBackendStateLastSuccessAt(new Date().toISOString());
       setBackendStateError(null);
@@ -1913,7 +1961,7 @@ export default function SettingsPage() {
             </Tabs>
           </Box>
 
-          <Card variant="outlined">
+          <Card variant="outlined" sx={{ borderRadius: SETTINGS_RADIUS.card }}>
             <CardContent sx={{ py: 2 }}>
               <Stack spacing={1.5}>
                 <Stack
@@ -1963,7 +2011,7 @@ export default function SettingsPage() {
               flexDirection: "column",
               gap: 3,
               p: { xs: 0, md: 1.5 },
-              borderRadius: 4,
+              borderRadius: SETTINGS_RADIUS.section,
               border: "1px solid",
               borderColor: (currentTheme) => alpha(currentTheme.palette.primary.main, 0.2),
               bgcolor: (currentTheme) => alpha(currentTheme.palette.primary.main, 0.04),
@@ -1991,6 +2039,7 @@ export default function SettingsPage() {
               ref={transcriptionSectionRef}
               sx={{
                 scrollMarginTop: (currentTheme) => currentTheme.spacing(11),
+                borderRadius: SETTINGS_RADIUS.card,
                 borderColor: (currentTheme) => alpha(currentTheme.palette.primary.main, 0.18),
                 bgcolor: (currentTheme) => alpha(currentTheme.palette.background.paper, 0.9),
               }}
@@ -2015,7 +2064,7 @@ export default function SettingsPage() {
                   sx={{
                     mb: 2,
                     p: 1.5,
-                    borderRadius: 2,
+                    borderRadius: SETTINGS_RADIUS.inset,
                     border: "1px solid",
                     borderColor: "divider",
                     bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
@@ -2064,7 +2113,7 @@ export default function SettingsPage() {
                   <Box
                     sx={{
                       p: 1.5,
-                      borderRadius: 2.5,
+                      borderRadius: SETTINGS_RADIUS.panel,
                       border: "1px solid",
                       borderColor: alpha(theme.palette.warning.main, 0.28),
                       bgcolor: alpha(theme.palette.warning.main, 0.06),
@@ -2094,7 +2143,7 @@ export default function SettingsPage() {
                         helperText={t("internalAdminApiBaseUrlHelper")}
                       />
                       <Typography variant="caption" color="text.secondary">
-                        {t("operatorSettingsBoundaryHelper")}
+                        {backendOperatorBoundaryHelperText}
                       </Typography>
                     </Stack>
                   </Box>
@@ -2184,7 +2233,7 @@ export default function SettingsPage() {
                     <List
                       dense
                       disablePadding
-                      sx={{ border: 1, borderColor: "divider", borderRadius: 2 }}
+                      sx={{ border: 1, borderColor: "divider", borderRadius: SETTINGS_RADIUS.inset }}
                     >
                       {presets.length === 0 ? (
                         <Box sx={{ p: 2 }}>
@@ -2352,6 +2401,7 @@ export default function SettingsPage() {
               ref={permissionsSectionRef}
               sx={{
                 scrollMarginTop: (currentTheme) => currentTheme.spacing(11),
+                borderRadius: SETTINGS_RADIUS.card,
                 borderColor: (currentTheme) => alpha(currentTheme.palette.primary.main, 0.18),
                 bgcolor: (currentTheme) => alpha(currentTheme.palette.background.paper, 0.88),
               }}
@@ -2365,7 +2415,7 @@ export default function SettingsPage() {
                 <Box
                   sx={{
                     p: 1.5,
-                    borderRadius: 2,
+                    borderRadius: SETTINGS_RADIUS.inset,
                     border: "1px solid",
                     borderColor: "divider",
                     bgcolor: (theme) => alpha(theme.palette.warning.main, 0.08),
@@ -2388,7 +2438,7 @@ export default function SettingsPage() {
                   spacing={1.5}
                   alignItems={{ xs: "flex-start", md: "center" }}
                   justifyContent="space-between"
-                  sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
+                  sx={{ border: 1, borderColor: "divider", borderRadius: SETTINGS_RADIUS.inset, p: 2 }}
                 >
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="subtitle2">{t("microphonePermission")}</Typography>
@@ -2413,7 +2463,7 @@ export default function SettingsPage() {
                   spacing={1.5}
                   alignItems={{ xs: "flex-start", md: "center" }}
                   justifyContent="space-between"
-                  sx={{ border: 1, borderColor: "divider", borderRadius: 2, p: 2 }}
+                  sx={{ border: 1, borderColor: "divider", borderRadius: SETTINGS_RADIUS.inset, p: 2 }}
                 >
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="subtitle2">{t("storagePermissions")}</Typography>
@@ -2462,7 +2512,7 @@ export default function SettingsPage() {
               flexDirection: "column",
               gap: 3,
               p: { xs: 0, md: 1.5 },
-              borderRadius: 4,
+              borderRadius: SETTINGS_RADIUS.section,
               border: "1px solid",
               borderColor: (currentTheme) => alpha(currentTheme.palette.warning.main, 0.24),
               bgcolor: (currentTheme) => alpha(currentTheme.palette.warning.main, 0.05),
@@ -2476,7 +2526,7 @@ export default function SettingsPage() {
               </Stack>
               <Typography variant="h6">{t("operatorTools")}</Typography>
               <Typography variant="body2" color="text.secondary">
-                {t("operatorToolsHelper")}
+                {backendOperatorToolsHelperText}
               </Typography>
             </Stack>
 
@@ -2484,6 +2534,7 @@ export default function SettingsPage() {
               ref={backendSectionRef}
               sx={{
                 scrollMarginTop: (currentTheme) => currentTheme.spacing(11),
+                borderRadius: SETTINGS_RADIUS.card,
                 borderColor: (currentTheme) => alpha(currentTheme.palette.warning.main, 0.24),
                 bgcolor: (currentTheme) => alpha(currentTheme.palette.background.paper, 0.88),
               }}
@@ -2497,7 +2548,7 @@ export default function SettingsPage() {
                 <Box
                   sx={{
                     p: 1.5,
-                    borderRadius: 2,
+                    borderRadius: SETTINGS_RADIUS.inset,
                     border: "1px solid",
                     borderColor: (theme) =>
                       alpha(
@@ -2536,8 +2587,15 @@ export default function SettingsPage() {
                           },
                           {
                             key: "operator-token",
-                            label: backendAdminTokenPresent ? t("enabled") : t("requestRequired"),
-                            color: backendAdminTokenPresent ? "success" : "warning",
+                            label: backendAdminTokenRequired
+                              ? backendAdminTokenPresent
+                                ? t("enabled")
+                                : t("requestRequired")
+                              : t("optional"),
+                            color:
+                              backendAdminTokenRequired && !backendAdminTokenPresent
+                                ? "warning"
+                                : "success",
                           },
                         ]}
                       />
@@ -2557,19 +2615,21 @@ export default function SettingsPage() {
                     </Stack>
                     <Stack spacing={0.35}>
                       <Typography variant="body2" color="text.secondary">
-                        {t("internalAdminApiBaseUrl")}: {adminApiConfigured ? adminApiBaseUrl : t("notConfigured")}
+                        {t("internalAdminApiBaseUrl")}: {adminApiConfigured ? resolvedAdminApiBaseUrl : t("notConfigured")}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {t("backendSettings")}: {backendAdminEnabled ? t("enabled") : t("disabled")}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {t("backendAdminToken")}: {backendAdminTokenPresent ? t("enabled") : t("requestRequired")}
+                        {t("backendAdminToken")}: {backendAdminTokenRequired
+                          ? backendAdminTokenPresent
+                            ? t("enabled")
+                            : t("requestRequired")
+                          : t("optional")}
                       </Typography>
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
-                      {operatorActionsBlockedByDraft
-                        ? t("saveConnectionSettingsToUseDraftValues")
-                        : t("operatorSettingsBoundaryHelper")}
+                      {backendOperatorBoundaryHelperText}
                     </Typography>
                   </Stack>
                 </Box>
@@ -2587,7 +2647,9 @@ export default function SettingsPage() {
                     autoCorrect: "off",
                     spellCheck: "false",
                   }}
-                  helperText={t(backendAdminTokenFieldSpec.helperTextKey)}
+                  helperText={backendAdminTokenRequired
+                    ? t(backendAdminTokenFieldSpec.helperTextKey)
+                    : t("backendAdminTokenHelperDetailedOptional")}
                 />
 
                 {!backendOperatorAvailable && (
@@ -2634,7 +2696,7 @@ export default function SettingsPage() {
                           disabled={
                             backendStateLoading ||
                             !adminApiConfigured ||
-                            !backendAdminTokenPresent ||
+                            !backendAdminTokenSatisfied ||
                             operatorActionsBlockedByDraft
                           }
                         >
@@ -2673,7 +2735,7 @@ export default function SettingsPage() {
                               disabled={
                                 backendStateLoading ||
                                 !adminApiConfigured ||
-                                !backendAdminTokenPresent ||
+                                !backendAdminTokenSatisfied ||
                                 operatorActionsBlockedByDraft
                               }
                             >
@@ -2775,7 +2837,7 @@ export default function SettingsPage() {
                           flex: { xs: "1 1 auto", lg: "0 0 320px" },
                           border: 1,
                           borderColor: "divider",
-                          borderRadius: 2,
+                          borderRadius: SETTINGS_RADIUS.inset,
                           p: 2,
                           minHeight: 0,
                         }}
@@ -2787,7 +2849,7 @@ export default function SettingsPage() {
                             sx={{
                               border: 1,
                               borderColor: "divider",
-                              borderRadius: 2,
+                              borderRadius: SETTINGS_RADIUS.inset,
                               overflow: "hidden",
                               minHeight: 200,
                             }}
@@ -2885,7 +2947,7 @@ export default function SettingsPage() {
                           flex: 1,
                           border: 1,
                           borderColor: "divider",
-                          borderRadius: 2,
+                          borderRadius: SETTINGS_RADIUS.inset,
                           p: 2,
                           bgcolor: "background.paper",
                         }}
@@ -3083,7 +3145,7 @@ export default function SettingsPage() {
                             disabled={
                               backendBindingStateLoading ||
                               !adminApiConfigured ||
-                              !backendAdminTokenPresent ||
+                              !backendAdminTokenSatisfied ||
                               operatorActionsBlockedByDraft
                             }
                             loading={backendBindingStateLoading}

@@ -359,6 +359,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Enter the full API base URL. This saved value is sent to the server when you apply the preset live.",
     ja: "完全な API Base URL を入力してください。この保存値は live apply 時にそのままサーバーへ送信されます。",
   },
+  backendAdminTokenHelperDetailedOptional: {
+    ko: "이 서버는 관리자 토큰 없이도 내부 관리자 요청을 허용합니다. 필요하면 추가 헤더로 보낼 수 있지만 현재 페이지 메모리에만 유지되며 로컬에 저장되지 않습니다.",
+    en: "This server allows internal admin requests without an admin token. If needed, you can still send one as an extra header, and it remains only in this page's memory. It is not saved locally.",
+    ja: "このサーバーでは管理者トークンなしでも内部管理リクエストを許可します。必要に応じて追加ヘッダーとして送信できますが、このページのメモリにのみ保持され、ローカルには保存されません。",
+  },
   backendPresetsHaveBeenExported: {
     ko: "백엔드 프리셋을 내보냈습니다.",
     en: "Backend presets have been exported.",
@@ -1045,9 +1050,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "ファイルのトランスクリプションとライブ ストリーミングのリクエストは、このアドレスに送信されます。",
   },
   internalAdminApiBaseUrlHelper: {
-    ko: "내부망 전용 admin 및 observability 요청이 이 주소로 전달됩니다.",
-    en: "Internal-only admin and observability requests are directed to this address.",
-    ja: "内部ネットワーク専用の admin / observability リクエストはこのアドレスに送信されます。",
+    ko: "비워 두면 Python API Base URL을 그대로 사용합니다. 분리된 내부망 주소가 있을 때만 별도로 입력하세요.",
+    en: "Leave this blank to reuse the Python API Base URL. Set it only when admin traffic must use a separate internal address.",
+    ja: "空欄の場合は Python API Base URL をそのまま使います。管理トラフィックを別の内部アドレスへ分ける必要がある場合のみ設定してください。",
   },
   internalAdminApiBaseUrlNotConfigured: {
     ko: "내부 관리자 URL 미설정",
@@ -1590,9 +1595,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "最初に Python API のベース URL を入力してください。",
   },
   internalAdminApiBaseUrlRequired: {
-    ko: "내부 관리자 API Base URL을 먼저 입력해 주세요.",
-    en: "Please enter the internal admin API Base URL first.",
-    ja: "最初に内部管理 API Base URL を入力してください。",
+    ko: "Python API Base URL을 먼저 저장하거나, 별도 내부 관리자 API Base URL을 입력해 주세요.",
+    en: "Save the Python API Base URL first, or enter a separate internal admin API base URL.",
+    ja: "まず Python API Base URL を保存するか、別の内部管理 API Base URL を入力してください。",
   },
   pleaseEnterThePythonApiBaseUrlOnTheSettingsPage: {
     ko: "Python API Base URL을 설정 페이지에서 입력해 주세요.",
@@ -1928,6 +1933,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "요청 필요",
     en: "Request required",
     ja: "リクエストが必要です",
+  },
+  optional: {
+    ko: "선택",
+    en: "Optional",
+    ja: "任意",
   },
   requesting: {
     ko: "요청 중...",
@@ -3469,10 +3479,20 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Use this area for internal-network checks and overrides that require an admin token. Keep it separate from everyday user settings.",
     ja: "管理者トークンが必要な内部ネットワーク向け確認・オーバーライド機能です。通常のユーザー設定とは分けて扱います。",
   },
+  operatorToolsHelperTokenOptional: {
+    ko: "내부망에서 사용하는 점검/오버라이드 기능입니다. 이 서버는 관리자 토큰 없이도 호출을 허용하지만 일반 사용자 설정과는 분리해서 다룹니다.",
+    en: "Use this area for internal-network checks and overrides. This server allows those calls without an admin token, but keep them separate from everyday user settings.",
+    ja: "内部ネットワーク向けの確認・オーバーライド機能です。このサーバーでは管理者トークンなしでも呼び出せますが、通常のユーザー設定とは分けて扱います。",
+  },
   operatorSettingsBoundaryHelper: {
     ko: "이 영역은 내부 관리자 URL과 관리자 토큰이 필요하며, 조회는 버튼을 눌렀을 때만 실행됩니다.",
     en: "This area requires the internal admin URL and an admin token, and checks run only when you press a button.",
     ja: "この領域では内部管理 URL と管理者トークンが必要で、確認はボタンを押したときにのみ実行されます。",
+  },
+  operatorSettingsBoundaryHelperTokenOptional: {
+    ko: "이 영역은 내부 관리자 URL이 필요하며, 이 서버에서는 관리자 토큰 없이도 조회와 오버라이드를 허용합니다. 요청은 버튼을 눌렀을 때만 실행됩니다.",
+    en: "This area requires the internal admin URL, and this server allows checks and overrides without an admin token. Requests run only when you press a button.",
+    ja: "この領域では内部管理 URL が必要ですが、このサーバーでは管理者トークンなしでも確認とオーバーライドを許可します。リクエストはボタンを押したときにのみ実行されます。",
   },
   operatorMetadata: {
     ko: "운영 메타데이터",

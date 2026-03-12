@@ -62,7 +62,7 @@ export function buildServerDefaultRuntimeSnapshot(): BackendRuntimeSnapshot {
 export function resolveBackendRuntimeActionAvailability(input: {
   selectedBackendPreset: BackendEndpointPreset | null;
   adminApiConfigured: boolean;
-  backendAdminTokenPresent: boolean;
+  backendAdminTokenSatisfied: boolean;
   operatorActionsBlockedByDraft: boolean;
   backendState: BackendEndpointState | null;
   activeBackendPresetId: string | null;
@@ -72,7 +72,7 @@ export function resolveBackendRuntimeActionAvailability(input: {
       ? "saveConnectionSettingsToUseDraftValues"
       : !input.adminApiConfigured
         ? "internalAdminApiBaseUrlRequired"
-        : !input.backendAdminTokenPresent
+        : !input.backendAdminTokenSatisfied
           ? "enterAdminTokenBeforeApplyingServerSettings"
           : null;
 

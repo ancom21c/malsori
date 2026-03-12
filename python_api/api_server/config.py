@@ -71,6 +71,9 @@ class Settings(BaseModel):
     stt_config_path: Optional[Path] = Field(default=None, alias="STT_CONFIG_PATH")
     storage_persistent: bool = Field(False, alias="STT_STORAGE_PERSISTENT")
     backend_admin_enabled: bool = Field(False, alias="BACKEND_ADMIN_ENABLED")
+    backend_admin_token_required: bool = Field(
+        True, alias="BACKEND_ADMIN_TOKEN_REQUIRED"
+    )
     backend_admin_token: Optional[str] = Field(default=None, alias="BACKEND_ADMIN_TOKEN")
 
     _transcribe_path: str = PrivateAttr("/v1/transcribe")

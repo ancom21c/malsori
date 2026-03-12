@@ -308,7 +308,7 @@ def _require_backend_admin(
         default=None, alias="X-Malsori-Admin-Token"
     ),
 ) -> Settings:
-    """Guard backend endpoint admin APIs behind explicit feature flag + token."""
+    """Guard backend endpoint admin APIs behind explicit feature flag + optional token."""
     try:
         settings = get_settings()
     except RuntimeError as exc:
@@ -317,10 +317,14 @@ def _require_backend_admin(
     if not settings.backend_admin_enabled:
         _raise_api_error(404, "BACKEND_ADMIN_DISABLED", "Backend admin is disabled.")
 
+    if not settings.backend_admin_token_required:
+        return settings
+
     expected_token = (settings.backend_admin_token or "").strip()
     if not expected_token:
         logger.error(
-            "BACKEND_ADMIN_ENABLED is true but BACKEND_ADMIN_TOKEN is not configured."
+            "BACKEND_ADMIN_ENABLED is true, BACKEND_ADMIN_TOKEN_REQUIRED is true, "
+            "but BACKEND_ADMIN_TOKEN is not configured."
         )
         _raise_api_error(
             503,
@@ -354,6 +358,7 @@ async def health_status() -> HealthStatusResponse:
         auth_enabled=settings.auth_enabled,
         source=_resolve_backend_source(),
         backend_admin_enabled=settings.backend_admin_enabled,
+        backend_admin_token_required=settings.backend_admin_token_required,
     )
 
 
