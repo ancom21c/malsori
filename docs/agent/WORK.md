@@ -1,3 +1,38 @@
+## 2026-03-12: Local pip injection for dockerized private RTZR packages
+
+### Goal
+- Let `infra/deploy/run-malsori-docker.sh` build the Python API image with local `~/.pip` configuration so private `rtzr-internal` installs can resolve during Docker builds.
+
+### Done (acceptance)
+- The dockerized Python API build can see a temporary copy of local `~/.pip` when launched through `run-malsori-docker.sh`.
+- The copied pip config stays out of git and is cleaned up after the script exits.
+- Dockerfile changes remain safe when the helper script is not used.
+
+### Plan
+- Add a gitignored placeholder directory inside the Docker build context for temporary pip config.
+- Update the Python API Dockerfile to copy that directory into `/root/.pip/` before `pip install .`.
+- Update `run-malsori-docker.sh` to stage `~/.pip` into the temp directory for the duration of the compose build, then validate the script and compose file.
+
+### Validation (commands to run)
+- `bash -n infra/deploy/run-malsori-docker.sh`
+- `docker compose -f infra/docker-compose/docker-compose.yml config`
+- `git diff --check`
+
+### Expected changes
+- `docs/agent/WORK.md`
+- `.gitignore`
+- `infra/deploy/run-malsori-docker.sh`
+- `infra/docker-compose/docker-build/python-api-pip/.gitkeep`
+- `python_api/Dockerfile`
+
+### Self-review
+- Diff reviewed: yes
+- Validation: `bash -n infra/deploy/run-malsori-docker.sh` -> PASS
+- Validation: `docker compose -f infra/docker-compose/docker-compose.yml config` -> PASS
+- Validation: `docker compose -f infra/docker-compose/docker-compose.yml build python-api` -> PASS
+- Validation: `git diff --check` -> PASS
+- Notes/Risks: compose emits an existing warning that `version:` in `infra/docker-compose/docker-compose.yml` is obsolete. The temporary pip staging directory was cleaned back down to `.gitkeep` after the build. The worktree already had unrelated modified/untracked files before or during this task, so this change is intentionally left uncommitted.
+
 ## 2026-03-12: RTZR SDK package migration for Python API
 
 ### Goal

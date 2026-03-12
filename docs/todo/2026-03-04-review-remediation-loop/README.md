@@ -1,5 +1,7 @@
 # Malsori Review Remediation Loop Board (2026-03-04)
 
+> Status: historical execution board. This loop is complete. The latest completed execution board is `docs/todo/2026-03-08-contract-ux-loop/README.md`. No active remediation loop is currently registered.
+
 ## 목적
 
 코드베이스 리뷰에서 식별된 `P0~P2` 이슈를 정책 정렬(내부망 전제), 스펙-구현 정합성, 오류 내성, UX/디자인 개선 관점으로 재정리해 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰 -> 검증` 루프로 관리한다.

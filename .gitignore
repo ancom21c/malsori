@@ -51,6 +51,8 @@ __pycache__/
 infra/deploy/local/
 infra/deploy/values.malsori.yaml
 infra/deploy/run-malsori-docker.sh
+infra/docker-compose/docker-build/python-api-pip/*
+!infra/docker-compose/docker-build/python-api-pip/.gitkeep
 
 # local codex skills
 .codex/skills/malsori-local-deployer/

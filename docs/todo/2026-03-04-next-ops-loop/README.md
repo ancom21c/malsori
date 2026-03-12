@@ -1,5 +1,7 @@
 # Malsori Next Ops Loop Board (2026-03-04)
 
+> Status: historical execution board. This loop is complete. The latest completed execution board is `docs/todo/2026-03-08-contract-ux-loop/README.md`. No active remediation loop is currently registered.
+
 ## 목적
 
 완료된 P0~P2 이후 운영 신뢰성과 배포 품질을 한 단계 올리기 위해, 다음 사이클 작업을 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰 -> 검증` 루프로 관리한다.
