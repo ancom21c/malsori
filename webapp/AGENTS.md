@@ -17,6 +17,10 @@ This file is the frontend-specific companion to the repo root `AGENTS.md`.
 - `../docs/plan-platform-expansion-rollout-2026-03-10.md`
 - `../docs/plan-feature-backend-binding-2026-03-10.md`
 - `../docs/plan-summary-feature-2026-03-11.md`
+- `../docs/knowledge/operator-feature-activation-contract.md`
+- `../docs/knowledge/summary-feature-contract.md`
+- `../docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan
+- `../docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - current execution board
 - `../docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan
 - `../docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/IMPLEMENTATION_NOTES.md`
@@ -35,3 +39,9 @@ This file is the frontend-specific companion to the repo root `AGENTS.md`.
 - React UI strings use `useI18n().t(key)`.
 - Non-React modules use `tStatic(key, options)`.
 - User-facing persisted text should use stable keys or versioned content decisions, not ad-hoc untranslated strings.
+
+## Todo Doc Hygiene
+
+- Todo lifecycle inherits `../docs/todo-workflow.md`.
+- Keep this module guide active-focused and leave long completed history to the repo root historical docs.
+- If frontend entrypoints or current-loop references change, update this file in the same change.

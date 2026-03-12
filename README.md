@@ -13,13 +13,17 @@ A browser-based RTZR speech-to-text workstation that records audio, streams it t
 
 Current canonical/UI references:
 
+- `docs/README.md` - docs role/lifecycle index for canonical, active, and historical records
 - `docs/plan-ui-remediation-2026-03-06.md` - current canonical UI/spec baseline
 - `docs/plan-stt-value-preservation-baseline-2026-03-10.md` - no-regression baseline for file/realtime/detail/settings while workspace features expand
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
+- `docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan for internal operator activation and summary/translate vertical slices
 - `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
-- No active execution loop is open right now.
+- `docs/todo-workflow.md` - repo-local todo lifecycle, completion policy, and plan/review/verify rules
+- Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
+- Current active execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan for summary/backend settings work
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/plan-review-remediation-2026-03-08.md` - previous completed execution plan
@@ -133,6 +137,9 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 
 ## Documentation
 
+- `docs/README.md` – docs role/lifecycle index for canonical, active, and historical records.
+- `docs/todo-workflow.md` – repo-local todo lifecycle, completion policy, and entry-doc sync rules.
+- `docs/todo-template/README.md` – templates for new plan/board/task docs.
 - `webapp/README.md` – application overview and local usage instructions.
 - `docs/ops-service-worker-cache-playbook.md` – 서비스워커 캐시 정책/릴리즈 검증/장애 대응 절차.
 - `docs/plan-ui-remediation-2026-03-06.md` – current canonical UI/spec baseline.
@@ -140,9 +147,12 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
 - `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
+- `docs/plan-operator-feature-activation-2026-03-11.md` – current execution plan for operator-managed backend activation and summary/translate implementation.
 - `docs/knowledge/README.md` – durable knowledge index.
+- `docs/knowledge/operator-feature-activation-contract.md` – durable operator activation order and boundary rules.
 - `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
-- No active execution loop is open right now.
+- Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`.
+- Current active execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`.
 - `docs/plan-summary-backend-2026-03-11.md` – latest completed execution plan for summary/backend settings work.
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` – latest completed execution board.
 - `docs/plan-review-remediation-2026-03-08.md` – previous completed execution plan.
