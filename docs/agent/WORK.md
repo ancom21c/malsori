@@ -1,3 +1,38 @@
+## 2026-03-12: RTZR SDK package migration for Python API
+
+### Goal
+- Update the Python RTZR client path to use `rtzr` for public cloud endpoints and `rtzr-internal` for dev/sandbox endpoints without breaking the current browser-facing API contract.
+
+### Done (acceptance)
+- `python_api` declares `rtzr` and `rtzr-internal` dependencies.
+- Cloud batch/status/streaming auth + endpoint resolution are routed through the RTZR SDK packages.
+- Dev/sandbox cloud endpoints select `rtzr-internal`, while existing `onprem` gRPC bridging remains intact.
+- Python-side validation covers SDK target selection and request shaping without hitting the network.
+
+### Plan
+- Add the SDK dependencies and document the package selection behavior.
+- Refactor `python_api/api_server/stt_client.py` to wrap the official SDK clients for cloud traffic and keep the existing on-prem bridge.
+- Add focused Python tests for SDK routing and request normalization, then run validation and review the diff.
+
+### Validation (commands to run)
+- `python -m compileall python_api/api_server`
+- `PYTHONPATH=python_api pytest python_api/tests -q`
+- `git diff --check`
+
+### Expected changes
+- `docs/agent/WORK.md`
+- `README.md`
+- `python_api/pyproject.toml`
+- `python_api/api_server/stt_client.py`
+- `python_api/tests/test_stt_client.py`
+
+### Self-review
+- Diff reviewed: yes
+- Validation: `python -m compileall python_api/api_server` -> PASS
+- Validation: `PYTHONPATH=python_api pytest python_api/tests -q` -> PASS
+- Validation: `git diff --check` -> PASS
+- Notes/Risks: `ruff` is not installed in the current shell, so linting could not be executed here. Pytest emits one existing `pydub`/`audioop` deprecation warning from the installed dependency stack.
+
 ## 2026-03-09: Reset history with local-only deploy assets removed
 
 ### Goal
