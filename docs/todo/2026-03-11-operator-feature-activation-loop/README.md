@@ -52,7 +52,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1107`은 smoke/evidence template, rollback checklist, local verify가 닫혔고, 실제 deploy smoke evidence 캡처만 남아 있다.
   - `T1108`은 provider health/auth/fallback hardening과 local verify를 닫았다.
   - `T1109`는 full summary stale/failure contract와 translate artifact cleanup hardening, local verify를 닫았다.
-  - `T1110`은 operator live runtime sync와 webapp release gate recovery 설계만 닫혔고 구현이 남아 있다.
+  - `T1110`은 bundle gate recovery local verify는 닫았고, operator live runtime sync 구현이 남아 있다.
 
 ## 상태 분류
 

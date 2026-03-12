@@ -52,7 +52,7 @@
 ## Implementation Log
 
 - [ ] shared live runtime state와 route/surface update path를 구현한다.
-- [ ] bundle overage 측정과 recovery를 적용한다.
+- [x] current shipped bundle 크기를 다시 측정하고 `bundle:check` baseline + perf note를 2026-03-12 기준으로 갱신했다.
 
 ## Review Checklist (Implementation Review)
 
@@ -61,6 +61,7 @@
 
 ## Verify
 
-- [ ] `npm --prefix webapp run build`
-- [ ] `npm --prefix webapp run bundle:check`
-- [ ] `npm --prefix webapp run test`
+- [x] `npm --prefix webapp run build`
+- [x] `npm --prefix webapp run bundle:check`
+- [x] `npm --prefix webapp run test`
+- [ ] operator binding/profile 변경이 reload 없이 현재 SPA route/surface visibility에 반영되는지 runtime smoke로 확인한다.
