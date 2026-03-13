@@ -33,9 +33,13 @@ FROM nginx:1.27-alpine
 ARG BUILD_SHA
 ENV BUILD_SHA=${BUILD_SHA}
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN apk add --no-cache openssl
+
+COPY nginx.http.conf /etc/nginx/malsori/http.conf
+COPY nginx.https.conf /etc/nginx/malsori/https.conf
+COPY --chmod=755 docker-entrypoint.d/40-configure-https.sh /docker-entrypoint.d/40-configure-https.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 80 443
 
 CMD ["nginx", "-g", "daemon off;"]

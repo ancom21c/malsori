@@ -35,6 +35,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1108 | P0 | Backend failover / auth hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1108-backend-failover-auth-hardening.md` |
 | T1109 | P1 | Summary / translate surface contract hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1109-summary-translate-surface-contract-hardening.md` |
 | T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
+| T1111 | P1 | Docker compose HTTPS self-signed ingress | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1111-docker-compose-https-self-signed-ingress.md` |
 
 ## 현재 상태 스냅샷
 
@@ -53,6 +54,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1108`은 provider health/auth/fallback hardening과 local verify를 닫았다.
   - `T1109`는 full summary stale/failure contract와 translate artifact cleanup hardening, local verify를 닫았다.
   - `T1110`은 bundle gate recovery local verify는 닫았고, operator live runtime sync 구현이 남아 있다.
+  - `T1111`은 compose webapp HTTPS/self-signed cert 경로와 helper-script 기반 full compose verify를 닫았다.
 
 ## 상태 분류
 
@@ -67,6 +69,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1106` translate final-turn vertical slice verify
   - `T1107` rollout smoke/evidence hardening verify
   - `T1110` live activation runtime / release gate recovery
+  - `T1111` docker compose HTTPS self-signed ingress
 - Blocked by realtime/translate follow-up execution:
   - 없음
 - Closeout gate:
@@ -81,6 +84,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 5. `T1105`, `T1106`을 순서대로 열고 additive surface를 확장한다.
 6. `T1107`에서 internal/public/admin/summary/translate evidence를 한 번에 닫는다.
 7. polish finding으로 열린 `T1108`, `T1109`를 local green으로 닫고, `T1110`을 남은 runtime/gate follow-up으로 추적한다.
+8. `T1111`로 compose same-origin HTTPS smoke 경로를 보강한다.
 
 ## 의존성 메모
 
@@ -91,11 +95,12 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 - `T1108`은 `T1102`, `T1103`, `T1106`의 운영 truth를 맞추는 hardening task다.
 - `T1109`는 `T1104`, `T1106`의 UX/runtime contract drift를 바로잡는 hardening task다.
 - `T1110`은 operator live wiring과 release gate를 맞춰 `T1102`~`T1107` closeout 증거를 신뢰 가능하게 만드는 후속 task다.
+- `T1111`은 local compose ingress에서 secure-context/TLS 재현 경로를 제공하지만 public/internal boundary contract 자체를 바꾸지는 않는다.
 
 ## 이번 루프 우선순위
 
 - Now: `T1101`, `T1102`
-- Next: `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1110`
+- Next: `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1110`, `T1111`
 - Later: 없음
 
 ## Loop Hygiene

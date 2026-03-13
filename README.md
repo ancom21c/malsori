@@ -151,6 +151,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
 - `docs/plan-operator-feature-activation-2026-03-11.md` – current execution plan for operator-managed backend activation and summary/translate implementation.
 - `docs/knowledge/README.md` – durable knowledge index.
+- `docs/knowledge/docker-compose-https-contract.md` – durable local compose HTTPS/TLS contract.
 - `docs/knowledge/operator-feature-activation-contract.md` – durable operator activation order and boundary rules.
 - `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
 - Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`.
