@@ -1,0 +1,4 @@
+interface:
+  display_name: "Malsori Tekton Deployer"
+  short_description: "Run Malsori cluster release via Tekton and Argo CD"
+  default_prompt: "Deploy the committed Malsori revision through Tekton and Argo CD. Run ./.codex/skills/malsori-tekton-deployer/scripts/run-release.sh, wait for the PipelineRun to finish, and confirm the malsori Argo CD app returns to Synced and Healthy."

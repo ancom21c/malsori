@@ -7,6 +7,7 @@ This repository uses `docs/` as the durable source of truth for product, rollout
 - `docs/README.md` - docs role/lifecycle index
 - `docs/knowledge/README.md` - durable knowledge index and current entry points
 - `docs/todo-workflow.md` - repo-local todo lifecycle and completion policy
+- `.codex/skills/malsori-tekton-deployer/SKILL.md` - shared cluster release via Tekton -> Argo CD
 - `docs/plan-stt-value-preservation-baseline-2026-03-10.md` - no-regression contract for shipped STT value
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture
