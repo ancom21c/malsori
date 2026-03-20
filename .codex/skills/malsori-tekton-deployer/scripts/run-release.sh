@@ -55,12 +55,13 @@ api_request() {
   response="${response%$'\n'*}"
 
   if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
-    python3 - "${status}" <<'PYERR' <<<"${response}"
+    BODY="${response}" python3 - "${status}" <<'PYERR'
 import json
+import os
 import sys
 
 status = sys.argv[1]
-body = sys.stdin.read().strip()
+body = os.environ["BODY"].strip()
 try:
     payload = json.loads(body)
 except json.JSONDecodeError:
@@ -80,12 +81,13 @@ PYERR
 assert_visible_target() {
   local apps_json="$1"
 
-  python3 - "${app_id}" "${target_name}" <<'PYVIS' <<<"${apps_json}"
+  APPS_JSON="${apps_json}" python3 - "${app_id}" "${target_name}" <<'PYVIS'
 import json
+import os
 import sys
 
 app_id, target_name = sys.argv[1:]
-payload = json.load(sys.stdin)
+payload = json.loads(os.environ["APPS_JSON"])
 for item in payload.get("apps", []):
     if item.get("appId") == app_id and target_name in (item.get("targets") or []):
         raise SystemExit(0)
@@ -115,11 +117,11 @@ PYREQ
 }
 
 summarize_record() {
-  python3 - <<'PYREC' <<<"$1"
+  RECORD_JSON="$1" python3 - <<'PYREC'
 import json
-import sys
+import os
 
-payload = json.load(sys.stdin)
+payload = json.loads(os.environ["RECORD_JSON"])
 print(payload.get("requestId", ""))
 print(payload.get("phase", ""))
 print(payload.get("message", ""))
@@ -153,7 +155,11 @@ echo "[${skill_name}] broker=${broker_url}"
 echo "[${skill_name}] app=${app_id} target=${target_name}"
 echo "[${skill_name}] revision=${app_revision} image_tag=${image_tag_input}"
 
-visible_apps="$(api_request GET /v1/apps)"
+if ! if ! visible_apps="$(api_request GET /v1/apps)"; then
+  exit 1
+fi; then
+  exit 1
+fi
 assert_visible_target "${visible_apps}"
 
 if [ "${check_only}" = "1" ]; then
@@ -161,16 +167,28 @@ if [ "${check_only}" = "1" ]; then
   exit 0
 fi
 
-create_response="$(api_request POST /v1/releases "$(build_request_body)")"
+if ! create_response="$(api_request POST /v1/releases "$(build_request_body)")"; then
+  exit 1
+fi
 mapfile -t create_fields < <(summarize_record "${create_response}")
+if [ "${#create_fields[@]}" -lt 1 ] || [ -z "${create_fields[0]}" ]; then
+  echo "[${skill_name}] missing request id in broker response" >&2
+  exit 1
+fi
 request_id="${create_fields[0]}"
 
 echo "[${skill_name}] request_id=${request_id}"
 
 deadline="$(( $(date +%s) + wait_seconds ))"
 while true; do
-  record_json="$(api_request GET "/v1/releases/${request_id}")"
+  if ! record_json="$(api_request GET "/v1/releases/${request_id}")"; then
+    exit 1
+  fi
   mapfile -t record_fields < <(summarize_record "${record_json}")
+  if [ "${#record_fields[@]}" -lt 8 ]; then
+    echo "[${skill_name}] incomplete broker record for request ${request_id}" >&2
+    exit 1
+  fi
   phase="${record_fields[1]}"
   message="${record_fields[2]}"
   resolved_commit="${record_fields[3]}"
