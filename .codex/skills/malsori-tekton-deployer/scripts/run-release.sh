@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+skill_name="malsori-tekton-deployer"
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "${repo_root}"
 
-tekton_namespace="${TEKTON_NAMESPACE:-tekton-pipelines}"
-argocd_namespace="${ARGOCD_NAMESPACE:-argocd}"
-pipeline_name="${PIPELINE_NAME:-malsori-release}"
-argocd_app_name="${ARGOCD_APP_NAME:-malsori}"
+app_id="${RELEASE_BROKER_APP_ID:-malsori}"
+target_name="${RELEASE_BROKER_TARGET:-default}"
+broker_url="${RELEASE_BROKER_URL:-https://deployer.ancom.duckdns.org}"
+token_file="${RELEASE_BROKER_TOKEN_FILE:-${HOME}/.config/release-broker/tokens/${app_id}.token}"
 app_revision="${APP_REVISION:-$(git rev-parse HEAD)}"
 image_tag_input="${IMAGE_TAG:-auto}"
 wait_seconds="${WAIT_SECONDS:-1800}"
 poll_seconds="${POLL_SECONDS:-5}"
+request_timeout="${REQUEST_TIMEOUT:-60}"
+check_only="${RELEASE_BROKER_CHECK_ONLY:-0}"
+idempotency_key="${IDEMPOTENCY_KEY:-}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -20,92 +24,178 @@ require_cmd() {
   fi
 }
 
+api_request() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local response
+  local status
+
+  if [ -n "${body}" ]; then
+    response="$(
+      curl -sS --max-time "${request_timeout}" \
+        -X "${method}" \
+        -H "Authorization: Bearer ${auth_token}" \
+        -H "Content-Type: application/json" \
+        --data "${body}" \
+        -w $'\n%{http_code}' \
+        "${broker_url}${path}"
+    )"
+  else
+    response="$(
+      curl -sS --max-time "${request_timeout}" \
+        -X "${method}" \
+        -H "Authorization: Bearer ${auth_token}" \
+        -w $'\n%{http_code}' \
+        "${broker_url}${path}"
+    )"
+  fi
+
+  status="${response##*$'\n'}"
+  response="${response%$'\n'*}"
+
+  if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+    python3 - "${status}" <<'PYERR' <<<"${response}"
+import json
+import sys
+
+status = sys.argv[1]
+body = sys.stdin.read().strip()
+try:
+    payload = json.loads(body)
+except json.JSONDecodeError:
+    print(f"http {status}: {body}", file=sys.stderr)
+    raise SystemExit(1)
+
+code = payload.get("code", "error")
+message = payload.get("message", body)
+print(f"{code}: {message}", file=sys.stderr)
+raise SystemExit(1)
+PYERR
+  fi
+
+  printf '%s' "${response}"
+}
+
+assert_visible_target() {
+  local apps_json="$1"
+
+  python3 - "${app_id}" "${target_name}" <<'PYVIS' <<<"${apps_json}"
+import json
+import sys
+
+app_id, target_name = sys.argv[1:]
+payload = json.load(sys.stdin)
+for item in payload.get("apps", []):
+    if item.get("appId") == app_id and target_name in (item.get("targets") or []):
+        raise SystemExit(0)
+
+print(f"principal may not release {app_id}/{target_name}", file=sys.stderr)
+raise SystemExit(1)
+PYVIS
+}
+
+build_request_body() {
+  python3 - "${app_id}" "${target_name}" "${app_revision}" "${image_tag_input}" "${idempotency_key}" <<'PYREQ'
+import json
+import sys
+
+app_id, target_name, revision, image_tag, idempotency_key = sys.argv[1:]
+payload = {
+    "appId": app_id,
+    "target": target_name,
+    "revision": revision,
+}
+if image_tag not in {"", "auto"}:
+    payload["imageTag"] = image_tag
+if idempotency_key:
+    payload["idempotencyKey"] = idempotency_key
+print(json.dumps(payload, separators=(",", ":")))
+PYREQ
+}
+
+summarize_record() {
+  python3 - <<'PYREC' <<<"$1"
+import json
+import sys
+
+payload = json.load(sys.stdin)
+print(payload.get("requestId", ""))
+print(payload.get("phase", ""))
+print(payload.get("message", ""))
+print(payload.get("resolvedCommitSha") or "")
+print(payload.get("resolvedImageTag") or "")
+print(payload.get("promotedGitopsSha") or "")
+print(",".join(payload.get("observedAppRevisions") or []))
+print(",".join(payload.get("pipelineRunNames") or []))
+PYREC
+}
+
 require_cmd git
-require_cmd kubectl
+require_cmd curl
+require_cmd python3
 
 if [ -n "$(git status --porcelain)" ]; then
-  echo "[malsori-tekton-deployer] warning: working tree is dirty; deploy uses committed revision ${app_revision}" >&2
+  echo "[${skill_name}] warning: working tree is dirty; deploy uses committed revision ${app_revision}" >&2
 fi
 
-resolved_tag="${image_tag_input}"
-if [ -z "${resolved_tag}" ] || [ "${resolved_tag}" = "auto" ]; then
-  resolved_tag="git-$(printf '%.12s' "${app_revision}")"
+auth_token="${RELEASE_BROKER_TOKEN:-}"
+if [ -z "${auth_token}" ]; then
+  if [ ! -f "${token_file}" ]; then
+    echo "[${skill_name}] missing broker token; set RELEASE_BROKER_TOKEN or create ${token_file}" >&2
+    exit 1
+  fi
+  auth_token="$(tr -d '\r\n' < "${token_file}")"
 fi
 
-echo "[malsori-tekton-deployer] repo=${repo_root}"
-echo "[malsori-tekton-deployer] pipeline=${pipeline_name} app=${argocd_app_name}"
-echo "[malsori-tekton-deployer] revision=${app_revision} image_tag=${resolved_tag}"
+echo "[${skill_name}] repo=${repo_root}"
+echo "[${skill_name}] broker=${broker_url}"
+echo "[${skill_name}] app=${app_id} target=${target_name}"
+echo "[${skill_name}] revision=${app_revision} image_tag=${image_tag_input}"
 
-kubectl get pipeline "${pipeline_name}" -n "${tekton_namespace}" >/dev/null
-kubectl get application "${argocd_app_name}" -n "${argocd_namespace}" >/dev/null
+visible_apps="$(api_request GET /v1/apps)"
+assert_visible_target "${visible_apps}"
 
-pipeline_run_name="$(kubectl create -f - -o jsonpath='{.metadata.name}' <<EOF
-apiVersion: tekton.dev/v1
-kind: PipelineRun
-metadata:
-  generateName: ${pipeline_name}-
-  namespace: ${tekton_namespace}
-spec:
-  pipelineRef:
-    name: ${pipeline_name}
-  params:
-    - name: app-revision
-      value: ${app_revision}
-    - name: image-tag
-      value: ${image_tag_input}
-  workspaces:
-    - name: app-source
-      emptyDir: {}
-    - name: gitops-source
-      emptyDir: {}
-EOF
-)"
+if [ "${check_only}" = "1" ]; then
+  echo "[${skill_name}] broker access ok for ${app_id}/${target_name}"
+  exit 0
+fi
 
-echo "[malsori-tekton-deployer] created PipelineRun ${pipeline_run_name}"
+create_response="$(api_request POST /v1/releases "$(build_request_body)")"
+mapfile -t create_fields < <(summarize_record "${create_response}")
+request_id="${create_fields[0]}"
 
-deadline=$((SECONDS + wait_seconds))
-while :; do
-  reason="$(kubectl get pipelinerun "${pipeline_run_name}" -n "${tekton_namespace}" -o jsonpath='{.status.conditions[?(@.type=="Succeeded")].reason}')"
-  case "${reason}" in
+echo "[${skill_name}] request_id=${request_id}"
+
+deadline="$(( $(date +%s) + wait_seconds ))"
+while true; do
+  record_json="$(api_request GET "/v1/releases/${request_id}")"
+  mapfile -t record_fields < <(summarize_record "${record_json}")
+  phase="${record_fields[1]}"
+  message="${record_fields[2]}"
+  resolved_commit="${record_fields[3]}"
+  resolved_image_tag="${record_fields[4]}"
+  promoted_gitops_sha="${record_fields[5]}"
+  observed_app_revisions="${record_fields[6]}"
+  pipeline_run_names="${record_fields[7]}"
+
+  echo "[${skill_name}] request_id=${request_id} phase=${phase} message=${message}"
+
+  case "${phase}" in
     Succeeded)
-      break
+      echo "[${skill_name}] done request_id=${request_id} revision=${resolved_commit:-${app_revision}} image_tag=${resolved_image_tag:-${image_tag_input}} pipelines=${pipeline_run_names} promoted_gitops=${promoted_gitops_sha} observed=${observed_app_revisions}"
+      exit 0
       ;;
-    Failed|PipelineRunCancelled|Cancelled|StoppedRunFinally|PipelineRunTimeout|TaskRunTimeout)
-      echo "[malsori-tekton-deployer] PipelineRun failed with reason=${reason}" >&2
-      kubectl get pipelinerun "${pipeline_run_name}" -n "${tekton_namespace}" -o wide >&2 || true
-      kubectl get taskruns -n "${tekton_namespace}" -l tekton.dev/pipelineRun="${pipeline_run_name}" >&2 || true
+    Failed|Cancelled)
+      echo "[${skill_name}] terminal phase=${phase} request_id=${request_id} message=${message}" >&2
       exit 1
       ;;
   esac
 
-  if [ "${SECONDS}" -ge "${deadline}" ]; then
-    echo "[malsori-tekton-deployer] timed out waiting for PipelineRun ${pipeline_run_name}" >&2
-    kubectl get pipelinerun "${pipeline_run_name}" -n "${tekton_namespace}" -o wide >&2 || true
+  if [ "$(date +%s)" -ge "${deadline}" ]; then
+    echo "[${skill_name}] timed out waiting for request ${request_id}" >&2
     exit 1
   fi
 
   sleep "${poll_seconds}"
 done
-
-echo "[malsori-tekton-deployer] PipelineRun succeeded; waiting for Argo CD app ${argocd_app_name}"
-
-deadline=$((SECONDS + wait_seconds))
-while :; do
-  sync_status="$(kubectl get application "${argocd_app_name}" -n "${argocd_namespace}" -o jsonpath='{.status.sync.status}')"
-  health_status="$(kubectl get application "${argocd_app_name}" -n "${argocd_namespace}" -o jsonpath='{.status.health.status}')"
-  echo "[malsori-tekton-deployer] argocd sync=${sync_status} health=${health_status}"
-
-  if [ "${sync_status}" = "Synced" ] && [ "${health_status}" = "Healthy" ]; then
-    break
-  fi
-
-  if [ "${SECONDS}" -ge "${deadline}" ]; then
-    echo "[malsori-tekton-deployer] timed out waiting for Argo CD app ${argocd_app_name}" >&2
-    kubectl get application "${argocd_app_name}" -n "${argocd_namespace}" -o wide >&2 || true
-    exit 1
-  fi
-
-  sleep "${poll_seconds}"
-done
-
-echo "[malsori-tekton-deployer] done revision=${app_revision} image_tag=${resolved_tag}"
