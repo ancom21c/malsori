@@ -66,6 +66,23 @@ function toBytes(value: unknown): number[] {
 }
 
 describe("RtzrStreamingClient handshake", () => {
+  it("opens same-origin websocket URLs for relative API bases", () => {
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onMessage = vi.fn();
+    const expectedUrl = new URL("/api/v1/streaming", window.location.href);
+    expectedUrl.protocol = expectedUrl.protocol === "https:" ? "wss:" : "ws:";
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "/api",
+      decoderConfig: {},
+      onMessage,
+      handshakeTimeoutMs: 200,
+    });
+
+    expect(MockWebSocket.instances[0]?.url).toBe(expectedUrl.toString());
+  });
+
   it("calls onOpen only after ready ack and flushes buffered chunks", async () => {
     globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
     const onOpen = vi.fn();
@@ -263,6 +280,61 @@ describe("RtzrStreamingClient handshake", () => {
     second.emitClose(1000, "");
     vi.advanceTimersByTime(20);
     expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it("does not reconnect after a terminal upstream gRPC error", async () => {
+    vi.useFakeTimers();
+    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    const onMessage = vi.fn();
+    const onError = vi.fn();
+    const onReconnectAttempt = vi.fn();
+    const onPermanentFailure = vi.fn();
+
+    const client = new RtzrStreamingClient();
+    client.connect({
+      baseUrl: "ws://localhost:8000",
+      decoderConfig: {},
+      onMessage,
+      onError,
+      onReconnectAttempt,
+      onPermanentFailure,
+      reconnectAttempts: 2,
+      reconnectBackoffMs: 10,
+      handshakeTimeoutMs: 200,
+    });
+
+    const ws = MockWebSocket.instances[0];
+    ws.emitOpen();
+    ws.emitMessage(JSON.stringify({ type: "ready" }));
+    await Promise.resolve();
+
+    ws.emitMessage(
+      JSON.stringify({
+        type: "error",
+        code: "UPSTREAM_GRPC_NOT_FOUND",
+        message: "Upstream gRPC streaming failed: pipeline preset not found",
+        retryable: false,
+        terminal: true,
+      })
+    );
+    await Promise.resolve();
+
+    ws.emitClose(4001, "UPSTREAM_GRPC_ERROR");
+    vi.advanceTimersByTime(50);
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: "UPSTREAM_GRPC_NOT_FOUND",
+          retryable: false,
+          terminal: true,
+        }),
+      })
+    );
+    expect(onReconnectAttempt).not.toHaveBeenCalled();
+    expect(onPermanentFailure).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(1);
   });
 
   it("fails with STREAM_ACK_TIMEOUT when ack is not received", () => {

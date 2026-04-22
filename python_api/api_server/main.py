@@ -34,6 +34,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import FileResponse
+import grpc
 import httpx
 import requests
 from websockets.exceptions import (
@@ -88,6 +89,9 @@ from .models import (
     SummarySupportingSnippetModel,
 )
 from .stt_client import RTZRClient
+
+UPSTREAM_GRPC_TERMINAL_CLOSE_CODE = 4001
+UPSTREAM_GRPC_TERMINAL_CLOSE_REASON = "UPSTREAM_GRPC_ERROR"
 from .protos import vito_stt_client_pb2 as stt_pb2
 from .google_drive_oauth import router as google_drive_oauth_router
 
@@ -2990,6 +2994,43 @@ def _grpc_response_payload(message: stt_pb2.DecoderResponse) -> Dict[str, Any]:
     return payload
 
 
+def _grpc_error_status_name(error: BaseException) -> str:
+    code_getter = getattr(error, "code", None)
+    if not callable(code_getter):
+        return "UNKNOWN"
+    with contextlib.suppress(Exception):
+        code = code_getter()
+        if isinstance(code, grpc.StatusCode):
+            return code.name
+        if code:
+            return str(code).rsplit(".", 1)[-1].upper()
+    return "UNKNOWN"
+
+
+def _grpc_error_details(error: BaseException) -> str:
+    details_getter = getattr(error, "details", None)
+    if callable(details_getter):
+        with contextlib.suppress(Exception):
+            details = details_getter()
+            if isinstance(details, str) and details.strip():
+                return details.strip()
+    error_text = str(error).strip()
+    return error_text or "Upstream gRPC streaming session failed."
+
+
+def _grpc_terminal_error_payload(error: BaseException) -> Dict[str, Any]:
+    status_name = _grpc_error_status_name(error)
+    details = _grpc_error_details(error)
+    return {
+        "type": "error",
+        "code": f"UPSTREAM_GRPC_{status_name}",
+        "message": f"Upstream gRPC streaming failed: {details}",
+        "retryable": False,
+        "terminal": True,
+        "upstream_status": status_name,
+    }
+
+
 async def _handle_onprem_streaming(
     websocket: WebSocket, client: RTZRClient, settings: Settings
 ) -> None:
@@ -3011,14 +3052,25 @@ async def _handle_onprem_streaming(
             settings.pronaia_api_base,
             exc_info=exc,
         )
-        await websocket.send_text(
-            json.dumps({"type": "error", "message": "Failed to connect upstream gRPC streaming session."})
-        )
-        await websocket.close(code=1011, reason="Upstream gRPC connection failed")
+        if isinstance(exc, grpc.RpcError):
+            await websocket.send_text(
+                json.dumps(_grpc_terminal_error_payload(exc), ensure_ascii=False)
+            )
+            await websocket.close(
+                code=UPSTREAM_GRPC_TERMINAL_CLOSE_CODE,
+                reason=UPSTREAM_GRPC_TERMINAL_CLOSE_REASON,
+            )
+        else:
+            await websocket.send_text(
+                json.dumps({"type": "error", "message": "Failed to connect upstream gRPC streaming session."})
+            )
+            await websocket.close(code=1011, reason="Upstream gRPC connection failed")
         return
 
     # Signal handshake ready to the browser client.
     await websocket.send_text(json.dumps({"type": "ready"}))
+    websocket_close_code = 1000
+    websocket_close_reason = ""
 
     async def relay_client_to_grpc():
         finalize_requested = False
@@ -3056,10 +3108,20 @@ async def _handle_onprem_streaming(
             raise
 
     async def relay_grpc_to_client():
+        nonlocal websocket_close_code, websocket_close_reason
         try:
             while True:
                 response = await grpc_session.recv()
                 if response is None:
+                    if grpc_session.last_error:
+                        await websocket.send_text(
+                            json.dumps(
+                                _grpc_terminal_error_payload(grpc_session.last_error),
+                                ensure_ascii=False,
+                            )
+                        )
+                        websocket_close_code = UPSTREAM_GRPC_TERMINAL_CLOSE_CODE
+                        websocket_close_reason = UPSTREAM_GRPC_TERMINAL_CLOSE_REASON
                     break
                 await websocket.send_text(
                     json.dumps(_grpc_response_payload(response), ensure_ascii=False)
@@ -3086,7 +3148,7 @@ async def _handle_onprem_streaming(
         with contextlib.suppress(Exception):
             await grpc_session.close()
         with contextlib.suppress(Exception):
-            await websocket.close()
+            await websocket.close(code=websocket_close_code, reason=websocket_close_reason)
 
 
 @app.websocket("/v1/streaming")

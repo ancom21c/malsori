@@ -8,8 +8,9 @@ from dataclasses import dataclass
 import inspect
 import json
 import logging
+import re
 from typing import Any, Dict, Literal, Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 import grpc
 import httpx
@@ -44,6 +45,37 @@ _INTERNAL_PHASE_BY_HOST: dict[str, Literal["dev", "sandbox"]] = {
     "dev-openapi.vito.ai": "dev",
     "sandbox-openapi.vito.ai": "sandbox",
 }
+_GRPC_METADATA_KEY_RE = re.compile(r"[^0-9a-z_.-]+")
+
+
+def _normalize_grpc_metadata_key(key: Any) -> Optional[str]:
+    normalized = _GRPC_METADATA_KEY_RE.sub("-", str(key).strip().lower()).strip("-")
+    if not normalized or normalized.endswith("-bin"):
+        return None
+    return normalized
+
+
+def _normalize_grpc_metadata_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        text = "true" if value else "false"
+    else:
+        text = str(value)
+    text = text.replace("\r", " ").replace("\n", " ").strip()
+    if all(0x20 <= ord(char) <= 0x7E for char in text):
+        return text
+    return quote(text, safe="")
+
+
+def _normalize_grpc_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    normalized: Dict[str, str] = {}
+    for raw_key, raw_value in (metadata or {}).items():
+        key = _normalize_grpc_metadata_key(raw_key)
+        value = _normalize_grpc_metadata_value(raw_value)
+        if key and value is not None:
+            normalized[key] = value
+    return normalized
 
 
 class GrpcStreamingSession:
@@ -524,12 +556,12 @@ class RTZRClient:
     async def connect_grpc_streaming(
         self,
         config: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> GrpcStreamingSession:
         """Establish an upstream gRPC streaming session."""
         target, use_tls = self._grpc_target()
         token = await self._resolve_access_token()
-        meta: Dict[str, str] = dict(metadata or {})
+        meta = _normalize_grpc_metadata(metadata)
         if token:
             meta.setdefault("authorization", f"bearer {token}")
 

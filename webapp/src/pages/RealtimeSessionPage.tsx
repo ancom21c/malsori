@@ -2300,8 +2300,14 @@ export default function RealtimeSessionPage() {
         ? event.reason.trim()
         : "";
     const detailCode = (
-      event as Event & { detail?: { code?: string } }
+      event as Event & { detail?: { code?: string; message?: string } }
     ).detail?.code;
+    const detailMessage = (
+      event as Event & { detail?: { code?: string; message?: string } }
+    ).detail?.message;
+    if (typeof detailMessage === "string" && detailMessage.trim().length > 0) {
+      return detailMessage.trim();
+    }
     const code = closeReason || (typeof detailCode === "string" ? detailCode : "");
     if (code === "STREAM_ACK_TIMEOUT") {
       return t("streamAckTimeoutTryAgain");

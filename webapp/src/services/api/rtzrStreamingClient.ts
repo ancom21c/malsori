@@ -39,6 +39,8 @@ const MAX_BUFFERED_AUDIO_MS_CAP = 20_000;
 const DEFAULT_DEGRADED_DROP_MS = 2_000;
 const DEFAULT_DEGRADED_DROP_RATIO = 0.1;
 const HANDSHAKE_TIMEOUT_REASON = "STREAM_ACK_TIMEOUT";
+const UPSTREAM_GRPC_TERMINAL_CLOSE_CODE = 4001;
+const UPSTREAM_GRPC_TERMINAL_CLOSE_REASON = "UPSTREAM_GRPC_ERROR";
 
 type PendingAudioChunk = {
   buffer: ArrayBuffer;
@@ -95,6 +97,7 @@ export class RtzrStreamingClient {
   private bufferMetrics: StreamingBufferMetrics = { ...EMPTY_STREAMING_BUFFER_METRICS };
   private handshakeComplete = false;
   private handshakeTimer: number | null = null;
+  private terminalFailureEvent: Event | null = null;
   private finalRequested = false;
   private finalDispatched = false;
 
@@ -104,6 +107,7 @@ export class RtzrStreamingClient {
 
   connect(options: StreamingSessionOptions) {
     this.cleanupSocket();
+    this.terminalFailureEvent = null;
     this.options = {
       ...options,
       keepAliveIntervalMs: options.keepAliveIntervalMs ?? DEFAULT_KEEP_ALIVE_MS,
@@ -197,7 +201,12 @@ export class RtzrStreamingClient {
       this.cleanupKeepAlive();
       this.clearHandshakeTimer();
       this.handshakeComplete = false;
-      if (this.shouldReconnect && this.reconnectAttempt < (this.options?.reconnectAttempts ?? 0)) {
+      const terminalFailureEvent = this.terminalFailureEvent;
+      this.terminalFailureEvent = null;
+      if (this.isTerminalClose(event) || terminalFailureEvent) {
+        this.state = "error";
+        this.handlePermanentFailure(terminalFailureEvent ?? event);
+      } else if (this.shouldReconnect && this.reconnectAttempt < (this.options?.reconnectAttempts ?? 0)) {
         this.scheduleReconnect();
       } else {
         this.state = "closed";
@@ -290,6 +299,14 @@ export class RtzrStreamingClient {
     if (this.isServerPing(normalized)) {
       this.respondToServerPing();
       return;
+    }
+
+    const terminalFailureEvent = this.toTerminalFailureEvent(normalized);
+    if (terminalFailureEvent) {
+      this.state = "error";
+      this.shouldReconnect = false;
+      this.terminalFailureEvent = terminalFailureEvent;
+      this.options?.onError?.(terminalFailureEvent);
     }
 
     const dataForCallback =
@@ -401,6 +418,43 @@ export class RtzrStreamingClient {
     }
     const type = this.extractMessageType(payload as Record<string, unknown>);
     return type === "ping";
+  }
+
+  private isTerminalClose(event: CloseEvent): boolean {
+    const reason = typeof event.reason === "string" ? event.reason.trim() : "";
+    return (
+      event.code === UPSTREAM_GRPC_TERMINAL_CLOSE_CODE ||
+      reason === UPSTREAM_GRPC_TERMINAL_CLOSE_REASON ||
+      reason.startsWith("UPSTREAM_GRPC_")
+    );
+  }
+
+  private toTerminalFailureEvent(payload: unknown): Event | null {
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+    const data = payload as Record<string, unknown>;
+    const type = this.extractMessageType(data);
+    const code = typeof data.code === "string" ? data.code.trim() : "";
+    const isTerminal =
+      type === "error" &&
+      (data.retryable === false ||
+        data.terminal === true ||
+        code === UPSTREAM_GRPC_TERMINAL_CLOSE_REASON ||
+        code.startsWith("UPSTREAM_GRPC_"));
+    if (!isTerminal) {
+      return null;
+    }
+    const message = typeof data.message === "string" ? data.message.trim() : "";
+    if (typeof CustomEvent !== "undefined") {
+      return new CustomEvent("streaming-client-error", {
+        detail: {
+          code: code || UPSTREAM_GRPC_TERMINAL_CLOSE_REASON,
+          message,
+        },
+      });
+    }
+    return new Event("streaming-client-error");
   }
 
   private respondToServerPing() {
@@ -593,15 +647,32 @@ export class RtzrStreamingClient {
   }
 
   private toWebSocketUrl(baseUrl: string) {
-    if (baseUrl.startsWith("ws")) {
-      return baseUrl.replace(/\/$/, "");
+    const trimmedBaseUrl = baseUrl.trim();
+    if (!trimmedBaseUrl) {
+      throw new Error(tStatic("aValidApiBaseUrlIsRequired"));
     }
-    if (baseUrl.startsWith("https")) {
-      return baseUrl.replace(/^https/i, "wss").replace(/\/$/, "");
+
+    const browserLocation =
+      typeof window !== "undefined" ? window.location.href : undefined;
+    try {
+      const websocketUrl = new URL(
+        trimmedBaseUrl.startsWith("/") || /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmedBaseUrl)
+          ? trimmedBaseUrl
+          : `/${trimmedBaseUrl}`,
+        browserLocation
+      );
+      if (websocketUrl.protocol === "http:") {
+        websocketUrl.protocol = "ws:";
+      } else if (websocketUrl.protocol === "https:") {
+        websocketUrl.protocol = "wss:";
+      } else if (websocketUrl.protocol !== "ws:" && websocketUrl.protocol !== "wss:") {
+        throw new Error(tStatic("aValidApiBaseUrlIsRequired"));
+      }
+      websocketUrl.search = "";
+      websocketUrl.hash = "";
+      return websocketUrl.toString().replace(/\/$/, "");
+    } catch {
+      throw new Error(tStatic("aValidApiBaseUrlIsRequired"));
     }
-    if (baseUrl.startsWith("http")) {
-      return baseUrl.replace(/^http/i, "ws").replace(/\/$/, "");
-    }
-    throw new Error(tStatic("aValidApiBaseUrlIsRequired"));
   }
 }

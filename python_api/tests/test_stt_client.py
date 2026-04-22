@@ -8,6 +8,7 @@ from api_server.stt_client import (
     CloudApiAdapter,
     RTZRClient,
     _ManualTokenAsyncRtzr,
+    _normalize_grpc_metadata,
     _resolve_cloud_sdk_target,
 )
 
@@ -96,6 +97,31 @@ def test_internal_adapter_normalizes_internal_flags(tmp_path: Path) -> None:
 
     assert normalized["language"] == "ko"
     assert normalized["debug"] is True
+
+
+def test_grpc_metadata_values_are_ascii_safe() -> None:
+    metadata = _normalize_grpc_metadata(
+        {
+            "filename": "한국어 음성.wav",
+            "file_size": 123,
+            "simulation": True,
+            "bad\nkey": "line\nbreak",
+            "payload-bin": "not-bytes",
+            "empty": None,
+        }
+    )
+
+    assert metadata["filename"] == "%ED%95%9C%EA%B5%AD%EC%96%B4%20%EC%9D%8C%EC%84%B1.wav"
+    assert metadata["file_size"] == "123"
+    assert metadata["simulation"] == "true"
+    assert metadata["bad-key"] == "line break"
+    assert "payload-bin" not in metadata
+    assert "empty" not in metadata
+    assert all(
+        0x20 <= ord(char) <= 0x7E
+        for value in metadata.values()
+        for char in value
+    )
 
 
 def test_cloud_submit_transcription_posts_via_sdk_session(tmp_path: Path) -> None:
