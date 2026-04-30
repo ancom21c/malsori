@@ -38,16 +38,22 @@ describe("transcriptionRepository", () => {
       title: "테스트",
       kind: "realtime",
       metadata: {
+        sttTransport: "streaming",
+        captureInput: "microphone",
         configPresetId: "preset-1",
         configPresetName: "테스트 프리셋",
         modelName: "sommers",
         backendEndpointId: "server-default",
         backendEndpointSource: "server-default",
         backendEndpointName: "서버 기본",
+        realtimeSimulationEnabled: true,
       },
     });
     expect(record.status).toBe("pending");
+    expect(record.sttTransport).toBe("streaming");
+    expect(record.captureInput).toBe("microphone");
     expect(record.modelName).toBe("sommers");
+    expect(record.realtimeSimulationEnabled).toBe(true);
     expect(record.searchTitle).toBe("테스트");
 
     await updateLocalTranscription(record.id, {

@@ -58,6 +58,7 @@ import { aggregateSegmentText, resolveSegmentText } from "../utils/segments";
 import { buildSessionDetailPath, resolveSessionsPath } from "../app/platformRoutes";
 import { useShareLink } from "../hooks/useShareLink";
 import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
+import { useRequestRealtimeFileTranscription } from "../hooks/useRequestRealtimeFileTranscription";
 import { MediaPlaybackSection } from "../components/MediaPlaybackSection";
 import { SegmentWaveformTimeline } from "../components/SegmentWaveformTimeline";
 import { TranscriptionView } from "../components/TranscriptionView";
@@ -215,6 +216,20 @@ function isWebmEbmlHeader(buffer: ArrayBuffer) {
   }
   const bytes = new Uint8Array(buffer, 0, 4);
   return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+}
+
+function usesLocalCaptureAudio(transcription: { kind: string; sttTransport?: string }) {
+  return transcription.kind === "realtime" || transcription.sttTransport === "streaming";
+}
+
+function getSttTransportLabelKey(transcription: { kind: string; sttTransport?: string }) {
+  if (transcription.sttTransport === "streaming") {
+    return "realtimeApi";
+  }
+  if (transcription.kind === "file") {
+    return "batchApi";
+  }
+  return null;
 }
 
 function downloadBlobContent(blob: Blob, fileName: string) {
@@ -507,6 +522,7 @@ export default function TranscriptionDetailPage() {
   const retryFileInputRef = useRef<HTMLInputElement | null>(null);
   const [retrySubmitting, setRetrySubmitting] = useState(false);
   const requestFileTranscription = useRequestFileTranscription();
+  const requestRealtimeFileTranscription = useRequestRealtimeFileTranscription();
 
   const transcription = useLiveQuery(async () => {
     if (!transcriptionId) return null;
@@ -1511,7 +1527,7 @@ export default function TranscriptionDetailPage() {
       };
     }
 
-    if (transcription.kind === "realtime") {
+    if (usesLocalCaptureAudio(transcription)) {
       setAudioLoading(true);
       (async () => {
         try {
@@ -1691,30 +1707,46 @@ export default function TranscriptionDetailPage() {
 
       try {
         setRetrySubmitting(true);
-        const result = await requestFileTranscription.mutateAsync({
+        const retryPayload = {
           title: transcription.title || selectedFile.name,
           configJson,
           file: selectedFile,
           presetId: transcription.configPresetId ?? null,
           presetName: transcription.configPresetName ?? null,
-        });
+        };
+        const result =
+          transcription.sttTransport === "streaming"
+            ? await requestRealtimeFileTranscription.mutateAsync(retryPayload)
+            : await requestFileTranscription.mutateAsync(retryPayload);
         navigate(buildSessionDetailPath(result.localId));
         return "success";
       } catch {
-        // useRequestFileTranscription reports user-facing errors.
+        // Request hooks report user-facing errors.
         return "request_failed";
       } finally {
         setRetrySubmitting(false);
       }
     },
-    [enqueueSnackbar, navigate, requestFileTranscription, resolveRetryConfigJson, t, transcription]
+    [
+      enqueueSnackbar,
+      navigate,
+      requestFileTranscription,
+      requestRealtimeFileTranscription,
+      resolveRetryConfigJson,
+      t,
+      transcription,
+    ]
   );
 
   const handleRetryRequest = useCallback(() => {
     if (!transcription || transcription.kind !== "file") {
       return;
     }
-    if (retrySubmitting || requestFileTranscription.isPending) {
+    if (
+      retrySubmitting ||
+      requestFileTranscription.isPending ||
+      requestRealtimeFileTranscription.isPending
+    ) {
       return;
     }
     void (async () => {
@@ -1778,7 +1810,15 @@ export default function TranscriptionDetailPage() {
         retryFileInputRef.current?.click();
       }
     })();
-  }, [enqueueSnackbar, requestFileTranscription.isPending, retrySubmitting, submitRetryWithFile, t, transcription]);
+  }, [
+    enqueueSnackbar,
+    requestFileTranscription.isPending,
+    requestRealtimeFileTranscription.isPending,
+    retrySubmitting,
+    submitRetryWithFile,
+    t,
+    transcription,
+  ]);
 
   const handleRetryFileSelected = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -2211,6 +2251,7 @@ export default function TranscriptionDetailPage() {
     transcription.upstreamStatusReason === "unknown_upstream_status"
       ? t("unknownUpstreamStatus")
       : transcription.status;
+  const transportLabelKey = getSttTransportLabelKey(transcription);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -2231,7 +2272,11 @@ export default function TranscriptionDetailPage() {
         onDownloadAudio={handleDownloadAudio}
         onDownloadVideo={handleDownloadVideo}
         onRetry={transcription.kind === "file" ? handleRetryRequest : undefined}
-        retryDisabled={retrySubmitting || requestFileTranscription.isPending}
+        retryDisabled={
+          retrySubmitting ||
+          requestFileTranscription.isPending ||
+          requestRealtimeFileTranscription.isPending
+        }
         onDelete={handleDelete}
         onShare={handleShareDialogOpen}
         onTitleUpdate={handleTitleUpdate}
@@ -2380,7 +2425,7 @@ export default function TranscriptionDetailPage() {
         onClose={handleSpeakerEditClose}
       />
 
-      <Stack spacing={2.25}>
+      <Stack spacing={2.25} sx={{ width: "100%", maxWidth: 1180, mx: "auto" }}>
         <Card variant="outlined">
           <CardContent sx={{ py: 2 }}>
             <Stack
@@ -2415,6 +2460,14 @@ export default function TranscriptionDetailPage() {
                         },
                       ]
                     : []),
+                  ...(transportLabelKey
+                    ? [
+                        {
+                          key: "detail-stt-transport",
+                          label: `${t("sttTransport")}: ${t(transportLabelKey)}`,
+                        },
+                      ]
+                    : []),
                   {
                     key: "detail-segments",
                     label: `${detailCopy.segments}: ${segmentStats.segmentCount}`,
@@ -2445,7 +2498,7 @@ export default function TranscriptionDetailPage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 320px" },
+            gridTemplateColumns: "minmax(0, 1fr)",
             gap: 2.25,
             alignItems: "start",
           }}
@@ -2642,8 +2695,7 @@ export default function TranscriptionDetailPage() {
             <Card
               variant="outlined"
               sx={{
-                position: { xl: "sticky" },
-                top: { xl: 96 },
+                position: "relative",
                 borderColor: "var(--malsori-workspace-border)",
                 bgcolor: "var(--malsori-workspace-panel)",
                 backgroundImage: (theme) =>

@@ -189,6 +189,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "An error occurred during streaming.",
     ja: "ストリーミング中にエラーが発生しました。",
   },
+  noRealtimeTranscriptionResultsReturned: {
+    ko: "실시간 STT API에서 저장할 전사 결과를 받지 못했습니다.",
+    en: "The realtime STT API did not return transcription results to save.",
+    ja: "リアルタイム STT API から保存できる文字起こし結果が返されませんでした。",
+  },
   anErrorOccurredDuringTheTranscriptionRequest: {
     ko: "전사 요청 중 오류가 발생했습니다.",
     en: "An error occurred during the transcription request.",
@@ -1759,15 +1764,60 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Send an audio file to the realtime STT API and watch the responses.",
     ja: "音声ファイルをリアルタイム STT API に送り、応答を確認します。",
   },
+  uploadProcessingMode: {
+    ko: "업로드 처리 방식",
+    en: "Upload processing mode",
+    ja: "アップロード処理方式",
+  },
+  batchFileTranscription: {
+    ko: "일반 파일 STT",
+    en: "Batch file STT",
+    ja: "通常ファイル STT",
+  },
+  batchFileTranscriptionHelper: {
+    ko: "일반 STT API로 파일 작업을 만들고 상태를 동기화합니다.",
+    en: "Create a file transcription job through the batch STT API and sync status.",
+    ja: "通常の STT API でファイル文字起こしジョブを作成し、状態を同期します。",
+  },
+  realtimeApiFileUpload: {
+    ko: "실시간 API 파일 STT",
+    en: "Realtime API file STT",
+    ja: "リアルタイム API ファイル STT",
+  },
+  realtimeApiFileUploadHelper: {
+    ko: "브라우저에서 파일을 PCM으로 변환한 뒤 실시간 STT API로 전송하고 결과를 전사 목록에 저장합니다.",
+    en: "Convert the file to PCM in the browser, stream it to the realtime STT API, and save the result in transcription history.",
+    ja: "ブラウザーでファイルを PCM に変換し、リアルタイム STT API に送信して結果を文字起こし履歴に保存します。",
+  },
+  sttTransport: {
+    ko: "STT 전송",
+    en: "STT transport",
+    ja: "STT 送信方式",
+  },
+  batchApi: {
+    ko: "일반 API",
+    en: "Batch API",
+    ja: "通常 API",
+  },
+  realtimeApi: {
+    ko: "실시간 API",
+    en: "Realtime API",
+    ja: "リアルタイム API",
+  },
   realtimeSimulationOption: {
-    ko: "realtime simulation (0.1~0.2초 전송)",
-    en: "Realtime simulation (0.1–0.2s pacing)",
+    ko: "실시간 전송 모사 (0.1~0.2초 간격)",
+    en: "Simulate realtime streaming (0.1–0.2s pacing)",
     ja: "リアルタイムシミュレーション（0.1〜0.2秒間隔）",
   },
   realtimeSimulationHelper: {
     ko: "선택 시 오디오 길이에 맞춰 0.1~0.2초씩 지연해 전송합니다.",
     en: "When enabled, chunks are throttled to match real time, sending only 0.1–0.2s of audio at a time.",
     ja: "有効にすると、0.1〜0.2秒分の音声だけをリアルタイムに合わせて送信します。",
+  },
+  simulateRealtimeFromFile: {
+    ko: "파일로 실시간 전사 모사",
+    en: "Simulate realtime transcription from a file",
+    ja: "ファイルでリアルタイム文字起こしをシミュレート",
   },
   startRealtimeUpload: {
     ko: "전송 시작",
@@ -1885,9 +1935,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "録音エラー",
   },
   recordingPlayback: {
-    ko: "녹음 재생",
-    en: "Recording Playback",
-    ja: "録音再生",
+    ko: "녹음 재생 중",
+    en: "Playing recording",
+    ja: "録音再生中",
   },
   redactedText: {
     ko: "교정된 텍스트",

@@ -34,7 +34,8 @@ const TranslatePage = platformFeatureFlags.realtimeTranslate
   ? lazy(() => import("../pages/TranslatePage"))
   : null;
 const HelpPage = lazy(() => import("../pages/HelpPage"));
-const LabPage = lazy(() => import("../pages/LabPage"));
+const labRouteEnabled = import.meta.env.MODE === "development";
+const LabPage = labRouteEnabled ? lazy(() => import("../pages/LabPage")) : null;
 const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
 const UiConceptsPage = devOnlyUiConceptsEnabled
   ? lazy(() => import("../pages/UiConceptsPage"))
@@ -101,7 +102,7 @@ function createAppRouter() {
             )
           }
         />
-        <Route path="/lab" element={<LabPage />} />
+        {labRouteEnabled && LabPage ? <Route path="/lab" element={<LabPage />} /> : null}
         {devOnlyUiConceptsEnabled && UiConceptsPage ? (
           <Route path="/lab/ui-concepts" element={<UiConceptsPage />} />
         ) : null}

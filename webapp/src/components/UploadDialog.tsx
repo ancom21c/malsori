@@ -9,18 +9,23 @@ import {
   DialogTitle,
   Divider,
   FormControl,
+  FormHelperText,
   InputLabel,
+  LinearProgress,
   MenuItem,
   Select,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { useNavigate } from "react-router-dom";
 import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
+import { useRequestRealtimeFileTranscription } from "../hooks/useRequestRealtimeFileTranscription";
 import { usePresets } from "../hooks/usePresets";
-import { DEFAULT_FILE_PRESETS } from "../data/defaultPresets";
+import { DEFAULT_FILE_PRESETS, DEFAULT_STREAMING_PRESETS } from "../data/defaultPresets";
 import { useSettingsStore } from "../store/settingsStore";
 import TranscriptionConfigQuickOptions from "./TranscriptionConfigQuickOptions";
 import BackendEndpointReadonlyCard from "./BackendEndpointReadonlyCard";
@@ -33,19 +38,31 @@ type UploadDialogProps = {
   onClose: () => void;
 };
 
+type UploadMode = "batch" | "realtime";
+
 export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const { t } = useI18n();
   const [title, setTitle] = useState("");
   const filePresets = usePresets("file");
-  const defaultPreset = useMemo(
+  const streamingPresets = usePresets("streaming");
+  const defaultFilePreset = useMemo(
     () => filePresets.find((preset) => preset.isDefault) ?? filePresets[0],
     [filePresets]
   );
-  const fallbackConfigJson = useMemo(
+  const defaultStreamingPreset = useMemo(
+    () => streamingPresets.find((preset) => preset.isDefault) ?? streamingPresets[0],
+    [streamingPresets]
+  );
+  const fallbackFileConfigJson = useMemo(
     () => DEFAULT_FILE_PRESETS[0]?.configJson ?? "{}",
     []
   );
-  const [configJson, setConfigJson] = useState<string>(fallbackConfigJson);
+  const fallbackStreamingConfigJson = useMemo(
+    () => DEFAULT_STREAMING_PRESETS[0]?.configJson ?? "{}",
+    []
+  );
+  const [uploadMode, setUploadMode] = useState<UploadMode>("batch");
+  const [configJson, setConfigJson] = useState<string>(fallbackFileConfigJson);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -56,14 +73,20 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const updateSetting = useSettingsStore((state) => state.updateSetting);
 
   const requestMutation = useRequestFileTranscription();
+  const realtimeRequestMutation = useRequestRealtimeFileTranscription();
   const navigate = useNavigate();
+  const activePresets = uploadMode === "batch" ? filePresets : streamingPresets;
+  const defaultPreset = uploadMode === "batch" ? defaultFilePreset : defaultStreamingPreset;
+  const fallbackConfigJson =
+    uploadMode === "batch" ? fallbackFileConfigJson : fallbackStreamingConfigJson;
+  const requestPending = requestMutation.isPending || realtimeRequestMutation.isPending;
 
   const activePreset = useMemo(() => {
     if (!selectedPresetId) {
       return null;
     }
-    return filePresets.find((preset) => preset.id === selectedPresetId) ?? null;
-  }, [selectedPresetId, filePresets]);
+    return activePresets.find((preset) => preset.id === selectedPresetId) ?? null;
+  }, [selectedPresetId, activePresets]);
 
   const uploadable = useMemo(
     () => Boolean(file && configJson.trim().length > 0),
@@ -72,16 +95,27 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
 
   const previousOpenRef = useRef(open);
 
+  const getDefaultsForMode = useCallback(
+    (mode: UploadMode) => {
+      const preset = mode === "batch" ? defaultFilePreset : defaultStreamingPreset;
+      const fallback = mode === "batch" ? fallbackFileConfigJson : fallbackStreamingConfigJson;
+      return { preset, fallback };
+    },
+    [defaultFilePreset, defaultStreamingPreset, fallbackFileConfigJson, fallbackStreamingConfigJson]
+  );
+
   const resetForm = useCallback(() => {
-    const preset = defaultPreset;
+    const { preset, fallback } = getDefaultsForMode("batch");
+    setUploadMode("batch");
     setTitle("");
     setFile(null);
     setSelectedPresetId(preset?.id ?? null);
-    setConfigJson(preset?.configJson ?? fallbackConfigJson);
+    setConfigJson(preset?.configJson ?? fallback);
     setAdvancedOpen(false);
     setJsonEditorOpen(false);
     requestMutation.reset();
-  }, [defaultPreset, fallbackConfigJson, requestMutation]);
+    realtimeRequestMutation.reset();
+  }, [getDefaultsForMode, requestMutation, realtimeRequestMutation]);
 
   useEffect(() => {
     const wasOpen = previousOpenRef.current;
@@ -107,7 +141,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
 
   useEffect(() => {
     if (!open) return;
-    if (!selectedPresetId) {
+    if (!selectedPresetId || !activePresets.some((preset) => preset.id === selectedPresetId)) {
       if (defaultPreset) {
         setSelectedPresetId(defaultPreset.id);
         setConfigJson(defaultPreset.configJson);
@@ -115,21 +149,38 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
         setConfigJson(fallbackConfigJson);
       }
     }
-  }, [open, defaultPreset, fallbackConfigJson, selectedPresetId]);
+  }, [open, activePresets, defaultPreset, fallbackConfigJson, selectedPresetId]);
 
   const handleDialogClose = useCallback(() => {
+    if (realtimeRequestMutation.isPending) {
+      realtimeRequestMutation.cancel();
+    }
     resetForm();
     onClose();
-  }, [onClose, resetForm]);
+  }, [onClose, realtimeRequestMutation, resetForm]);
 
   const handleDialogRequestClose = useCallback(() => {
+    if (requestPending) {
+      return;
+    }
     handleDialogClose();
-  }, [handleDialogClose]);
+  }, [handleDialogClose, requestPending]);
+
+  const handleModeChange = (_event: React.MouseEvent<HTMLElement>, nextMode: UploadMode | null) => {
+    if (!nextMode || nextMode === uploadMode || requestPending) {
+      return;
+    }
+    const { preset, fallback } = getDefaultsForMode(nextMode);
+    setUploadMode(nextMode);
+    setSelectedPresetId(preset?.id ?? null);
+    setConfigJson(preset?.configJson ?? fallback);
+    setJsonEditorOpen(nextMode === "realtime");
+  };
 
   const handlePresetChange = (event: SelectChangeEvent<string>) => {
     const presetId = event.target.value;
     setSelectedPresetId(presetId);
-    const preset = filePresets.find((item) => item.id === presetId);
+    const preset = activePresets.find((item) => item.id === presetId);
     setConfigJson(preset?.configJson ?? configJson);
   };
 
@@ -144,17 +195,26 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file || !uploadable || requestMutation.isPending) {
+    if (!file || !uploadable || requestPending) {
       return;
     }
     try {
-      const result = await requestMutation.mutateAsync({
-        title,
-        configJson,
-        file,
-        presetId: activePreset?.id ?? null,
-        presetName: activePreset?.name ?? null,
-      });
+      const result =
+        uploadMode === "realtime"
+          ? await realtimeRequestMutation.mutateAsync({
+              title,
+              configJson,
+              file,
+              presetId: activePreset?.id ?? null,
+              presetName: activePreset?.name ?? null,
+            })
+          : await requestMutation.mutateAsync({
+              title,
+              configJson,
+              file,
+              presetId: activePreset?.id ?? null,
+              presetName: activePreset?.name ?? null,
+            });
       resetForm();
       onClose();
       navigate(buildSessionDetailPath(result.localId));
@@ -187,6 +247,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                   type="file"
                   accept="audio/*,video/*"
                   hidden
+                  disabled={requestPending}
                   onChange={handleFileChange}
                 />
               </Button>
@@ -202,7 +263,26 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t("meetingRecording")}
+              disabled={requestPending}
             />
+            <Stack spacing={1}>
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                value={uploadMode}
+                onChange={handleModeChange}
+                disabled={requestPending}
+                aria-label={t("uploadProcessingMode")}
+              >
+                <ToggleButton value="batch">{t("batchFileTranscription")}</ToggleButton>
+                <ToggleButton value="realtime">{t("realtimeApiFileUpload")}</ToggleButton>
+              </ToggleButtonGroup>
+              <FormHelperText>
+                {uploadMode === "realtime"
+                  ? t("realtimeApiFileUploadHelper")
+                  : t("batchFileTranscriptionHelper")}
+              </FormHelperText>
+            </Stack>
             <FormControl fullWidth>
               <InputLabel id="transcribe-preset-label">{t("settingsPresets")}</InputLabel>
               <Select
@@ -210,14 +290,14 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                 label={t("settingsPresets")}
                 value={selectedPresetId ?? ""}
                 onChange={handlePresetChange}
-                disabled={requestMutation.isPending || filePresets.length === 0}
+                disabled={requestPending || activePresets.length === 0}
               >
-                {filePresets.length === 0 ? (
+                {activePresets.length === 0 ? (
                   <MenuItem value="" disabled>
                     {t("thereAreNoPresets")}
                   </MenuItem>
                 ) : (
-                  filePresets.map((preset) => (
+                  activePresets.map((preset) => (
                     <MenuItem key={preset.id} value={preset.id}>
                       {preset.name}
                     </MenuItem>
@@ -225,17 +305,20 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                 )}
               </Select>
             </FormControl>
-            <TranscriptionConfigQuickOptions
-              type="file"
-              configJson={configJson}
-              onChange={setConfigJson}
-              collapsible
-            />
+            {uploadMode === "batch" ? (
+              <TranscriptionConfigQuickOptions
+                type="file"
+                configJson={configJson}
+                onChange={setConfigJson}
+                collapsible
+              />
+            ) : null}
             <Box>
               <Button
                 size="small"
                 variant="text"
                 onClick={() => setJsonEditorOpen((prev) => !prev)}
+                disabled={requestPending}
               >
                 {jsonEditorOpen ? t("hideJson") : t("editJsonDirectly")}
               </Button>
@@ -247,13 +330,45 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                   minRows={8}
                   value={configJson}
                   onChange={(event) => setConfigJson(event.target.value)}
-                  placeholder={`{
+                  placeholder={
+                    uploadMode === "realtime"
+                      ? `{
+  "sample_rate": 16000,
+  "encoding": "LINEAR16"
+}`
+                      : `{
   "model_name": "sommers"
-}`}
+}`
+                  }
+                  disabled={requestPending}
                   InputProps={{ sx: { fontFamily: "Menlo, Consolas, monospace" } }}
                 />
               </Collapse>
             </Box>
+            {uploadMode === "realtime" && realtimeRequestMutation.isPending ? (
+              <Box>
+                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                  <Typography variant="subtitle2">{t("streamingUploadStatus")}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {realtimeRequestMutation.progress.stage === "finalizing"
+                      ? t("finalizing")
+                      : realtimeRequestMutation.progress.stage === "connecting"
+                        ? t("connecting")
+                        : realtimeRequestMutation.progress.stage === "streaming"
+                          ? t("sending")
+                          : t("preparingForSession")}
+                  </Typography>
+                </Stack>
+                <LinearProgress
+                  variant="determinate"
+                  value={realtimeRequestMutation.progress.percent}
+                  sx={{ mt: 1, height: 8, borderRadius: 1 }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {t("streamingUploadProgress")}: {realtimeRequestMutation.progress.percent}%
+                </Typography>
+              </Box>
+            ) : null}
             <BackendEndpointReadonlyCard />
             <Divider sx={{ my: 1 }} />
             <Box>
@@ -282,6 +397,7 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
                     value={apiBaseUrl}
                     onChange={(event) => void updateSetting("apiBaseUrl", event.target.value)}
                     placeholder="http://localhost:8000"
+                    disabled={requestPending}
                   />
                 </Stack>
               </Collapse>
@@ -289,15 +405,22 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose} disabled={requestMutation.isPending}>
-            {t("cancellation")}
+          <Button
+            onClick={
+              realtimeRequestMutation.isPending
+                ? realtimeRequestMutation.cancel
+                : handleDialogClose
+            }
+            disabled={requestMutation.isPending}
+          >
+            {realtimeRequestMutation.isPending ? t("stopRealtimeUpload") : t("cancellation")}
           </Button>
           <Button
             type="submit"
             variant="contained"
-            disabled={!uploadable || requestMutation.isPending}
+            disabled={!uploadable || requestPending}
           >
-            {requestMutation.isPending ? t("sending") : t("forwarding")}
+            {requestPending ? t("sending") : t("forwarding")}
           </Button>
         </DialogActions>
       </Box>

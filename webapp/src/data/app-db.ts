@@ -2,6 +2,8 @@ import Dexie from "dexie";
 import type { Table } from "dexie";
 
 export type LocalTranscriptionKind = "file" | "realtime";
+export type LocalSttTransport = "batch" | "streaming";
+export type LocalCaptureInput = "uploaded_file" | "microphone";
 
 export type BackendEndpointDeployment = "cloud" | "onprem";
 
@@ -21,6 +23,8 @@ export interface LocalTranscription {
   remoteAudioUrl?: string;
   errorMessage?: string;
   transcriptText?: string;
+  sttTransport?: LocalSttTransport;
+  captureInput?: LocalCaptureInput;
   configSnapshotJson?: string;
   configPresetId?: string;
   configPresetName?: string;
@@ -37,6 +41,7 @@ export interface LocalTranscription {
   realtimeReplayedAudioMs?: number;
   realtimeDroppedAudioRatio?: number;
   realtimeQualityState?: "normal" | "degraded";
+  realtimeSimulationEnabled?: boolean;
   searchTitle?: string;
   searchTranscript?: string;
   isCloudSynced?: boolean;

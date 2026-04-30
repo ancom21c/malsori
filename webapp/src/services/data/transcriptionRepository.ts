@@ -34,6 +34,8 @@ type TranscriptionMetadataPatch = Partial<
   Pick<
     LocalTranscription,
     | "processingStage"
+    | "sttTransport"
+    | "captureInput"
     | "configSnapshotJson"
     | "sourceFileName"
     | "sourceFileMimeType"
@@ -54,6 +56,7 @@ type TranscriptionMetadataPatch = Partial<
     | "realtimeReplayedAudioMs"
     | "realtimeDroppedAudioRatio"
     | "realtimeQualityState"
+    | "realtimeSimulationEnabled"
   >
 >;
 

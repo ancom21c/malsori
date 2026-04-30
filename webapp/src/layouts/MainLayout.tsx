@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AppBar,
@@ -29,7 +29,6 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import AddToHomeScreenIcon from "@mui/icons-material/AddToHomeScreen";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import UploadFab from "../components/UploadFab";
-import UploadDialog from "../components/UploadDialog";
 import MicFab from "../components/MicFab";
 import { useUiStore } from "../store/uiStore";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
@@ -56,6 +55,9 @@ import { buildTranslateBindingPresentation } from "../pages/translateBindingMode
 type MainLayoutProps = {
   children: ReactNode;
 };
+
+const UploadDialog = lazy(() => import("../components/UploadDialog"));
+const labNavigationEnabled = import.meta.env.MODE === "development";
 
 type MobileActionOwner = "global-fallback" | "page-owned" | "realtime-dock";
 
@@ -207,12 +209,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
               icon: <ListAltIcon fontSize="small" />,
             },
           ]),
-      {
-        key: "lab",
-        label: t("lab"),
-        path: "/lab",
-        icon: <ScienceIcon fontSize="small" />,
-      },
+      ...(labNavigationEnabled
+        ? [
+            {
+              key: "lab",
+              label: t("lab"),
+              path: "/lab",
+              icon: <ScienceIcon fontSize="small" />,
+            },
+          ]
+        : []),
       {
         key: "settings",
         label: t("setting"),
@@ -631,10 +637,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </>
         )
       ) : null}
-      <UploadDialog
-        open={uploadDialogOpen}
-        onClose={closeUploadDialog}
-      />
+      {uploadDialogOpen ? (
+        <Suspense fallback={null}>
+          <UploadDialog
+            open={uploadDialogOpen}
+            onClose={closeUploadDialog}
+          />
+        </Suspense>
+      ) : null}
     </Box>
   );
 }

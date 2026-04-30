@@ -48,6 +48,8 @@ export function useRequestFileTranscription() {
         kind: "file",
         status: "processing",
         metadata: {
+          sttTransport: "batch",
+          captureInput: "uploaded_file",
           configSnapshotJson: payload.configJson,
           sourceFileName: payload.file.name,
           sourceFileMimeType: payload.file.type || "application/octet-stream",

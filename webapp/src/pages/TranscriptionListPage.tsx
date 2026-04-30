@@ -162,6 +162,16 @@ const KIND_LABEL: Record<LocalTranscriptionKind, string> = {
   realtime: "realTimeTranscription",
 };
 
+function getSttTransportLabelKey(transcription: LocalTranscription) {
+  if (transcription.sttTransport === "streaming") {
+    return "realtimeApi";
+  }
+  if (transcription.kind === "file") {
+    return "batchApi";
+  }
+  return null;
+}
+
 function getEndpointLabel(transcription: LocalTranscription, t: Translator): string {
   if (transcription.backendEndpointName) {
     const suffix = transcription.backendApiBaseUrl ? ` · ${transcription.backendApiBaseUrl}` : "";
@@ -921,6 +931,7 @@ export default function TranscriptionListPage() {
                   const endpointLabel = getEndpointLabel(item, t);
                   const durationLabel = formatSessionDurationLabel(item.durationMs);
                   const previewText = getPreviewText(item.transcriptText);
+                  const transportLabelKey = getSttTransportLabelKey(item);
                   return (
                     <ListItem
                       key={item.id}
@@ -1006,6 +1017,13 @@ export default function TranscriptionListPage() {
                                     )
                                   )}`}
                                 />
+                                {transportLabelKey ? (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={`${t("sttTransport")}: ${t(transportLabelKey)}`}
+                                  />
+                                ) : null}
                                 {durationLabel ? (
                                   <Chip
                                     size="small"

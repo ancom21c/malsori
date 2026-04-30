@@ -19,11 +19,14 @@ Current canonical/UI references:
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
-- `docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan for internal operator activation and summary/translate vertical slices
+- `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
+- `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan for internal operator activation and summary/translate vertical slices
 - `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
 - `docs/todo-workflow.md` - repo-local todo lifecycle, completion policy, and plan/review/verify rules
-- Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
-- Current active execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
+- Current active execution plan: `docs/plan-realtime-stt-file-upload-2026-04-30.md`
+- Current active execution board: `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md`
+- Active operator execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
+- Active operator execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan for summary/backend settings work
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/plan-review-remediation-2026-03-08.md` - previous completed execution plan

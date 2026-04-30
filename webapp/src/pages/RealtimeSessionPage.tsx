@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useSnackbar, type OptionsObject } from "notistack";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -33,10 +33,12 @@ import {
   RtzrStreamingClient,
   type StreamingBufferMetrics,
 } from "../services/api/rtzrStreamingClient";
+import { classifyRealtimeStreamingPayload } from "../services/api/realtimeStreamingPayload";
 import {
   RecorderManager,
   type RecorderChunkInfo,
 } from "../services/audio/recorderManager";
+import type { DecodedPcmAudio } from "../services/audio/decodeAudioFile";
 import { appDb, type LocalWordTiming, type PresetConfig } from "../data/app-db";
 import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
 import {
@@ -115,6 +117,11 @@ import type {
 } from "../domain/session";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
+type RealtimeInputSource = "microphone" | "uploaded_file";
+
+type RealtimeStartInput =
+  | { source: "microphone" }
+  | { source: "uploaded_file"; file: File };
 
 type RealtimeSegment = {
   id: string;
@@ -147,6 +154,7 @@ const LATENCY_LEVEL_LABEL_KEY: Record<RealtimeLatencyLevel, string> = {
 };
 
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
+const SIMULATED_FILE_STREAM_CHUNK_MS = 160;
 const VIDEO_CAPTURE_TIMESLICE_MS = 4000;
 const VIDEO_MIME_CANDIDATES = [
   "video/webm;codecs=vp9",
@@ -173,6 +181,10 @@ const DEFAULT_RUNTIME_SETTINGS: RuntimeSettingsState = {
   acousticScale: "",
 };
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function areStreamingBufferMetricsEqual(
   left: StreamingBufferMetrics,
   right: StreamingBufferMetrics
@@ -197,225 +209,8 @@ function buildRealtimeQualityPatch(metrics: StreamingBufferMetrics) {
   };
 }
 
-type NormalizedRealtimeSegmentPayload = {
-  text: string;
-  rawText?: string;
-  startMs?: number;
-  endMs?: number;
-  spk?: string;
-  speakerLabel?: string;
-  language?: string;
-  words?: LocalWordTiming[];
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function coerceFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return undefined;
-}
-
-function coerceBooleanFlag(value: unknown): boolean | undefined {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "number") {
-    if (value === 1) return true;
-    if (value === 0) return false;
-  }
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true" || normalized === "1") return true;
-    if (normalized === "false" || normalized === "0") return false;
-  }
-  return undefined;
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-function collectCandidateRecords(payload: unknown): Record<string, unknown>[] {
-  const records: Record<string, unknown>[] = [];
-  const traverse = (entry: unknown) => {
-    if (Array.isArray(entry)) {
-      entry.forEach((item) => traverse(item));
-      return;
-    }
-    if (!isRecord(entry)) {
-      return;
-    }
-    records.push(entry);
-    const nested = (entry as { results?: unknown }).results;
-    if (nested !== undefined) {
-      traverse(nested);
-    }
-    const utterances = (entry as { utterances?: unknown }).utterances;
-    if (utterances !== undefined) {
-      traverse(utterances);
-    }
-    const alternatives = (entry as { alternatives?: unknown }).alternatives;
-    if (alternatives !== undefined) {
-      traverse(alternatives);
-    }
-  };
-  traverse(payload);
-  return records;
-}
-
-function pickFirstString(records: Array<Record<string, unknown>>, fields: string[]): string | undefined {
-  for (const record of records) {
-    for (const field of fields) {
-      const value = (record as Record<string, unknown>)[field];
-      if (isNonEmptyString(value)) {
-        return value;
-      }
-    }
-  }
-  return undefined;
-}
-
-function normalizeWordFromRecord(word: unknown): LocalWordTiming | null {
-  if (!isRecord(word)) {
-    return null;
-  }
-  const textCandidate =
-    (word as { text?: unknown }).text ??
-    (word as { word?: unknown }).word ??
-    (word as { msg?: unknown }).msg;
-  if (!isNonEmptyString(textCandidate)) {
-    return null;
-  }
-  const startValue = pickTimestamp([word], ["startMs", "start_ms", "start", "start_at"]);
-  const endValue = pickTimestamp([word], ["endMs", "end_ms", "end", "end_at"]);
-  const durationValue = pickTimestamp([word], ["duration", "duration_ms", "durationMs"]);
-  const normalizedStart = startValue !== undefined ? Math.max(0, Math.round(startValue)) : undefined;
-  const normalizedEnd =
-    endValue !== undefined
-      ? Math.max(0, Math.round(endValue))
-      : normalizedStart !== undefined && durationValue !== undefined
-        ? Math.max(0, Math.round(normalizedStart + durationValue))
-        : undefined;
-  const startMs = normalizedStart ?? normalizedEnd ?? 0;
-  const endMs = normalizedEnd ?? startMs;
-  const confidenceValue = (word as { confidence?: unknown }).confidence;
-  return {
-    text: textCandidate,
-    startMs,
-    endMs,
-    confidence: typeof confidenceValue === "number" ? confidenceValue : undefined,
-  };
-}
-
-function collectWordTimings(records: Array<Record<string, unknown>>): LocalWordTiming[] | undefined {
-  const collected: LocalWordTiming[] = [];
-  for (const record of records) {
-    const wordsField = (record as { words?: unknown }).words;
-    if (Array.isArray(wordsField)) {
-      for (const word of wordsField) {
-        const normalized = normalizeWordFromRecord(word);
-        if (normalized) {
-          collected.push(normalized);
-        }
-      }
-    }
-  }
-  if (!collected.length) {
-    return undefined;
-  }
-  collected.sort((a, b) => a.startMs - b.startMs);
-  return collected;
-}
-
-function normalizeRealtimeSegmentPayload(payload: unknown): NormalizedRealtimeSegmentPayload {
-  const candidateRecords = collectCandidateRecords(payload);
-  if (candidateRecords.length === 0) {
-    candidateRecords.push({});
-  }
-
-  const textSources: string[] = [];
-  for (const record of candidateRecords) {
-    const candidates = [
-      (record as { text?: unknown }).text,
-      (record as { transcript?: unknown }).transcript,
-      (record as { msg?: unknown }).msg,
-    ];
-    const text = candidates.find(isNonEmptyString);
-    if (text) {
-      textSources.push(text);
-    }
-  }
-  const text = textSources.find((entry) => entry.length > 0) ?? "";
-
-  const startValue = pickTimestamp(candidateRecords, [
-    "startMs",
-    "start_ms",
-    "start",
-    "start_at",
-  ]);
-  const endValue = pickTimestamp(candidateRecords, [
-    "endMs",
-    "end_ms",
-    "end",
-    "end_at",
-  ]);
-  const durationValue = pickTimestamp(candidateRecords, [
-    "durationMs",
-    "duration_ms",
-    "duration",
-  ]);
-
-  const normalizedStart = startValue !== undefined ? Math.max(0, Math.round(startValue)) : undefined;
-  const normalizedEnd =
-    endValue !== undefined
-      ? Math.max(0, Math.round(endValue))
-      : normalizedStart !== undefined && durationValue !== undefined
-        ? Math.max(0, Math.round(normalizedStart + durationValue))
-        : undefined;
-
-  const spk = pickFirstString(candidateRecords, ["spk", "speaker"]) ?? "0";
-  const speakerLabel = pickFirstString(candidateRecords, ["speaker_label", "speaker_name"]);
-  const language = pickFirstString(candidateRecords, ["language", "lang"]);
-  const words = collectWordTimings(candidateRecords);
-  const rawText =
-    pickFirstString(candidateRecords, ["raw_text", "rawText"]) ||
-    (words ? words.map((word) => word.text).join(" ") : undefined);
-
-  return {
-    text,
-    rawText,
-    startMs: normalizedStart,
-    endMs: normalizedEnd,
-    spk,
-    speakerLabel,
-    language,
-    words,
-  };
-}
-
-function pickTimestamp(
-  records: Array<Record<string, unknown>>,
-  fields: string[]
-): number | undefined {
-  for (const record of records) {
-    for (const field of fields) {
-      const value = coerceFiniteNumber((record as Record<string, unknown>)[field]);
-      if (value !== undefined) {
-        return value;
-      }
-    }
-  }
-  return undefined;
 }
 
 function extractSampleRateFromConfig(config: Record<string, unknown>): number {
@@ -601,6 +396,8 @@ export default function RealtimeSessionPage() {
   const [followLive, setFollowLive] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [simulatedFileSession, setSimulatedFileSession] = useState(false);
+  const [simulatedFileProgressPercent, setSimulatedFileProgressPercent] = useState<number | null>(null);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [latencyStaleMs, setLatencyStaleMs] = useState<number | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
@@ -624,6 +421,7 @@ export default function RealtimeSessionPage() {
   const [cameraRecording, setCameraRecording] = useState(false);
   const portalContainer = useAppPortalContainer();
   const runtimeSettingsFabRef = useRef<HTMLButtonElement | null>(null);
+  const realtimeFileInputRef = useRef<HTMLInputElement | null>(null);
   const runtimeSettingsPreviouslyOpenRef = useRef(false);
   const sessionConnectedRef = useRef(false);
   const connectionReadyRef = useRef(false);
@@ -656,6 +454,8 @@ export default function RealtimeSessionPage() {
   const chunkIndexRef = useRef(0);
   const transcriptionIdRef = useRef<string | null>(null);
   const sessionStartRef = useRef<number | null>(null);
+  const simulatedFileStreamingAbortRef = useRef(false);
+  const simulatedFileStreamingStartedRef = useRef(false);
   const segmentsRef = useRef<RealtimeSegment[]>([]);
   const finalizeReasonRef = useRef<"normal" | "aborted">("normal");
   const finalizingRef = useRef(false);
@@ -1694,7 +1494,10 @@ export default function RealtimeSessionPage() {
       : latencyStaleMs !== null
         ? `${Math.round(latencyStaleMs / 1000)} s`
         : "--";
-  const sessionStateLabel = t(SESSION_STATE_LABEL_KEY[sessionState]);
+  const sessionStateLabel =
+    simulatedFileSession && sessionState === "recording"
+      ? t("recordingPlayback")
+      : t(SESSION_STATE_LABEL_KEY[sessionState]);
   const latencyLevelLabel = t(LATENCY_LEVEL_LABEL_KEY[latencyLevel]);
   const connectionBannerMessage =
     connectionEventMessage ??
@@ -2093,6 +1896,8 @@ export default function RealtimeSessionPage() {
     countdownFinishedRef.current = false;
     chunkIndexRef.current = 0;
     recordedSampleRateRef.current = null;
+    simulatedFileStreamingAbortRef.current = false;
+    simulatedFileStreamingStartedRef.current = false;
     finalizingRef.current = false;
     finalizeReasonRef.current = "normal";
     cameraShouldRecordRef.current = false;
@@ -2110,6 +1915,8 @@ export default function RealtimeSessionPage() {
     setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
     resetStreamingBufferMetrics();
     setAudioLevel(0);
+    setSimulatedFileSession(false);
+    setSimulatedFileProgressPercent(null);
     setSessionState("idle");
   };
 
@@ -2152,6 +1959,63 @@ export default function RealtimeSessionPage() {
     streamingClientRef.current?.sendAudioChunk(buffer, { durationMs: info.durationMs });
   };
 
+  const shouldStopSimulatedFileStreaming = () =>
+    simulatedFileStreamingAbortRef.current ||
+    finalizingRef.current ||
+    finalizeReasonRef.current === "aborted" ||
+    sessionStateRef.current === "idle";
+
+  const streamSimulatedFileAudio = async (audioData: DecodedPcmAudio) => {
+    while (!countdownFinishedRef.current && !shouldStopSimulatedFileStreaming()) {
+      await sleep(50);
+    }
+    if (shouldStopSimulatedFileStreaming()) {
+      return;
+    }
+
+    const id = transcriptionIdRef.current;
+    if (!id) {
+      return;
+    }
+
+    const sampleRate = audioData.sampleRate || FALLBACK_STREAM_SAMPLE_RATE;
+    const chunkSize = Math.max(
+      1,
+      Math.round((sampleRate * SIMULATED_FILE_STREAM_CHUNK_MS) / 1000)
+    );
+
+    await updateLocalTranscription(id, { processingStage: "recording" });
+
+    for (let offset = 0; offset < audioData.pcm.length; offset += chunkSize) {
+      if (shouldStopSimulatedFileStreaming()) {
+        return;
+      }
+
+      const chunk = audioData.pcm.subarray(
+        offset,
+        Math.min(offset + chunkSize, audioData.pcm.length)
+      ).slice();
+      const chunkBuffer = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength);
+      const durationMs = Math.round((chunk.length / sampleRate) * 1000);
+      let peak = 0;
+      for (let index = 0; index < chunk.length; index += 64) {
+        peak = Math.max(peak, Math.abs(chunk[index]));
+      }
+      setAudioLevel(Math.min(1, peak / 32768));
+      setSimulatedFileProgressPercent(
+        Math.min(100, Math.round(((offset + chunk.length) / audioData.pcm.length) * 100))
+      );
+      handleAudioChunk(chunkBuffer, { sampleRate, durationMs });
+      const waitFor = Math.max(100, Math.min(200, durationMs));
+      await sleep(waitFor);
+    }
+
+    setAudioLevel(0);
+    if (!shouldStopSimulatedFileStreaming()) {
+      stopSessionRef.current(false);
+    }
+  };
+
   const persistSegments = async () => {
     const id = transcriptionIdRef.current;
     if (!id) return;
@@ -2185,33 +2049,10 @@ export default function RealtimeSessionPage() {
       return;
     }
 
-    const payloadRecord = isRecord(payload) ? payload : ({} as Record<string, unknown>);
-    const payloadType =
-      typeof payloadRecord.type === "string"
-        ? payloadRecord.type.toLowerCase()
-        : undefined;
-    const rawPartialField = (payloadRecord as { partial?: unknown }).partial;
-    const finalFlag =
-      coerceBooleanFlag((payloadRecord as { is_final?: unknown }).is_final) ??
-      coerceBooleanFlag((payloadRecord as { final?: unknown }).final);
-    const partialFlag =
-      coerceBooleanFlag((payloadRecord as { is_partial?: unknown }).is_partial) ??
-      coerceBooleanFlag(rawPartialField);
-    const typeIndicatesFinal =
-      payloadType === "final" || payloadType === "result" || payloadType === "transcript";
-    const typeIndicatesPartial =
-      payloadType === "partial" || payloadType === "intermediate" || payloadType === "hypothesis";
-    const treatAsFinal = finalFlag !== undefined ? finalFlag : typeIndicatesFinal;
-    const hasLoosePartial = partialFlag === undefined && Boolean(rawPartialField);
-    const treatAsPartial =
-      !treatAsFinal &&
-      (partialFlag === true || finalFlag === false || typeIndicatesPartial || hasLoosePartial);
+    const classified = classifyRealtimeStreamingPayload(payload);
 
-    if (payloadType === "error") {
-      const message =
-        isRecord(payload) && typeof payload.message === "string"
-          ? payload.message
-          : t("anErrorOccurredDuringStreaming");
+    if (classified.kind === "error") {
+      const message = classified.message ?? t("anErrorOccurredDuringStreaming");
       setErrorMessage(message);
       setConnectionEventMessage(message);
       setConnectionUxState((prev) =>
@@ -2225,16 +2066,8 @@ export default function RealtimeSessionPage() {
       return;
     }
 
-    let normalizedPayload: NormalizedRealtimeSegmentPayload | null = null;
-    const getNormalizedPayload = () => {
-      if (!normalizedPayload) {
-        normalizedPayload = normalizeRealtimeSegmentPayload(payload);
-      }
-      return normalizedPayload;
-    };
-
-    if (treatAsFinal) {
-      const normalized = getNormalizedPayload();
+    if (classified.kind === "final") {
+      const normalized = classified.segment;
       const normalizedWords = normalized.words && normalized.words.length > 0 ? normalized.words : undefined;
       const fallbackStartFromWords = normalizedWords?.[0]?.startMs;
       const fallbackEndFromWords = normalizedWords?.[normalizedWords.length - 1]?.endMs;
@@ -2278,9 +2111,8 @@ export default function RealtimeSessionPage() {
       return;
     }
 
-    if (treatAsPartial) {
-      const normalized = getNormalizedPayload();
-      setPartialText(normalized.text);
+    if (classified.kind === "partial") {
+      setPartialText(classified.segment.text);
       const receivedAt = Date.now();
       lastResultAtRef.current = receivedAt;
       setLatencyStaleMs(0);
@@ -2337,52 +2169,63 @@ export default function RealtimeSessionPage() {
     );
   };
 
-  const prepareSession = async (decoderConfig: Record<string, unknown>) => {
+  const prepareSession = async (
+    decoderConfig: Record<string, unknown>,
+    options: {
+      inputSource?: RealtimeInputSource;
+      simulatedFileAudio?: DecodedPcmAudio;
+    } = {}
+  ) => {
+    const inputSource = options.inputSource ?? "microphone";
     sessionConnectedRef.current = false;
     connectionReadyRef.current = false;
     resetStreamingBufferMetrics();
 
-    const recorder = new RecorderManager();
-    recorderRef.current = recorder;
     const client = new RtzrStreamingClient();
     streamingClientRef.current = client;
     const sampleRate = extractSampleRateFromConfig(decoderConfig);
 
-    try {
-      await recorder.start({
-        targetSampleRate: sampleRate,
-        chunkMillis: 800,
-        onChunk: handleAudioChunk,
-        onLevel: setAudioLevel,
-        onError: (error) => {
-          console.error(t("recordingError"), error);
-          setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
-          enqueueRealtimeSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
-          stopSession(true);
-        },
-        onStop: () => {
-          if (suppressRecorderOnStopRef.current) {
-            suppressRecorderOnStopRef.current = false;
-            return;
-          }
-          if (sessionStateRef.current === "stopping") {
-            // Wait for socket close or safety timer
-            return;
-          }
-          void finalizeSession(finalizeReasonRef.current === "aborted");
-        },
-      });
-      if (recorder.recorderState !== "recording") {
-        throw new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+    if (inputSource === "microphone") {
+      const recorder = new RecorderManager();
+      recorderRef.current = recorder;
+      try {
+        await recorder.start({
+          targetSampleRate: sampleRate,
+          chunkMillis: 800,
+          onChunk: handleAudioChunk,
+          onLevel: setAudioLevel,
+          onError: (error) => {
+            console.error(t("recordingError"), error);
+            setErrorMessage(error.message ?? t("anErrorOccurredDuringRecording"));
+            enqueueRealtimeSnackbar(t("aRecordingErrorOccurred"), { variant: "error" });
+            stopSession(true);
+          },
+          onStop: () => {
+            if (suppressRecorderOnStopRef.current) {
+              suppressRecorderOnStopRef.current = false;
+              return;
+            }
+            if (sessionStateRef.current === "stopping") {
+              // Wait for socket close or safety timer
+              return;
+            }
+            void finalizeSession(finalizeReasonRef.current === "aborted");
+          },
+        });
+        if (recorder.recorderState !== "recording") {
+          throw new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+        }
+      } catch (error) {
+        console.error(t("failedToStartRecording"), error);
+        setErrorMessage(
+          error instanceof Error ? error.message : t("yourMicrophoneDeviceCannotBeUsed")
+        );
+        enqueueRealtimeSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
+        stopSession(true);
+        throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
       }
-    } catch (error) {
-      console.error(t("failedToStartRecording"), error);
-      setErrorMessage(
-        error instanceof Error ? error.message : t("yourMicrophoneDeviceCannotBeUsed")
-      );
-      enqueueRealtimeSnackbar(t("yourMicrophoneDeviceCannotBeUsed"), { variant: "error" });
-      stopSession(true);
-      throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
+    } else {
+      recorderRef.current = null;
     }
 
     client.connect({
@@ -2431,6 +2274,19 @@ export default function RealtimeSessionPage() {
         }
         if (recovered) {
           enqueueRealtimeSnackbar(t("streamingConnectionRecovered"), { variant: "success" });
+        }
+        if (
+          inputSource === "uploaded_file" &&
+          options.simulatedFileAudio &&
+          !simulatedFileStreamingStartedRef.current
+        ) {
+          simulatedFileStreamingStartedRef.current = true;
+          void streamSimulatedFileAudio(options.simulatedFileAudio).catch((error) => {
+            console.error("Failed to stream file as realtime simulation", error);
+            setErrorMessage(t("anErrorOccurredDuringStreaming"));
+            enqueueRealtimeSnackbar(t("anErrorOccurredDuringStreaming"), { variant: "error" });
+            stopSessionRef.current(true);
+          });
         }
       },
       onClose: (event) => {
@@ -2543,6 +2399,7 @@ export default function RealtimeSessionPage() {
 
   const stopSession = (aborted: boolean) => {
     if (sessionState === "idle" || sessionState === "saving" || sessionState === "stopping") return;
+    simulatedFileStreamingAbortRef.current = true;
     setConnectionUxState((prev) =>
       reduceRealtimeConnectionUxState(prev, { type: "session-reset" })
     );
@@ -2694,7 +2551,7 @@ export default function RealtimeSessionPage() {
     };
   }, []);
 
-  const handleStartSession = async () => {
+  const handleStartSession = async (input: RealtimeStartInput = { source: "microphone" }) => {
     if (sessionState !== "idle") {
       enqueueRealtimeSnackbar(t("thereIsRealTimeTranscriptionAlreadyUnderway"), { variant: "info" });
       return;
@@ -2705,6 +2562,7 @@ export default function RealtimeSessionPage() {
       return;
     }
 
+    const inputSource = input.source;
     let decoderConfig: Record<string, unknown>;
     const configString = resolveRealtimeStreamingConfigString({
       draftJson: streamingRequestJson,
@@ -2729,19 +2587,42 @@ export default function RealtimeSessionPage() {
     } else {
       delete (decoderConfig as { stream_config?: unknown }).stream_config;
     }
-    streamingConfigRef.current = decoderConfig;
 
-    const sampleRate = extractSampleRateFromConfig(decoderConfig);
+    let sampleRate = extractSampleRateFromConfig(decoderConfig);
+    let simulatedFileAudio: DecodedPcmAudio | null = null;
+    if (inputSource === "uploaded_file") {
+      try {
+        const { decodeAudioFileToPcm } = await import("../services/audio/decodeAudioFile");
+        simulatedFileAudio = await decodeAudioFileToPcm(input.file, sampleRate);
+        sampleRate = simulatedFileAudio.sampleRate || sampleRate;
+        decoderConfig = { ...decoderConfig, sample_rate: sampleRate };
+      } catch {
+        setErrorMessage(t("audioCannotBeConverted"));
+        enqueueRealtimeSnackbar(t("audioCannotBeConverted"), { variant: "error" });
+        return;
+      }
+    }
+
+    streamingConfigRef.current = inputSource === "microphone" ? decoderConfig : null;
     const backendSnapshot = await resolveBackendEndpointSnapshot(activeBackendPresetId);
     const modelName = extractModelNameFromConfig(decoderConfig);
+    const uploadedFileTitle =
+      inputSource === "uploaded_file"
+        ? input.file.name.replace(/\.[^/.]+$/, "").trim() || input.file.name
+        : null;
 
     try {
       const record = await createLocalTranscription({
-        title: `${t("realTimeTranscription")} ${formatLocalizedDateTime(new Date(), locale)} `,
+        title:
+          inputSource === "uploaded_file"
+            ? `${t("realTimeTranscription")} ${uploadedFileTitle}`
+            : `${t("realTimeTranscription")} ${formatLocalizedDateTime(new Date(), locale)} `,
         kind: "realtime",
         status: "processing",
         metadata: {
           processingStage: "recording",
+          sttTransport: "streaming",
+          captureInput: inputSource,
           configSnapshotJson: JSON.stringify(decoderConfig),
           configPresetId: activeStreamingPreset?.id ?? undefined,
           configPresetName: activeStreamingPreset?.name ?? undefined,
@@ -2759,6 +2640,7 @@ export default function RealtimeSessionPage() {
       await updateLocalTranscription(record.id, {
         audioSampleRate: sampleRate,
         audioChannels: 1,
+        durationMs: simulatedFileAudio?.durationMs,
       });
       videoChunkIndexRef.current = 0;
     } catch (error) {
@@ -2774,7 +2656,11 @@ export default function RealtimeSessionPage() {
     setPartialText(null);
     setFollowLive(true);
     chunkIndexRef.current = 0;
-    cameraShouldRecordRef.current = true;
+    setSimulatedFileSession(inputSource === "uploaded_file");
+    setSimulatedFileProgressPercent(inputSource === "uploaded_file" ? 0 : null);
+    simulatedFileStreamingAbortRef.current = false;
+    simulatedFileStreamingStartedRef.current = false;
+    cameraShouldRecordRef.current = inputSource === "microphone";
     // Video recording will be triggered by useEffect when state becomes "recording"
     setErrorMessage(null);
     setConnectionEventMessage(null);
@@ -2791,7 +2677,10 @@ export default function RealtimeSessionPage() {
     setSessionState("countdown");
     setRuntimeSettingsOpen(false);
 
-    void prepareSession(decoderConfig).catch((error) => {
+    void prepareSession(decoderConfig, {
+      inputSource,
+      simulatedFileAudio: simulatedFileAudio ?? undefined,
+    }).catch((error) => {
       console.error("Failed to prepare streaming session", error);
     });
 
@@ -2813,6 +2702,23 @@ export default function RealtimeSessionPage() {
         return prev - 1;
       });
     }, 1000);
+  };
+
+  const handleRealtimeFileUploadAction = () => {
+    if (sessionState !== "idle") {
+      enqueueRealtimeSnackbar(t("thereIsRealTimeTranscriptionAlreadyUnderway"), { variant: "info" });
+      return;
+    }
+    realtimeFileInputRef.current?.click();
+  };
+
+  const handleRealtimeFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+    if (!selectedFile) {
+      return;
+    }
+    void handleStartSession({ source: "uploaded_file", file: selectedFile });
   };
 
   useEffect(() => {
@@ -2882,6 +2788,13 @@ export default function RealtimeSessionPage() {
 
   return (
     <>
+      <input
+        ref={realtimeFileInputRef}
+        type="file"
+        accept="audio/*"
+        hidden
+        onChange={handleRealtimeFileInputChange}
+      />
       <Box
         sx={{
           display: "flex",
@@ -3164,10 +3077,12 @@ export default function RealtimeSessionPage() {
               onMainAction={handleMainButtonClick}
               onStopAction={handleStopFabClick}
               onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
+              onRealtimeFileUpload={handleRealtimeFileUploadAction}
               cameraSupported={cameraSupported}
               cameraEnabled={cameraEnabled}
               onToggleCamera={handleToggleCamera}
               audioLevel={audioLevel}
+              streamProgressPercent={simulatedFileProgressPercent}
               runtimeSettingsButtonRef={runtimeSettingsFabRef}
               mainButtonPointerDown={handleMainButtonPointerDown}
               clearPointerState={clearMainButtonPointerState}
@@ -3184,10 +3099,12 @@ export default function RealtimeSessionPage() {
           onMainAction={handleMainButtonClick}
           onStopAction={handleStopFabClick}
           onRuntimeSettingsOpen={() => setRuntimeSettingsOpen(true)}
+          onRealtimeFileUpload={handleRealtimeFileUploadAction}
           cameraSupported={cameraSupported}
           cameraEnabled={cameraEnabled}
           onToggleCamera={handleToggleCamera}
           audioLevel={audioLevel}
+          streamProgressPercent={simulatedFileProgressPercent}
           runtimeSettingsButtonRef={runtimeSettingsFabRef}
           mainButtonPointerDown={handleMainButtonPointerDown}
           clearPointerState={clearMainButtonPointerState}
