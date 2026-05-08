@@ -5,6 +5,16 @@ import {
 } from "./runtimeErrorReporter";
 import { useSettingsStore } from "../../store/settingsStore";
 
+type SendBeacon = typeof navigator.sendBeacon;
+
+function mockSendBeacon() {
+  return vi.fn<SendBeacon>(() => true);
+}
+
+function mockFetch() {
+  return vi.fn<typeof fetch>(() => Promise.resolve(new Response()));
+}
+
 describe("runtimeErrorReporter", () => {
   const originalSendBeacon = navigator.sendBeacon;
   const originalFetch = globalThis.fetch;
@@ -37,12 +47,12 @@ describe("runtimeErrorReporter", () => {
   });
 
   it("sends window errors through sendBeacon", async () => {
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: sendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch();
 
     initRuntimeErrorReporter();
     const error = new Error("boom");
@@ -60,7 +70,7 @@ describe("runtimeErrorReporter", () => {
   });
 
   it("deduplicates repeated runtime errors", async () => {
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: sendBeacon,
@@ -80,10 +90,8 @@ describe("runtimeErrorReporter", () => {
       configurable: true,
       value: undefined,
     });
-    const fetchMock = vi.fn<[RequestInfo | URL, RequestInit | undefined], Promise<Response>>(() =>
-      Promise.resolve(new Response())
-    );
-    globalThis.fetch = fetchMock as typeof fetch;
+    const fetchMock = mockFetch();
+    globalThis.fetch = fetchMock;
 
     initRuntimeErrorReporter();
     const rejection = new Event("unhandledrejection");
@@ -108,12 +116,12 @@ describe("runtimeErrorReporter", () => {
       ...(window.__MALSORI_CONFIG__ ?? {}),
       runtimeErrorReportingEnabled: false,
     };
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: sendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch();
 
     initRuntimeErrorReporter();
     const rejection = new Event("unhandledrejection");
@@ -130,12 +138,12 @@ describe("runtimeErrorReporter", () => {
 
   it("does not initialize when admin base url is not configured", async () => {
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: sendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch();
 
     initRuntimeErrorReporter();
     await Promise.resolve();
@@ -146,12 +154,12 @@ describe("runtimeErrorReporter", () => {
 
   it("can initialize after admin base becomes available later", async () => {
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: sendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch();
 
     initRuntimeErrorReporter();
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "/internal" });
