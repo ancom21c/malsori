@@ -260,6 +260,9 @@ _client_lock = Lock()
 _config_cache: Optional[Dict[str, Any]] = None
 _config_cache_path: Optional[Path] = None
 _config_lock = Lock()
+_transcribe_queue_lock = Lock()
+_transcribe_queue_semaphore: Optional[asyncio.Semaphore] = None
+_transcribe_queue_concurrency: Optional[int] = None
 
 SUCCESS_CODE = 0
 FAILURE_CODE = -1
@@ -2723,6 +2726,49 @@ def _ensure_settings() -> Settings:
         _raise_api_error(500, "SERVER_CONFIG_ERROR", "Configuration load failed.")
 
 
+def _get_transcribe_queue_semaphore(settings: Settings) -> asyncio.Semaphore:
+    global _transcribe_queue_concurrency, _transcribe_queue_semaphore
+    concurrency = max(1, int(settings.transcribe_queue_concurrency))
+    with _transcribe_queue_lock:
+        if (
+            _transcribe_queue_semaphore is None
+            or _transcribe_queue_concurrency != concurrency
+        ):
+            _transcribe_queue_semaphore = asyncio.Semaphore(concurrency)
+            _transcribe_queue_concurrency = concurrency
+        return _transcribe_queue_semaphore
+
+
+async def _submit_transcription_queued(
+    client: RTZRClient,
+    settings: Settings,
+    file_bytes: bytes,
+    config_payload: Dict[str, Any],
+    title: Optional[str],
+) -> Dict[str, Any]:
+    semaphore = _get_transcribe_queue_semaphore(settings)
+    try:
+        await asyncio.wait_for(
+            semaphore.acquire(),
+            timeout=settings.transcribe_queue_timeout_seconds,
+        )
+    except asyncio.TimeoutError:
+        _raise_api_error(
+            503,
+            "TRANSCRIBE_QUEUE_TIMEOUT",
+            "Transcription submission queue timed out.",
+            {
+                "concurrency": settings.transcribe_queue_concurrency,
+                "timeout_seconds": settings.transcribe_queue_timeout_seconds,
+            },
+        )
+
+    try:
+        return await client.submit_transcription(file_bytes, config_payload, title)
+    finally:
+        semaphore.release()
+
+
 @app.post("/v1/transcribe")
 async def proxy_transcribe(
     file: UploadFile = File(...),
@@ -2755,11 +2801,15 @@ async def proxy_transcribe(
         config_payload = {}
 
     try:
-        upstream_response = await client.submit_transcription(
+        upstream_response = await _submit_transcription_queued(
+            client,
+            settings,
             file_bytes,
             config_payload,
             title,
         )
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - upstream failure
         logger.exception("파일 전사 프록시 중 오류", exc_info=exc)
         _raise_api_error(

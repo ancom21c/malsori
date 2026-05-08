@@ -62,6 +62,12 @@ class Settings(BaseModel):
     )
     poll_interval_seconds: float = Field(1.0, alias="STT_POLL_INTERVAL", gt=0.0)
     poll_timeout_seconds: float = Field(180.0, alias="STT_POLL_TIMEOUT", gt=0.0)
+    transcribe_queue_concurrency: int = Field(
+        2, alias="STT_TRANSCRIBE_QUEUE_CONCURRENCY", ge=1
+    )
+    transcribe_queue_timeout_seconds: float = Field(
+        300.0, alias="STT_TRANSCRIBE_QUEUE_TIMEOUT", gt=0.0
+    )
     verify_ssl: bool = Field(True, alias="STT_VERIFY_SSL")
     deployment: Literal["cloud", "onprem"] = Field("cloud", alias="STT_DEPLOYMENT")
     collector_url: Optional[str] = Field(default=None, alias="STT_COLLECTOR_URL")

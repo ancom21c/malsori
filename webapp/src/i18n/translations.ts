@@ -1769,6 +1769,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Upload processing mode",
     ja: "アップロード処理方式",
   },
+  uploadQueue: {
+    ko: "업로드 큐",
+    en: "Upload queue",
+    ja: "アップロードキュー",
+  },
   batchFileTranscription: {
     ko: "일반 파일 STT",
     en: "Batch file STT",
@@ -1778,6 +1783,21 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "일반 STT API로 파일 작업을 만들고 상태를 동기화합니다.",
     en: "Create a file transcription job through the batch STT API and sync status.",
     ja: "通常の STT API でファイル文字起こしジョブを作成し、状態を同期します。",
+  },
+  bulkTranscriptionRequestsFailed: {
+    ko: "벌크 전사 요청이 모두 실패했습니다.",
+    en: "All bulk transcription requests failed.",
+    ja: "一括文字起こしリクエストはすべて失敗しました。",
+  },
+  bulkTranscriptionRequestsPartiallySent: {
+    ko: "전사 요청 {{total}}개 중 {{success}}개를 전송했습니다.",
+    en: "Sent {{success}} of {{total}} transcription requests.",
+    ja: "{{total}} 件中 {{success}} 件の文字起こしリクエストを送信しました。",
+  },
+  bulkTranscriptionRequestsSent: {
+    ko: "전사 요청 {{count}}개를 전송했습니다.",
+    en: "Sent {{count}} transcription requests.",
+    ja: "{{count}} 件の文字起こしリクエストを送信しました。",
   },
   realtimeApiFileUpload: {
     ko: "실시간 API 파일 STT",
@@ -2123,6 +2143,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "오디오/비디오 파일 선택",
     en: "Select audio or video file",
     ja: "音声/動画ファイルを選択",
+  },
+  selectAudioFiles: {
+    ko: "오디오/비디오 파일 선택",
+    en: "Select audio or video files",
+    ja: "音声/動画ファイルを選択",
+  },
+  selectedFilesSummary: {
+    ko: "선택한 파일 {{count}}개 · {{size}}",
+    en: "{{count}} files selected · {{size}}",
+    ja: "{{count}} 件のファイルを選択 · {{size}}",
   },
   selectFromKoJaMultiOrDetectMultiDetectIsOnlyEnabledOnWhisperFamilyModels: {
     ko: "ko, ja, multi, detect 중 선택합니다. multi/detect는 Whisper 계열 모델에서만 활성화됩니다.",

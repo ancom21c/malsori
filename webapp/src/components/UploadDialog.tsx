@@ -21,6 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import { useSnackbar } from "notistack";
 import { useNavigate } from "react-router-dom";
 import { useRequestFileTranscription } from "../hooks/useRequestFileTranscription";
 import { useRequestRealtimeFileTranscription } from "../hooks/useRequestRealtimeFileTranscription";
@@ -31,7 +32,7 @@ import TranscriptionConfigQuickOptions from "./TranscriptionConfigQuickOptions";
 import BackendEndpointReadonlyCard from "./BackendEndpointReadonlyCard";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import { useI18n } from "../i18n";
-import { buildSessionDetailPath } from "../app/platformRoutes";
+import { buildSessionDetailPath, resolveSessionsPath } from "../app/platformRoutes";
 
 type UploadDialogProps = {
   open: boolean;
@@ -39,9 +40,47 @@ type UploadDialogProps = {
 };
 
 type UploadMode = "batch" | "realtime";
+type BulkFileUploadItemStatus = "queued" | "submitting" | "submitted" | "failed";
+
+type BulkFileUploadItem = {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  status: BulkFileUploadItemStatus;
+  errorMessage?: string;
+};
+
+function formatFileSize(size: number) {
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function getFileBaseTitle(file: File) {
+  return file.name.replace(/\.[^/.]+$/, "").trim() || file.name;
+}
+
+function buildBulkQueueItems(files: File[]): BulkFileUploadItem[] {
+  return files.map((file, index) => ({
+    id: `${Date.now()}-${index}-${file.name}`,
+    fileName: file.name,
+    fileSize: file.size,
+    status: "queued",
+  }));
+}
+
+function resolveBulkFileTitle(baseTitle: string, file: File, totalCount: number) {
+  const trimmedTitle = baseTitle.trim();
+  if (!trimmedTitle) {
+    return getFileBaseTitle(file);
+  }
+  if (totalCount <= 1) {
+    return trimmedTitle;
+  }
+  return `${trimmedTitle} - ${getFileBaseTitle(file)}`;
+}
 
 export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const { t } = useI18n();
+  const { enqueueSnackbar } = useSnackbar();
   const [title, setTitle] = useState("");
   const filePresets = usePresets("file");
   const streamingPresets = usePresets("streaming");
@@ -64,7 +103,9 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const [uploadMode, setUploadMode] = useState<UploadMode>("batch");
   const [configJson, setConfigJson] = useState<string>(fallbackFileConfigJson);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [bulkItems, setBulkItems] = useState<BulkFileUploadItem[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [jsonEditorOpen, setJsonEditorOpen] = useState(false);
   const portalContainer = useAppPortalContainer();
@@ -79,7 +120,11 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   const defaultPreset = uploadMode === "batch" ? defaultFilePreset : defaultStreamingPreset;
   const fallbackConfigJson =
     uploadMode === "batch" ? fallbackFileConfigJson : fallbackStreamingConfigJson;
-  const requestPending = requestMutation.isPending || realtimeRequestMutation.isPending;
+  const requestPending =
+    requestMutation.isPending ||
+    bulkSubmitting ||
+    realtimeRequestMutation.isPending;
+  const selectedFile = files[0] ?? null;
 
   const activePreset = useMemo(() => {
     if (!selectedPresetId) {
@@ -89,9 +134,31 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   }, [selectedPresetId, activePresets]);
 
   const uploadable = useMemo(
-    () => Boolean(file && configJson.trim().length > 0),
-    [file, configJson]
+    () => files.length > 0 && configJson.trim().length > 0,
+    [files.length, configJson]
   );
+
+  const selectedFilesSummary = useMemo(() => {
+    if (files.length === 0) {
+      return t("thereAreNoFilesSelected");
+    }
+    if (files.length === 1 && selectedFile) {
+      return `${selectedFile.name} · ${formatFileSize(selectedFile.size)}`;
+    }
+    const totalSize = files.reduce((sum, item) => sum + item.size, 0);
+    return t("selectedFilesSummary", {
+      values: { count: files.length, size: formatFileSize(totalSize) },
+    });
+  }, [files, selectedFile, t]);
+
+  const queueItems = bulkItems;
+  const showQueue = uploadMode === "batch" && (files.length > 1 || queueItems.length > 1);
+  const bulkSubmittedCount = queueItems.filter((item) => item.status === "submitted").length;
+  const bulkFailedCount = queueItems.filter((item) => item.status === "failed").length;
+  const bulkProgressPercent =
+    queueItems.length > 0
+      ? Math.round(((bulkSubmittedCount + bulkFailedCount) / queueItems.length) * 100)
+      : 0;
 
   const previousOpenRef = useRef(open);
 
@@ -108,7 +175,9 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     const { preset, fallback } = getDefaultsForMode("batch");
     setUploadMode("batch");
     setTitle("");
-    setFile(null);
+    setFiles([]);
+    setBulkItems([]);
+    setBulkSubmitting(false);
     setSelectedPresetId(preset?.id ?? null);
     setConfigJson(preset?.configJson ?? fallback);
     setAdvancedOpen(false);
@@ -172,6 +241,10 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
     }
     const { preset, fallback } = getDefaultsForMode(nextMode);
     setUploadMode(nextMode);
+    if (nextMode === "realtime" && files.length > 1) {
+      setFiles((current) => current.slice(0, 1));
+      setBulkItems([]);
+    }
     setSelectedPresetId(preset?.id ?? null);
     setConfigJson(preset?.configJson ?? fallback);
     setJsonEditorOpen(nextMode === "realtime");
@@ -185,33 +258,132 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const targetFile = event.target.files?.[0];
-    setFile(targetFile ?? null);
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const nextFiles = uploadMode === "batch" ? selectedFiles : selectedFiles.slice(0, 1);
+    setFiles(nextFiles);
+    setBulkItems(
+      uploadMode === "batch" && nextFiles.length > 1 ? buildBulkQueueItems(nextFiles) : []
+    );
+    const targetFile = nextFiles[0];
     if (targetFile && title.trim().length === 0) {
-      const derivedTitle = targetFile.name.replace(/\.[^/.]+$/, "").trim() || targetFile.name;
+      const derivedTitle = getFileBaseTitle(targetFile);
       setTitle(derivedTitle);
     }
   };
 
+  const getQueueStatusLabel = (status: BulkFileUploadItemStatus) => {
+    switch (status) {
+      case "submitted":
+        return t("complete");
+      case "submitting":
+        return t("sending");
+      case "failed":
+        return t("failure");
+      case "queued":
+      default:
+        return t("waiting");
+    }
+  };
+  const queueText = queueItems
+    .map((item) => {
+      const detail = item.errorMessage ?? formatFileSize(item.fileSize);
+      return `${getQueueStatusLabel(item.status)}  ${item.fileName}  ${detail}`;
+    })
+    .join("\n");
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file || !uploadable || requestPending) {
+    if (!selectedFile || !uploadable || requestPending) {
       return;
     }
     try {
+      if (uploadMode === "batch" && files.length > 1) {
+        const initialQueue = buildBulkQueueItems(files);
+        setBulkItems(initialQueue);
+        setBulkSubmitting(true);
+        let successCount = 0;
+        let failureCount = 0;
+        try {
+          for (const [index, targetFile] of files.entries()) {
+            const queueItem = initialQueue[index];
+            setBulkItems((current) =>
+              current.map((item) =>
+                item.id === queueItem.id ? { ...item, status: "submitting" } : item
+              )
+            );
+            try {
+              await requestMutation.mutateAsync({
+                title: resolveBulkFileTitle(title, targetFile, files.length),
+                configJson,
+                file: targetFile,
+                presetId: activePreset?.id ?? null,
+                presetName: activePreset?.name ?? null,
+                suppressNotifications: true,
+              });
+              successCount += 1;
+              setBulkItems((current) =>
+                current.map((item) =>
+                  item.id === queueItem.id
+                    ? { ...item, status: "submitted" }
+                    : item
+                )
+              );
+            } catch (error) {
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : t("anErrorOccurredDuringTheTranscriptionRequest");
+              failureCount += 1;
+              setBulkItems((current) =>
+                current.map((item) =>
+                  item.id === queueItem.id
+                    ? { ...item, status: "failed", errorMessage: message }
+                    : item
+                )
+              );
+            }
+          }
+        } finally {
+          setBulkSubmitting(false);
+        }
+        if (successCount === 0) {
+          enqueueSnackbar(t("bulkTranscriptionRequestsFailed"), { variant: "error" });
+          return;
+        }
+        if (failureCount > 0) {
+          enqueueSnackbar(
+            t("bulkTranscriptionRequestsPartiallySent", {
+              values: { success: successCount, total: files.length },
+            }),
+            { variant: "warning" }
+          );
+          return;
+        }
+        enqueueSnackbar(
+          t("bulkTranscriptionRequestsSent", {
+            values: { count: successCount },
+          }),
+          { variant: "success" }
+        );
+        resetForm();
+        onClose();
+        navigate(resolveSessionsPath());
+        return;
+      }
+
       const result =
         uploadMode === "realtime"
           ? await realtimeRequestMutation.mutateAsync({
               title,
               configJson,
-              file,
+              file: selectedFile,
               presetId: activePreset?.id ?? null,
               presetName: activePreset?.name ?? null,
             })
           : await requestMutation.mutateAsync({
               title,
               configJson,
-              file,
+              file: selectedFile,
               presetId: activePreset?.id ?? null,
               presetName: activePreset?.name ?? null,
             });
@@ -241,22 +413,72 @@ export function UploadDialog({ open, onClose }: UploadDialogProps) {
         <DialogContent>
           <Stack spacing={2}>
             <Stack spacing={1}>
-              <Button variant="outlined" component="label" disabled={requestMutation.isPending}>
-                {t("selectAudioFile")}
+              <Button
+                variant="outlined"
+                component="label"
+                disabled={requestPending}
+              >
+                {uploadMode === "batch" ? t("selectAudioFiles") : t("selectAudioFile")}
                 <input
                   type="file"
                   accept="audio/*,video/*"
+                  multiple={uploadMode === "batch"}
                   hidden
                   disabled={requestPending}
                   onChange={handleFileChange}
                 />
               </Button>
               <Typography variant="body2" color="text.secondary">
-                {file
-                  ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`
-                  : t("thereAreNoFilesSelected")}
+                {selectedFilesSummary}
               </Typography>
             </Stack>
+            {showQueue ? (
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                }}
+              >
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  spacing={1}
+                  sx={{ px: 2, py: 1.25 }}
+                >
+                  <Typography variant="subtitle2">{t("uploadQueue")}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {bulkSubmittedCount + bulkFailedCount}/{queueItems.length}
+                  </Typography>
+                </Stack>
+                {bulkSubmitting ? (
+                  <LinearProgress
+                    variant="determinate"
+                    value={bulkProgressPercent}
+                    sx={{ height: 4 }}
+                  />
+                ) : null}
+                <Typography
+                  component="pre"
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    m: 0,
+                    px: 2,
+                    py: 1.25,
+                    maxHeight: 160,
+                    overflow: "auto",
+                    fontFamily: "Menlo, Consolas, monospace",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {queueText}
+                </Typography>
+              </Box>
+            ) : null}
             <TextField
               fullWidth
               label={t("title")}

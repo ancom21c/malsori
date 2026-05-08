@@ -62,6 +62,8 @@ Configure the proxy with environment variables before starting it. At minimum yo
   - The Python API now routes cloud traffic through the official SDK packages: `rtzr` for the public endpoint and `rtzr-internal` when `PRONAIA_API_BASE` points at `dev-openapi.vito.ai` or `sandbox-openapi.vito.ai`.
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
+- `STT_TRANSCRIBE_QUEUE_CONCURRENCY` – maximum concurrent upstream `/v1/transcribe` submissions (defaults to `2`).
+- `STT_TRANSCRIBE_QUEUE_TIMEOUT` – seconds a `/v1/transcribe` request may wait for a queue slot before returning `503` (defaults to `300`).
 - `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.
 - `BACKEND_ADMIN_TOKEN_REQUIRED` – set to `0` to allow `/v1/backend/*` calls without `X-Malsori-Admin-Token`. Defaults to `1`.
 - `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled and `BACKEND_ADMIN_TOKEN_REQUIRED=1`; callers must send `X-Malsori-Admin-Token`.
@@ -84,7 +86,7 @@ Production ingress should split public/internal surfaces: keep user routes (`/v1
 
 | Browser call (to Python API) | Malsori proxy behavior | Upstream RTZR target |
 |---|---|---|
-| `POST /v1/transcribe` (file + `config`) | Forwards multipart request, normalizes `id/transcribe_id`, persists uploaded audio artifact | Cloud/onprem transcribe endpoint (`transcribe_path`) |
+| `POST /v1/transcribe` (file + `config`) | Queues upstream submission with bounded concurrency, forwards multipart request, normalizes `id/transcribe_id`, persists uploaded audio artifact | Cloud/onprem transcribe endpoint (`transcribe_path`) |
 | `GET /v1/transcribe/{id}` | Forwards status lookup, normalizes segment payloads | Cloud/onprem status endpoint (`transcribe_status_path`) |
 | `GET /v1/transcribe/{id}/audio` | Returns **Malsori-local stored artifact** from `STT_STORAGE_BASE_DIR`; does not proxy RTZR download on demand | N/A (local file serving route) |
 | `WS /v1/streaming` (cloud) | Consumes first browser `start`, converts `decoder_config` to query params, sends local `ready`, relays binary audio, maps browser `final/stop/eos` to upstream `EOS` | RTZR websocket streaming path (`streaming_path`) |

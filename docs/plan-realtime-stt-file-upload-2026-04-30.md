@@ -44,6 +44,10 @@ Realtime-paced file simulation is a realtime-screen input mode. It is not expose
    - Add a local file picker to the realtime transcription controls.
    - Decode the file to PCM and pace chunks through the existing live streaming session.
    - Keep standard upload-dialog realtime file upload on burst streaming only.
+5. Bulk batch file upload
+   - Allow multiple files only for standard batch `/v1/transcribe` upload.
+   - Create one saved file row per selected file and keep realtime API upload single-file.
+   - Queue upstream batch submissions server-side to prevent bulk bursts from overrunning the backend.
 
 ## Rollback
 
