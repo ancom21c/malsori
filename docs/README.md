@@ -16,6 +16,8 @@
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - operator-managed backend binding architecture
 - `docs/plan-summary-feature-2026-03-11.md` - canonical summary feature spec
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` - current architecture boundary refactor plan
+- `docs/todo/2026-05-11-architecture-boundary-refactor-loop/README.md` - current architecture boundary refactor board
 - `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
 - `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md` - current execution board for realtime STT file upload promotion
 - `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan

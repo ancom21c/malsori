@@ -19,6 +19,7 @@ Current canonical/UI references:
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` - current architecture boundary refactor plan
 - `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
 - `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan for internal operator activation and summary/translate vertical slices
 - `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
@@ -27,6 +28,8 @@ Current canonical/UI references:
 - Current active execution board: `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md`
 - Active operator execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
 - Active operator execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
+- Active architecture refactor plan: `docs/plan-architecture-boundary-refactor-2026-05-11.md`
+- Active architecture refactor board: `docs/todo/2026-05-11-architecture-boundary-refactor-loop/README.md`
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan for summary/backend settings work
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/plan-review-remediation-2026-03-08.md` - previous completed execution plan
@@ -154,6 +157,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
 - `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` – current architecture boundary refactor plan.
 - `docs/plan-operator-feature-activation-2026-03-11.md` – current execution plan for operator-managed backend activation and summary/translate implementation.
 - `docs/knowledge/README.md` – durable knowledge index.
 - `docs/knowledge/docker-compose-https-contract.md` – durable local compose HTTPS/TLS contract.

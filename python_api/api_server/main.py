@@ -35,7 +35,6 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 import grpc
-import httpx
 import requests
 from websockets.exceptions import (
     ConnectionClosedError,
@@ -87,6 +86,24 @@ from .models import (
     STTReturnObject,
     SummaryBlockResultModel,
     SummarySupportingSnippetModel,
+)
+from .provider_runtime import (
+    ProviderRuntimeError,
+    ProviderRuntimeSpec,
+    backend_profile_is_operational as provider_backend_profile_is_operational,
+    backend_profile_is_ready_for_feature as provider_backend_profile_is_ready_for_feature,
+    backend_profile_supports_capabilities as provider_backend_profile_supports_capabilities,
+    build_provider_auth_headers,
+    profile_uses_provider_runtime as provider_profile_uses_provider_runtime,
+    provider_runtime_profile_contract_error as shared_provider_runtime_profile_contract_error,
+    provider_runtime_profile_readiness_error as shared_provider_runtime_profile_readiness_error,
+    request_chat_provider_payload,
+    resolve_provider_backoff_seconds,
+    resolve_provider_chat_path,
+    resolve_provider_credential_value,
+    resolve_provider_model,
+    resolve_provider_retry_attempts,
+    resolve_provider_timeout_ms,
 )
 from .stt_client import RTZRClient
 
@@ -272,20 +289,21 @@ _FEATURE_KEYS = list(get_args(FeatureKey))
 _LEGACY_CAPTURE_PROFILE_ID = "__legacy_stt_bridge__"
 _SUMMARY_FEATURE_KEY = "artifact.summary"
 _SUMMARY_REQUIRED_CAPABILITIES = {_SUMMARY_FEATURE_KEY}
-_PROVIDER_RUNTIME_FEATURE_KEYS = {
-    _SUMMARY_FEATURE_KEY,
-    "translate.turn_final",
-}
-_PROVIDER_RUNTIME_SUPPORTED_AUTH_TYPES = {"none", "bearer_secret_ref", "header_token"}
-_PROVIDER_RUNTIME_SUPPORTED_CREDENTIAL_KINDS = {"server_env", "operator_token"}
-_PROVIDER_OPERATIONAL_HEALTH_STATUSES = {"unknown", "healthy"}
-_SUMMARY_DEFAULT_TIMEOUT_MS = 30000
-_SUMMARY_DEFAULT_CHAT_PATH = "/chat/completions"
+_SUMMARY_RUNTIME_SPEC = ProviderRuntimeSpec(
+    provider_name="summary",
+    provider_title="Summary",
+    error_prefix="SUMMARY_PROVIDER",
+    default_timeout_ms=30000,
+)
 _SUMMARY_PROMPT_VERSION = "2026-03-12"
 _TRANSLATE_FEATURE_KEY = "translate.turn_final"
 _TRANSLATE_REQUIRED_CAPABILITIES = {_TRANSLATE_FEATURE_KEY}
-_TRANSLATE_DEFAULT_TIMEOUT_MS = 20000
-_TRANSLATE_DEFAULT_CHAT_PATH = "/chat/completions"
+_TRANSLATE_RUNTIME_SPEC = ProviderRuntimeSpec(
+    provider_name="translate",
+    provider_title="Translate",
+    error_prefix="TRANSLATE_PROVIDER",
+    default_timeout_ms=20000,
+)
 _TRANSLATE_PROMPT_VERSION = "2026-03-12"
 
 
@@ -299,6 +317,10 @@ def _raise_api_error(
     if details:
         error["details"] = details
     raise HTTPException(status_code=status_code, detail={"error": error})
+
+
+def _raise_provider_runtime_error(exc: ProviderRuntimeError) -> None:
+    _raise_api_error(exc.status_code, exc.code, exc.message, exc.details)
 
 
 def _resolve_backend_source() -> Literal["default", "override"]:
@@ -764,75 +786,20 @@ def _build_backend_profile_health_snapshot(
 
 
 def _profile_uses_provider_runtime(profile: BackendProfileRecord) -> bool:
-    return any(
-        capability in _PROVIDER_RUNTIME_FEATURE_KEYS
-        for capability in profile.capabilities
-    )
+    return provider_profile_uses_provider_runtime(profile)
 
 
 def _provider_runtime_profile_contract_error(
     profile: BackendProfileRecord,
 ) -> Optional[str]:
-    if not _profile_uses_provider_runtime(profile):
-        return None
-
-    if profile.transport != "http":
-        return (
-            "Provider-backed summary/translate profiles currently support only http transport."
-        )
-
-    auth_type = profile.auth_strategy.type
-    if auth_type not in _PROVIDER_RUNTIME_SUPPORTED_AUTH_TYPES:
-        return (
-            "Provider-backed summary/translate profiles currently support only "
-            "`none`, `bearer_secret_ref`, or `header_token` auth strategies."
-        )
-
-    if auth_type == "none":
-        return None
-
-    credential_ref = profile.auth_strategy.credential_ref
-    if credential_ref is None:
-        return "Auth strategy requires a credential reference before the backend can be used."
-
-    if credential_ref.kind not in _PROVIDER_RUNTIME_SUPPORTED_CREDENTIAL_KINDS:
-        return (
-            "Provider-backed summary/translate profiles currently support only "
-            "`server_env` or `operator_token` credential references."
-        )
-
-    return None
+    return shared_provider_runtime_profile_contract_error(profile)
 
 
 def _provider_runtime_profile_readiness_error(
     settings: Settings,
     profile: BackendProfileRecord,
 ) -> Optional[str]:
-    contract_error = _provider_runtime_profile_contract_error(profile)
-    if contract_error:
-        return contract_error
-
-    auth_type = profile.auth_strategy.type
-    credential_ref = profile.auth_strategy.credential_ref
-    if auth_type not in {"bearer_secret_ref", "header_token"} or credential_ref is None:
-        return None
-
-    if credential_ref.kind == "server_env":
-        env_name = credential_ref.id.strip()
-        if not env_name:
-            return "Credential reference must include a server environment variable name."
-        if (os.environ.get(env_name) or "").strip():
-            return None
-        return (
-            f"Server environment credential `{env_name}` is missing, so runtime cannot use this backend."
-        )
-
-    if credential_ref.kind == "operator_token":
-        if (settings.backend_admin_token or "").strip():
-            return None
-        return "Operator token auth is selected but BACKEND_ADMIN_TOKEN is not configured."
-
-    return None
+    return shared_provider_runtime_profile_readiness_error(settings, profile)
 
 
 def _probe_backend_profile_health(
@@ -961,14 +928,11 @@ def _summary_timestamp() -> str:
 def _backend_profile_supports_capabilities(
     profile: BackendProfileRecord, required_capabilities: set[str]
 ) -> bool:
-    return required_capabilities.issubset(set(profile.capabilities))
+    return provider_backend_profile_supports_capabilities(profile, required_capabilities)
 
 
 def _backend_profile_is_operational(profile: BackendProfileRecord) -> bool:
-    return (
-        profile.enabled
-        and profile.health.status in _PROVIDER_OPERATIONAL_HEALTH_STATUSES
-    )
+    return provider_backend_profile_is_operational(profile)
 
 
 def _backend_profile_is_ready_for_feature(
@@ -976,10 +940,8 @@ def _backend_profile_is_ready_for_feature(
     profile: BackendProfileRecord,
     required_capabilities: set[str],
 ) -> bool:
-    return (
-        _backend_profile_supports_capabilities(profile, required_capabilities)
-        and _backend_profile_is_operational(profile)
-        and _provider_runtime_profile_readiness_error(settings, profile) is None
+    return provider_backend_profile_is_ready_for_feature(
+        settings, profile, required_capabilities
     )
 
 
@@ -1105,113 +1067,50 @@ def _resolve_summary_credential_value(
     settings: Settings,
     profile: BackendProfileRecord,
 ) -> str:
-    credential_ref = profile.auth_strategy.credential_ref
-    if credential_ref is None:
-        _raise_api_error(
-            503,
-            "SUMMARY_PROVIDER_MISCONFIGURED",
-            "The summary backend requires a credential reference before it can be used.",
+    try:
+        return resolve_provider_credential_value(
+            settings, profile, spec=_SUMMARY_RUNTIME_SPEC
         )
-
-    if credential_ref.kind == "server_env":
-        env_name = credential_ref.id.strip()
-        token = (os.environ.get(env_name) or "").strip()
-        if token:
-            return token
-        _raise_api_error(
-            503,
-            "SUMMARY_PROVIDER_MISCONFIGURED",
-            "The summary backend credential is missing from the server environment.",
-            {"env_name": env_name},
-        )
-
-    if credential_ref.kind == "operator_token":
-        token = (settings.backend_admin_token or "").strip()
-        if token:
-            return token
-        _raise_api_error(
-            503,
-            "SUMMARY_PROVIDER_MISCONFIGURED",
-            "The operator token is not configured for summary backend authentication.",
-        )
-
-    _raise_api_error(
-        503,
-        "SUMMARY_PROVIDER_AUTH_UNSUPPORTED",
-        "The current summary credential source is not supported yet.",
-        {"credential_kind": credential_ref.kind},
-    )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _build_summary_auth_headers(
     settings: Settings, profile: BackendProfileRecord
 ) -> dict[str, str]:
-    auth_type = profile.auth_strategy.type
-    if auth_type == "none":
-        return {}
-
-    if auth_type == "bearer_secret_ref":
-        token = _resolve_summary_credential_value(settings, profile)
-        return {"Authorization": f"Bearer {token}"}
-
-    if auth_type == "header_token":
-        token = _resolve_summary_credential_value(settings, profile)
-        header_name = (
-            profile.metadata.get("auth_header_name", "Authorization").strip()
-            or "Authorization"
+    try:
+        return build_provider_auth_headers(
+            settings, profile, spec=_SUMMARY_RUNTIME_SPEC
         )
-        header_prefix = profile.metadata.get("auth_header_prefix", "").strip()
-        header_value = f"{header_prefix} {token}".strip() if header_prefix else token
-        return {header_name: header_value}
-
-    _raise_api_error(
-        503,
-        "SUMMARY_PROVIDER_AUTH_UNSUPPORTED",
-        "The configured summary backend auth strategy is not supported yet.",
-        {"auth_type": auth_type},
-    )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _resolve_summary_model(
     binding: FeatureBindingRecord, profile: BackendProfileRecord
 ) -> str:
-    model = (binding.model_override or profile.default_model or "").strip()
-    if model:
-        return model
-    _raise_api_error(
-        503,
-        "SUMMARY_PROVIDER_MISCONFIGURED",
-        "A summary model must be configured on the binding or backend profile.",
-    )
+    try:
+        return resolve_provider_model(
+            binding, profile, spec=_SUMMARY_RUNTIME_SPEC
+        )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _resolve_summary_timeout_ms(binding: FeatureBindingRecord) -> int:
-    if binding.timeout_ms is not None and binding.timeout_ms > 0:
-        return binding.timeout_ms
-    return _SUMMARY_DEFAULT_TIMEOUT_MS
+    return resolve_provider_timeout_ms(binding, spec=_SUMMARY_RUNTIME_SPEC)
 
 
 def _resolve_summary_retry_attempts(binding: FeatureBindingRecord) -> int:
-    if binding.retry_policy is None:
-        return 1
-    return max(1, binding.retry_policy.max_attempts)
+    return resolve_provider_retry_attempts(binding)
 
 
 def _resolve_summary_backoff_seconds(binding: FeatureBindingRecord) -> float:
-    if binding.retry_policy is None or binding.retry_policy.backoff_ms <= 0:
-        return 0.0
-    return binding.retry_policy.backoff_ms / 1000.0
+    return resolve_provider_backoff_seconds(binding)
 
 
 def _resolve_summary_chat_path(profile: BackendProfileRecord) -> str:
-    configured = (
-        profile.metadata.get("chat_completions_path")
-        or profile.metadata.get("chat_path")
-        or _SUMMARY_DEFAULT_CHAT_PATH
-    ).strip()
-    if not configured:
-        return _SUMMARY_DEFAULT_CHAT_PATH
-    return configured if configured.startswith("/") else f"/{configured}"
+    return resolve_provider_chat_path(profile, spec=_SUMMARY_RUNTIME_SPEC)
 
 
 def _detect_summary_source_language(payload: FullSummaryRequest) -> Optional[str]:
@@ -1602,77 +1501,17 @@ async def _request_summary_provider_payload(
     model: str,
     messages: list[dict[str, str]],
 ) -> Any:
-    request_headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        **_build_summary_auth_headers(settings, profile),
-    }
-    timeout_seconds = max(1.0, _resolve_summary_timeout_ms(binding) / 1000.0)
-    retry_attempts = _resolve_summary_retry_attempts(binding)
-    backoff_seconds = _resolve_summary_backoff_seconds(binding)
-    request_url = f"{profile.base_url}{_resolve_summary_chat_path(profile)}"
-    request_body = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.2,
-    }
-
-    last_error_message = "Summary provider request failed."
-
-    async with httpx.AsyncClient(
-        verify=settings.verify_ssl,
-        http2=True,
-        follow_redirects=False,
-    ) as client:
-        for attempt in range(retry_attempts):
-            try:
-                response = await client.post(
-                    request_url,
-                    headers=request_headers,
-                    json=request_body,
-                    timeout=timeout_seconds,
-                )
-            except httpx.TimeoutException:
-                last_error_message = "Summary provider request timed out."
-            except httpx.RequestError as exc:
-                last_error_message = f"Summary provider request failed: {exc}"
-            else:
-                if response.status_code in {408, 429} or response.status_code >= 500:
-                    body_preview = _truncate_log_text(response.text, 400)
-                    last_error_message = (
-                        "Summary provider could not complete the request: "
-                        f"HTTP {response.status_code}"
-                        + (f" ({body_preview})" if body_preview else "")
-                    )
-                elif response.status_code >= 400:
-                    body_preview = _truncate_log_text(response.text, 400)
-                    _raise_api_error(
-                        502,
-                        "SUMMARY_PROVIDER_REQUEST_FAILED",
-                        "The summary provider rejected the request. Check the configured model, path, or credentials.",
-                        {
-                            "status_code": response.status_code,
-                            "response_body": body_preview,
-                        },
-                    )
-                else:
-                    with contextlib.suppress(ValueError):
-                        return response.json()
-                    _raise_api_error(
-                        502,
-                        "SUMMARY_PROVIDER_RESPONSE_INVALID",
-                        "The summary provider returned a non-JSON response.",
-                    )
-
-            if attempt + 1 < retry_attempts and backoff_seconds > 0:
-                await asyncio.sleep(backoff_seconds)
-
-    _raise_api_error(
-        502,
-        "SUMMARY_PROVIDER_REQUEST_FAILED",
-        "The summary provider could not complete the request.",
-        {"detail": last_error_message},
-    )
+    try:
+        return await request_chat_provider_payload(
+            settings=settings,
+            profile=profile,
+            binding=binding,
+            model=model,
+            messages=messages,
+            spec=_SUMMARY_RUNTIME_SPEC,
+        )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _resolve_translate_binding_target(
@@ -1758,113 +1597,50 @@ def _resolve_translate_credential_value(
     settings: Settings,
     profile: BackendProfileRecord,
 ) -> str:
-    credential_ref = profile.auth_strategy.credential_ref
-    if credential_ref is None:
-        _raise_api_error(
-            503,
-            "TRANSLATE_PROVIDER_MISCONFIGURED",
-            "The translate backend requires a credential reference before it can be used.",
+    try:
+        return resolve_provider_credential_value(
+            settings, profile, spec=_TRANSLATE_RUNTIME_SPEC
         )
-
-    if credential_ref.kind == "server_env":
-        env_name = credential_ref.id.strip()
-        token = (os.environ.get(env_name) or "").strip()
-        if token:
-            return token
-        _raise_api_error(
-            503,
-            "TRANSLATE_PROVIDER_MISCONFIGURED",
-            "The translate backend credential is missing from the server environment.",
-            {"env_name": env_name},
-        )
-
-    if credential_ref.kind == "operator_token":
-        token = (settings.backend_admin_token or "").strip()
-        if token:
-            return token
-        _raise_api_error(
-            503,
-            "TRANSLATE_PROVIDER_MISCONFIGURED",
-            "The operator token is not configured for translate backend authentication.",
-        )
-
-    _raise_api_error(
-        503,
-        "TRANSLATE_PROVIDER_AUTH_UNSUPPORTED",
-        "The current translate credential source is not supported yet.",
-        {"credential_kind": credential_ref.kind},
-    )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _build_translate_auth_headers(
     settings: Settings, profile: BackendProfileRecord
 ) -> dict[str, str]:
-    auth_type = profile.auth_strategy.type
-    if auth_type == "none":
-        return {}
-
-    if auth_type == "bearer_secret_ref":
-        token = _resolve_translate_credential_value(settings, profile)
-        return {"Authorization": f"Bearer {token}"}
-
-    if auth_type == "header_token":
-        token = _resolve_translate_credential_value(settings, profile)
-        header_name = (
-            profile.metadata.get("auth_header_name", "Authorization").strip()
-            or "Authorization"
+    try:
+        return build_provider_auth_headers(
+            settings, profile, spec=_TRANSLATE_RUNTIME_SPEC
         )
-        header_prefix = profile.metadata.get("auth_header_prefix", "").strip()
-        header_value = f"{header_prefix} {token}".strip() if header_prefix else token
-        return {header_name: header_value}
-
-    _raise_api_error(
-        503,
-        "TRANSLATE_PROVIDER_AUTH_UNSUPPORTED",
-        "The configured translate backend auth strategy is not supported yet.",
-        {"auth_type": auth_type},
-    )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _resolve_translate_model(
     binding: FeatureBindingRecord, profile: BackendProfileRecord
 ) -> str:
-    model = (binding.model_override or profile.default_model or "").strip()
-    if model:
-        return model
-    _raise_api_error(
-        503,
-        "TRANSLATE_PROVIDER_MISCONFIGURED",
-        "A translate model must be configured on the binding or backend profile.",
-    )
+    try:
+        return resolve_provider_model(
+            binding, profile, spec=_TRANSLATE_RUNTIME_SPEC
+        )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _resolve_translate_timeout_ms(binding: FeatureBindingRecord) -> int:
-    if binding.timeout_ms is not None and binding.timeout_ms > 0:
-        return binding.timeout_ms
-    return _TRANSLATE_DEFAULT_TIMEOUT_MS
+    return resolve_provider_timeout_ms(binding, spec=_TRANSLATE_RUNTIME_SPEC)
 
 
 def _resolve_translate_retry_attempts(binding: FeatureBindingRecord) -> int:
-    if binding.retry_policy is None:
-        return 1
-    return max(1, binding.retry_policy.max_attempts)
+    return resolve_provider_retry_attempts(binding)
 
 
 def _resolve_translate_backoff_seconds(binding: FeatureBindingRecord) -> float:
-    if binding.retry_policy is None or binding.retry_policy.backoff_ms <= 0:
-        return 0.0
-    return binding.retry_policy.backoff_ms / 1000.0
+    return resolve_provider_backoff_seconds(binding)
 
 
 def _resolve_translate_chat_path(profile: BackendProfileRecord) -> str:
-    configured = (
-        profile.metadata.get("chat_completions_path")
-        or profile.metadata.get("chat_path")
-        or _TRANSLATE_DEFAULT_CHAT_PATH
-    ).strip()
-    if not configured:
-        return _TRANSLATE_DEFAULT_CHAT_PATH
-    return configured if configured.startswith("/") else f"/{configured}"
+    return resolve_provider_chat_path(profile, spec=_TRANSLATE_RUNTIME_SPEC)
 
 
 def _detect_translate_source_language(
@@ -2066,77 +1842,17 @@ async def _request_translate_provider_payload(
     model: str,
     messages: list[dict[str, str]],
 ) -> Any:
-    request_headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        **_build_translate_auth_headers(settings, profile),
-    }
-    timeout_seconds = max(1.0, _resolve_translate_timeout_ms(binding) / 1000.0)
-    retry_attempts = _resolve_translate_retry_attempts(binding)
-    backoff_seconds = _resolve_translate_backoff_seconds(binding)
-    request_url = f"{profile.base_url}{_resolve_translate_chat_path(profile)}"
-    request_body = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.2,
-    }
-
-    last_error_message = "Translate provider request failed."
-
-    async with httpx.AsyncClient(
-        verify=settings.verify_ssl,
-        http2=True,
-        follow_redirects=False,
-    ) as client:
-        for attempt in range(retry_attempts):
-            try:
-                response = await client.post(
-                    request_url,
-                    headers=request_headers,
-                    json=request_body,
-                    timeout=timeout_seconds,
-                )
-            except httpx.TimeoutException:
-                last_error_message = "Translate provider request timed out."
-            except httpx.RequestError as exc:
-                last_error_message = f"Translate provider request failed: {exc}"
-            else:
-                if response.status_code in {408, 429} or response.status_code >= 500:
-                    body_preview = _truncate_log_text(response.text, 400)
-                    last_error_message = (
-                        "Translate provider could not complete the request: "
-                        f"HTTP {response.status_code}"
-                        + (f" ({body_preview})" if body_preview else "")
-                    )
-                elif response.status_code >= 400:
-                    body_preview = _truncate_log_text(response.text, 400)
-                    _raise_api_error(
-                        502,
-                        "TRANSLATE_PROVIDER_REQUEST_FAILED",
-                        "The translate provider rejected the request. Check the configured model, path, or credentials.",
-                        {
-                            "status_code": response.status_code,
-                            "response_body": body_preview,
-                        },
-                    )
-                else:
-                    with contextlib.suppress(ValueError):
-                        return response.json()
-                    _raise_api_error(
-                        502,
-                        "TRANSLATE_PROVIDER_RESPONSE_INVALID",
-                        "The translate provider returned a non-JSON response.",
-                    )
-
-            if attempt + 1 < retry_attempts and backoff_seconds > 0:
-                await asyncio.sleep(backoff_seconds)
-
-    _raise_api_error(
-        502,
-        "TRANSLATE_PROVIDER_REQUEST_FAILED",
-        "The translate provider could not complete the request.",
-        {"detail": last_error_message},
-    )
+    try:
+        return await request_chat_provider_payload(
+            settings=settings,
+            profile=profile,
+            binding=binding,
+            model=model,
+            messages=messages,
+            spec=_TRANSLATE_RUNTIME_SPEC,
+        )
+    except ProviderRuntimeError as exc:
+        _raise_provider_runtime_error(exc)
 
 
 def _normalize_feature_binding_record(
