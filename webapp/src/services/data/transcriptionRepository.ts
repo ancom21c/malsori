@@ -30,6 +30,27 @@ async function upsertTranscriptionSearchIndex(
   });
 }
 
+async function deleteTurnTranslationsForSession(
+  sessionId: string,
+  turnIds?: string[]
+) {
+  if (!turnIds) {
+    await appDb.turnTranslations.where("sessionId").equals(sessionId).delete();
+    return;
+  }
+  const targetTurnIds = new Set(turnIds.filter((value) => value.trim().length > 0));
+  if (targetTurnIds.size === 0) {
+    return;
+  }
+  const translations = await appDb.turnTranslations.where("sessionId").equals(sessionId).toArray();
+  const targetTranslationIds = translations
+    .filter((translation) => targetTurnIds.has(translation.turnId))
+    .map((translation) => translation.id);
+  if (targetTranslationIds.length > 0) {
+    await appDb.turnTranslations.bulkDelete(targetTranslationIds);
+  }
+}
+
 type TranscriptionMetadataPatch = Partial<
   Pick<
     LocalTranscription,
@@ -237,7 +258,7 @@ export async function replaceSegments(
   options?: ReplaceSegmentsOptions
 ) {
   const now = new Date().toISOString();
-  await appDb.transaction("rw", appDb.segments, async () => {
+  await appDb.transaction("rw", appDb.segments, appDb.turnTranslations, async () => {
     const correctionByKey = new Map<string, string>();
     if (options?.preserveCorrections) {
       const existingSegments = await appDb.segments
@@ -262,6 +283,7 @@ export async function replaceSegments(
       }
     }
 
+    await deleteTurnTranslationsForSession(transcriptionId);
     await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
     if (segments.length > 0) {
       await appDb.segments.bulkAdd(
@@ -331,14 +353,21 @@ export async function updateSegmentCorrection(
   }
   const now = new Date().toISOString();
   let transcriptionId: string | null = null;
-  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
-    const segment = await appDb.segments.get(segmentId);
-    if (!segment) return;
-    transcriptionId = segment.transcriptionId;
-    await appDb.segments.update(segmentId, patch);
-    // Ensure cloud sync detects segment-level edits.
-    await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
-  });
+  await appDb.transaction(
+    "rw",
+    appDb.segments,
+    appDb.transcriptions,
+    appDb.turnTranslations,
+    async () => {
+      const segment = await appDb.segments.get(segmentId);
+      if (!segment) return;
+      transcriptionId = segment.transcriptionId;
+      await deleteTurnTranslationsForSession(segment.transcriptionId, [segment.id]);
+      await appDb.segments.update(segmentId, patch);
+      // Ensure cloud sync detects segment-level edits.
+      await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
+    }
+  );
   if (transcriptionId) {
     await markSummaryStateStaleByMutation({
       sessionId: transcriptionId,
@@ -359,20 +388,30 @@ export async function updateSegmentSpeakerLabel(
   if (!normalizedNewLabel) return;
 
   const now = new Date().toISOString();
-  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
-    const segments = await appDb.segments
-      .where("transcriptionId")
-      .equals(transcriptionId)
-      .toArray();
+  await appDb.transaction(
+    "rw",
+    appDb.segments,
+    appDb.transcriptions,
+    appDb.turnTranslations,
+    async () => {
+      const segments = await appDb.segments
+        .where("transcriptionId")
+        .equals(transcriptionId)
+        .toArray();
 
-    const targets = segments.filter((s) => (s.spk ?? "0") === targetSpk);
-    for (const segment of targets) {
-      await appDb.segments.update(segment.id, { speaker_label: normalizedNewLabel });
+      const targets = segments.filter((s) => (s.spk ?? "0") === targetSpk);
+      await deleteTurnTranslationsForSession(
+        transcriptionId,
+        targets.map((segment) => segment.id)
+      );
+      for (const segment of targets) {
+        await appDb.segments.update(segment.id, { speaker_label: normalizedNewLabel });
+      }
+      if (targets.length > 0) {
+        await appDb.transcriptions.update(transcriptionId, { updatedAt: now });
+      }
     }
-    if (targets.length > 0) {
-      await appDb.transcriptions.update(transcriptionId, { updatedAt: now });
-    }
-  });
+  );
   await markSummaryStateStaleByMutation({
     sessionId: transcriptionId,
     sourceRevision: now,
@@ -390,13 +429,20 @@ export async function updateSingleSegmentSpeakerLabel(
   if (!normalizedNewLabel) return;
   const now = new Date().toISOString();
   let transcriptionId: string | null = null;
-  await appDb.transaction("rw", appDb.segments, appDb.transcriptions, async () => {
-    const segment = await appDb.segments.get(segmentId);
-    if (!segment) return;
-    transcriptionId = segment.transcriptionId;
-    await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
-    await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
-  });
+  await appDb.transaction(
+    "rw",
+    appDb.segments,
+    appDb.transcriptions,
+    appDb.turnTranslations,
+    async () => {
+      const segment = await appDb.segments.get(segmentId);
+      if (!segment) return;
+      transcriptionId = segment.transcriptionId;
+      await deleteTurnTranslationsForSession(segment.transcriptionId, [segment.id]);
+      await appDb.segments.update(segmentId, { speaker_label: normalizedNewLabel, spk: newSpkId });
+      await appDb.transcriptions.update(segment.transcriptionId, { updatedAt: now });
+    }
+  );
   if (transcriptionId) {
     await markSummaryStateStaleByMutation({
       sessionId: transcriptionId,

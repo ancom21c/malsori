@@ -14,10 +14,11 @@
 
 ## Progress
 
-- 완료: task spec + detailed plan review 등록 (`T1101`~`T1110`)
+- 완료: task spec + detailed plan review 등록 (`T1101`~`T1112`)
 - active now:
   - `T1101` internal operator admin surface activation verify
   - `T1110` live activation runtime / release gate recovery
+  - `T1112` state integrity / drift audit across persisted runtime surfaces
   - `T1111` docker compose HTTPS final verify / python-api build unblock
 - ready next:
   - `T1102` backend health/capability live wiring verify
@@ -107,7 +108,9 @@
 | T1105 | P1 | Realtime summary partition runner | contiguous partition 기반 realtime summary 실행과 stale lifecycle |
 | T1106 | P1 | Translate final-turn vertical slice | `/translate`가 `translate.turn_final` capability로 실제 동작 |
 | T1107 | P1 | Rollout smoke/evidence hardening | internal/public/admin/summary/translate smoke matrix와 evidence 정리 |
+| T1110 | P1 | Live activation runtime / release gate recovery | operator runtime truth와 release gate를 live surface와 다시 정렬 |
 | T1111 | P1 | Docker compose HTTPS ingress | self-signed TLS로 compose webapp를 same-origin HTTPS로 제공 |
+| T1112 | P0 | State integrity / drift audit | persisted runtime state의 drift/relink/read-write 버그를 실제 재현 기반으로 제거 |
 
 ## Definition of Done
 

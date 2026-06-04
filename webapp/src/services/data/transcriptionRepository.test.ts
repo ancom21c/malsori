@@ -9,7 +9,9 @@ import {
   listAudioChunks,
   listVideoChunks,
   replaceSegments,
+  updateSegmentCorrection,
   updateLocalTranscription,
+  updateSegmentSpeakerLabel,
 } from "./transcriptionRepository";
 import {
   createSummaryPartition,
@@ -245,6 +247,115 @@ describe("transcriptionRepository", () => {
     const nextSegments = await appDb.segments.where("transcriptionId").equals(record.id).toArray();
     expect(nextSegments).toHaveLength(1);
     expect(nextSegments[0].correctedText).toBe("hello corrected");
+  });
+
+  it("removes persisted turn translations before replacing segment ids", async () => {
+    const record = await createLocalTranscription({
+      title: "translation relink guard",
+      kind: "realtime",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "첫 번째 발화",
+        startMs: 0,
+        endMs: 1000,
+        isFinal: true,
+      },
+    ]);
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-1",
+      sourceText: "첫 번째 발화",
+      targetLanguage: "en",
+      text: "First utterance.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      completedAt: "2026-03-12T00:00:01.000Z",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "완전히 다른 새 발화",
+        startMs: 0,
+        endMs: 900,
+        isFinal: true,
+      },
+    ]);
+
+    await expect(
+      appDb.turnTranslations.where("sessionId").equals(record.id).toArray()
+    ).resolves.toEqual([]);
+  });
+
+  it("removes affected turn translations when a segment source turn is edited", async () => {
+    const record = await createLocalTranscription({
+      title: "translation correction guard",
+      kind: "realtime",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "원문 하나",
+        startMs: 0,
+        endMs: 900,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+      {
+        text: "원문 둘",
+        startMs: 1000,
+        endMs: 1800,
+        isFinal: true,
+        spk: "2",
+        speaker_label: "Speaker 2",
+      },
+    ]);
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-a",
+      sourceText: "원문 하나",
+      targetLanguage: "en",
+      text: "First source.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:01:00.000Z",
+      completedAt: "2026-03-12T00:01:01.000Z",
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-1`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-1`,
+      sourceRevision: "rev-b",
+      sourceText: "원문 둘",
+      targetLanguage: "en",
+      text: "Second source.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:02:00.000Z",
+      completedAt: "2026-03-12T00:02:01.000Z",
+    });
+
+    await updateSegmentCorrection(`${record.id}-segment-0`, "수정된 원문 하나");
+
+    let remainingTranslations = await appDb.turnTranslations
+      .where("sessionId")
+      .equals(record.id)
+      .toArray();
+    expect(remainingTranslations.map((translation) => translation.turnId)).toEqual([
+      `${record.id}-segment-1`,
+    ]);
+
+    await updateSegmentSpeakerLabel(record.id, "2", "Moderator");
+
+    remainingTranslations = await appDb.turnTranslations
+      .where("sessionId")
+      .equals(record.id)
+      .toArray();
+    expect(remainingTranslations).toEqual([]);
   });
 
   it("does not preserve segment corrections when preserve flag is disabled", async () => {

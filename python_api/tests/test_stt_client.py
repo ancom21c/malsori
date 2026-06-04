@@ -178,3 +178,21 @@ def test_cloud_streaming_url_uses_sdk_websocket_base(tmp_path: Path) -> None:
     assert "sample_rate=8000" in url
     assert "epd_time=0.8" in url
     assert "max_utter_duration=12" in url
+
+
+def test_cloud_adapter_bootstraps_without_installed_sdk_packages(tmp_path: Path) -> None:
+    settings = Settings(
+        storage_base_dir=tmp_path,
+        pronaia_api_base="https://openapi.vito.ai",
+        deployment="cloud",
+        pronaia_access_token="manual-token",
+    )
+    adapter = CloudApiAdapter(settings)
+    try:
+        headers = asyncio.run(adapter.build_auth_headers())
+        websocket_base = adapter.websocket_base
+    finally:
+        asyncio.run(adapter.aclose())
+
+    assert headers == {"Authorization": "bearer manual-token"}
+    assert websocket_base == "wss://openapi.vito.ai"

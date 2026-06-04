@@ -15,10 +15,6 @@ from urllib.parse import quote, urlencode, urlparse
 import grpc
 import httpx
 from google.protobuf import json_format
-from rtzr import AsyncRtzr
-from rtzr.types import STTConfig
-from rtzr_internal import AsyncInternalRtzr
-from rtzr_internal import file_transcribe as internal_file_transcribe
 import websockets
 from websockets.client import WebSocketClientProtocol
 
@@ -26,7 +22,115 @@ from .config import Settings
 from .protos import vito_stt_client_pb2 as stt_pb2
 from .protos import vito_stt_client_pb2_grpc as stt_pb2_grpc
 
+_SDK_IMPORT_ERROR: ModuleNotFoundError | None = None
+
+try:
+    from rtzr import AsyncRtzr
+    from rtzr.types import STTConfig
+    from rtzr_internal import AsyncInternalRtzr
+    from rtzr_internal import file_transcribe as internal_file_transcribe
+except ModuleNotFoundError as exc:
+    if not str(exc.name or "").startswith("rtzr"):
+        raise
+    _SDK_IMPORT_ERROR = exc
+
+    class _FallbackSttConfigPayload:
+        def __init__(self, payload: Dict[str, Any]):
+            self._payload = payload
+
+        def to_dict(self) -> Dict[str, Any]:
+            return dict(self._payload)
+
+    class STTConfig:  # type: ignore[no-redef]
+        @classmethod
+        def from_payload(cls, payload: Dict[str, Any]) -> _FallbackSttConfigPayload:
+            normalized: Dict[str, Any] = {}
+            for key, value in payload.items():
+                if isinstance(value, str):
+                    lowered = value.strip().lower()
+                    if lowered in {"1", "true", "yes", "on"}:
+                        normalized[key] = True
+                        continue
+                    if lowered in {"0", "false", "no", "off"}:
+                        normalized[key] = False
+                        continue
+                normalized[key] = value
+            return _FallbackSttConfigPayload(normalized)
+
+    class _FallbackAsyncRtzrBase:
+        def __init__(
+            self,
+            *,
+            client_id: str,
+            client_secret: str,
+            api_base: str,
+            grpc_base: Optional[str] = None,
+            websocket_base: Optional[str] = None,
+            **_: Any,
+        ):
+            self.client_id = client_id
+            self.client_secret = client_secret
+            self.api_base = api_base.rstrip("/")
+            self.grpc_base = grpc_base
+            self.websocket_base = (
+                websocket_base.rstrip("/")
+                if websocket_base
+                else self.api_base.replace("https://", "wss://").replace("http://", "ws://")
+            )
+            self._sess = httpx.AsyncClient()
+
+        async def _get_token(self) -> Optional[str]:
+            return None
+
+        async def _build_auth_headers(self) -> Dict[str, str]:
+            token = await self._get_token()
+            return {"Authorization": f"bearer {token}"} if token else {}
+
+        async def get_transcribe_result(self, job_id: str) -> Dict[str, Any]:
+            response = await self._sess.get(f"{self.api_base}/v1/transcribe/{job_id}")
+            response.raise_for_status()
+            return dict(response.json())
+
+        async def aclose(self) -> None:
+            await self._sess.aclose()
+
+    class AsyncRtzr(_FallbackAsyncRtzrBase):  # type: ignore[no-redef]
+        pass
+
+    class AsyncInternalRtzr(_FallbackAsyncRtzrBase):  # type: ignore[no-redef]
+        def __init__(
+            self,
+            *,
+            phase: Optional[Literal["dev", "sandbox"]] = None,
+            grpc_secure: Optional[bool] = None,
+            **kwargs: Any,
+        ):
+            self.phase = phase
+            self.grpc_secure = grpc_secure
+            super().__init__(**kwargs)
+
+    class _FallbackInternalFileTranscribe:
+        @staticmethod
+        def _split_internal_payload(
+            payload: Dict[str, Any],
+        ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+            return dict(payload), {}
+
+        @staticmethod
+        def _validate_internal_options_scope(
+            client: Any,
+            internal_payload: Dict[str, Any],
+        ) -> None:
+            return None
+
+    internal_file_transcribe = _FallbackInternalFileTranscribe()
+
 logger = logging.getLogger(__name__)
+
+if _SDK_IMPORT_ERROR is not None:
+    logger.warning(
+        "RTZR SDK packages are unavailable in the current environment; using test/bootstrap fallbacks."
+    )
 
 _CONNECT_SUPPORTS_ADDITIONAL_HEADERS = (
     "additional_headers" in inspect.signature(websockets.connect).parameters
