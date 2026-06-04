@@ -36,7 +36,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1109 | P1 | Summary / translate surface contract hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1109-summary-translate-surface-contract-hardening.md` |
 | T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
 | T1111 | P1 | Docker compose HTTPS self-signed ingress | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1111-docker-compose-https-self-signed-ingress.md` |
-| T1112 | P0 | State integrity / drift audit | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1112-state-integrity-drift-audit.md` |
+| T1112 | P0 | State integrity / drift audit | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1112-state-integrity-drift-audit.md` |
 
 ## 현재 상태 스냅샷
 
@@ -56,14 +56,13 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1109`는 full summary stale/failure contract와 translate artifact cleanup hardening, local verify를 닫았다.
   - `T1110`은 bundle gate recovery local verify는 닫았고, operator live runtime sync 구현이 남아 있다.
   - `T1111`은 compose webapp HTTPS/self-signed cert 경로와 helper-script 기반 full compose verify를 닫았다.
-  - `T1112`는 persisted runtime surface를 state integrity / migration / stable-id / read-write drift 관점에서 반복 리뷰하고 있다.
+  - `T1112`는 persisted runtime surface의 stable-id / bootstrap / read-write drift hardening과 local verify를 닫았다.
 
 ## 상태 분류
 
 - Active now:
   - `T1101` internal operator admin surface activation
   - `T1110` live activation runtime / release gate recovery
-  - `T1112` state integrity / drift audit
 - Ready next:
   - `T1102` backend health/capability live wiring verify
   - `T1103` full summary provider-backed execution verify
@@ -88,7 +87,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 6. `T1107`에서 internal/public/admin/summary/translate evidence를 한 번에 닫는다.
 7. polish finding으로 열린 `T1108`, `T1109`를 local green으로 닫고, `T1110`을 남은 runtime/gate follow-up으로 추적한다.
 8. `T1111`로 compose same-origin HTTPS smoke 경로를 보강한다.
-9. `T1112`로 persisted runtime/stateful store hardening을 실제 재현 기반 회귀 테스트와 함께 반복 닫는다.
+9. `T1112`로 persisted runtime/stateful store hardening을 실제 재현 기반 회귀 테스트와 함께 local closeout했다.
 
 ## 의존성 메모
 
@@ -104,7 +103,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 
 ## 이번 루프 우선순위
 
-- Now: `T1101`, `T1110`, `T1112`
+- Now: `T1101`, `T1110`
 - Next: `T1102`, `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1111`
 - Later: 없음
 

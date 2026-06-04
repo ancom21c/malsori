@@ -18,7 +18,6 @@
 - active now:
   - `T1101` internal operator admin surface activation verify
   - `T1110` live activation runtime / release gate recovery
-  - `T1112` state integrity / drift audit across persisted runtime surfaces
   - `T1111` docker compose HTTPS final verify / python-api build unblock
 - ready next:
   - `T1102` backend health/capability live wiring verify

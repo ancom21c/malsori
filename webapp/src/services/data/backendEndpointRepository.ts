@@ -27,9 +27,6 @@ export async function createBackendEndpointPreset(preset: {
   isDefault?: boolean;
 }): Promise<BackendEndpointPreset> {
   const now = new Date().toISOString();
-  if (preset.isDefault) {
-    await clearDefaultBackendPreset();
-  }
   const payload: BackendEndpointPreset = {
     id: uuid(),
     name: preset.name.trim(),
@@ -43,7 +40,14 @@ export async function createBackendEndpointPreset(preset: {
     createdAt: now,
     updatedAt: now,
   };
-  await appDb.backendEndpoints.put(payload);
+  if (preset.isDefault) {
+    await appDb.transaction("rw", appDb.backendEndpoints, async () => {
+      await clearDefaultBackendPreset();
+      await appDb.backendEndpoints.put(payload);
+    });
+  } else {
+    await appDb.backendEndpoints.put(payload);
+  }
   return payload;
 }
 
@@ -90,7 +94,11 @@ export async function updateBackendEndpointPreset(
     updates.isDefault = patch.isDefault;
   }
   if (patch.isDefault) {
-    await clearDefaultBackendPreset();
+    await appDb.transaction("rw", appDb.backendEndpoints, async () => {
+      await clearDefaultBackendPreset();
+      await appDb.backendEndpoints.update(id, updates);
+    });
+    return;
   }
   await appDb.backendEndpoints.update(id, updates);
 }

@@ -35,7 +35,7 @@
 - [x] 대상 버그 클래스와 작업 규칙이 task에 고정돼 있다.
 - [x] 실제 버그만 최소 수정 + regression test로 처리한다는 원칙이 명시돼 있다.
 - [x] 첫 번째 실제 fix set이 전체 verify와 함께 landed 된다.
-- [ ] 재리뷰 결과 더 이상의 동일 클래스 버그가 없다는 closeout evidence를 남긴다.
+- [x] 재리뷰 결과 더 이상의 동일 클래스 버그가 없다는 closeout evidence를 남긴다.
 
 ## Plan
 
@@ -66,13 +66,14 @@
 
 - [x] Round 1: `replaceSegments` / segment edit 경계에서 stale translation이 새 turn에 재연결되는 stable-ID drift를 regression test와 함께 막았다.
 - [x] Round 1: jsdom/undici router test signal mismatch와 Python SDK eager import bootstrap drift를 regression test와 함께 막았다.
-- [ ] 다음 라운드 review 결과를 같은 task에 이어 기록한다.
+- [x] Round 2: settings single-write ordering, no-op speaker/correction lifecycle drift, default preset transactionality를 regression test와 함께 막았다.
+- [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)
 
 - [x] current fix set은 summary/translate/operator core flow를 건드리지 않고 repository/test bootstrap 경계만 최소 수정했다.
 - [x] 추가된 fallback은 test/bootstrap import 경계에만 머물고, installed SDK 경로를 대체하지 않는다.
-- [ ] 같은 버그 클래스가 더 남아 있는지 처음부터 다시 리뷰한다.
+- [x] 같은 버그 클래스가 더 남아 있는지 처음부터 다시 리뷰했다.
 
 ## Verify
 
@@ -84,4 +85,4 @@
 - [x] `npm --prefix webapp run test`
 - [x] `python -m compileall python_api/api_server`
 - [x] `PYTHONPATH=python_api pytest python_api/tests -q`
-- [ ] 다음 review 라운드 후 전체 verify를 다시 반복한다.
+- [x] 다음 review 라운드 후 전체 verify를 다시 반복했다.

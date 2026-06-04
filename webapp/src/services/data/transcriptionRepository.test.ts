@@ -12,6 +12,7 @@ import {
   updateSegmentCorrection,
   updateLocalTranscription,
   updateSegmentSpeakerLabel,
+  updateSingleSegmentSpeakerLabel,
 } from "./transcriptionRepository";
 import {
   createSummaryPartition,
@@ -549,5 +550,176 @@ describe("transcriptionRepository", () => {
     expect(partition?.sourceRevision).not.toBe(record.updatedAt);
     expect(summary?.freshness).toBe("stale");
     expect(summary?.stalePartitionIds).toEqual(["partition-1"]);
+  });
+
+  it("keeps summary state unchanged when speaker relabel matches no segments", async () => {
+    const record = await createLocalTranscription({
+      title: "no speaker relabel drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-keep-fresh",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-keep-fresh",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-keep-fresh"],
+    });
+
+    await updateSegmentSpeakerLabel(record.id, "missing-speaker", "Moderator");
+
+    const partition = await appDb.summaryPartitions.get("partition-keep-fresh");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(partition?.status).toBe("finalized");
+    expect(partition?.staleReason ?? null).toBeNull();
+    expect(summary?.freshness).toBe("fresh");
+    expect(summary?.stalePartitionIds).toEqual([]);
+  });
+
+  it("keeps translations and summary state unchanged when correction is a no-op", async () => {
+    const record = await createLocalTranscription({
+      title: "no-op correction drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        correctedText: "speaker one corrected",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-noop-correction",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-noop-correction",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-noop-correction"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-noop-correction",
+      sourceText: "speaker one corrected",
+      targetLanguage: "en",
+      text: "Speaker one corrected.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:03:00.000Z",
+      completedAt: "2026-03-12T00:03:01.000Z",
+    });
+
+    await updateSegmentCorrection(`${record.id}-segment-0`, "speaker one corrected");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(record.id).toArray();
+    const partition = await appDb.summaryPartitions.get("partition-noop-correction");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(translations).toHaveLength(1);
+    expect(partition?.status).toBe("finalized");
+    expect(summary?.freshness).toBe("fresh");
+  });
+
+  it("keeps translations and summary state unchanged when speaker relabel is a no-op", async () => {
+    const record = await createLocalTranscription({
+      title: "no-op speaker drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-noop-speaker",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-noop-speaker",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-noop-speaker"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-noop-speaker",
+      sourceText: "speaker one",
+      targetLanguage: "en",
+      text: "Speaker one.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:04:00.000Z",
+      completedAt: "2026-03-12T00:04:01.000Z",
+    });
+
+    await updateSegmentSpeakerLabel(record.id, "1", "Speaker 1");
+    await updateSingleSegmentSpeakerLabel(`${record.id}-segment-0`, "Speaker 1", "1");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(record.id).toArray();
+    const partition = await appDb.summaryPartitions.get("partition-noop-speaker");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(translations).toHaveLength(1);
+    expect(partition?.status).toBe("finalized");
+    expect(summary?.freshness).toBe("fresh");
   });
 });

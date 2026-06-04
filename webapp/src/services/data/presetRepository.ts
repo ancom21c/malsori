@@ -18,9 +18,6 @@ export async function createPreset(preset: {
 }) {
   const now = new Date().toISOString();
   const id = uuid();
-  if (preset.isDefault) {
-    await clearDefault(preset.type);
-  }
   const payload: PresetConfig = {
     id,
     type: preset.type,
@@ -31,7 +28,14 @@ export async function createPreset(preset: {
     createdAt: now,
     updatedAt: now,
   };
-  await appDb.presets.put(payload);
+  if (preset.isDefault) {
+    await appDb.transaction("rw", appDb.presets, async () => {
+      await clearDefault(preset.type);
+      await appDb.presets.put(payload);
+    });
+  } else {
+    await appDb.presets.put(payload);
+  }
   return payload;
 }
 
@@ -40,7 +44,11 @@ export async function updatePreset(id: string, patch: Partial<PresetConfig>) {
   const existing = await appDb.presets.get(id);
   if (!existing) return;
   if (patch.isDefault) {
-    await clearDefault(existing.type);
+    await appDb.transaction("rw", appDb.presets, async () => {
+      await clearDefault(existing.type);
+      await appDb.presets.update(id, { ...patch, updatedAt: now });
+    });
+    return;
   }
   await appDb.presets.update(id, { ...patch, updatedAt: now });
 }
