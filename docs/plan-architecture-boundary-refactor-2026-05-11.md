@@ -12,8 +12,9 @@
 
 - 완료: architecture PRD and phase plan 등록 (`tasks/prd-architecture-boundary-refactor.md`).
 - 완료: `T1301` provider runtime boundary extraction and backend verification.
+- 완료: `T1302` feature binding target resolver extraction and backend verification.
 - 현재 open work:
-  - Phase 2 scoping decision: backend routers first or pure use-case modules first.
+  - Phase 2 follow-up scoping: broader backend routers or another pure use-case module.
 
 ## Inputs
 
@@ -42,9 +43,10 @@
 | ID | Priority | Theme | Primary outcome |
 |---|---|---|---|
 | T1301 | P0 | Provider runtime boundary | Done: shared, tested summary/translate provider runtime helpers with behavior preserved. |
-| T1302 | P1 | Backend route boundary | Planned follow-up to split route/use-case responsibilities after Phase 1 evidence. |
-| T1303 | P1 | Frontend domain boundary | Planned follow-up to remove domain imports from persistence/page layers. |
-| T1304 | P2 | Page orchestration | Planned follow-up to decompose oversized pages after DTO seams exist. |
+| T1302 | P0 | Backend feature binding target resolver | Done: duplicated summary/translate binding target selection extracted into a tested helper. |
+| T1303 | P1 | Backend route boundary | Planned follow-up to split route/use-case responsibilities after resolver extraction. |
+| T1304 | P1 | Frontend domain boundary | Planned follow-up to remove domain imports from persistence/page layers. |
+| T1305 | P2 | Page orchestration | Planned follow-up to decompose oversized pages after DTO seams exist. |
 
 ## Definition of Done
 

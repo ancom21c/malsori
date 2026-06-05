@@ -26,6 +26,7 @@ Clean Architecture와 refactoring-patterns review 결과를 PRD로 고정하고,
 | ID | 우선순위 | 작업 | Spec | Plan Review | Implement | Impl Review | Verify | 문서 |
 |---|---|---|---|---|---|---|---|---|
 | T1301 | P0 | Backend provider runtime boundary | Done | Done | Done | Done | Done | `docs/todo/2026-05-11-architecture-boundary-refactor-loop/T1301-provider-runtime-boundary.md` |
+| T1302 | P0 | Backend feature binding target resolver | Done | Done | Done | Done | Done | `docs/todo/2026-05-11-architecture-boundary-refactor-loop/T1302-feature-binding-target-resolver.md` |
 
 ## 현재 상태 스냅샷
 
@@ -35,10 +36,12 @@ Clean Architecture와 refactoring-patterns review 결과를 PRD로 고정하고,
   - some frontend domain modules import persistence/page-layer types.
 - 현재 작업:
   - `T1301` is complete with provider runtime extraction and backend verification evidence.
+  - `T1302` is complete with feature binding target resolver extraction and backend verification evidence.
 
 ## 추천 실행 순서
 
 1. `T1301`
+2. `T1302`
 
 ## 의존성 메모
 
@@ -48,4 +51,4 @@ Clean Architecture와 refactoring-patterns review 결과를 PRD로 고정하고,
 ## 이번 루프 우선순위
 
 - Now: no open implementation task in this loop.
-- Next: decide whether Phase 2 should start with backend routers or use-case modules.
+- Next: reassess whether broader Phase 2 should continue with backend routers or another pure use-case module.

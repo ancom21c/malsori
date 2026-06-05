@@ -60,6 +60,12 @@ from .backend_bindings_store import (
     upsert_backend_profile,
     upsert_feature_binding,
 )
+from .feature_binding_runtime import (
+    FeatureBindingTargetError,
+    FeatureBindingTargetSpec,
+    get_ready_fallback_profile as resolve_ready_fallback_profile,
+    resolve_feature_binding_target,
+)
 from .models import (
     BackendAuthStrategyModel,
     BackendCapability,
@@ -295,6 +301,17 @@ _SUMMARY_RUNTIME_SPEC = ProviderRuntimeSpec(
     error_prefix="SUMMARY_PROVIDER",
     default_timeout_ms=30000,
 )
+_SUMMARY_BINDING_TARGET_SPEC = FeatureBindingTargetSpec(
+    feature_key=_SUMMARY_FEATURE_KEY,
+    required_capabilities=_SUMMARY_REQUIRED_CAPABILITIES,
+    error_code="SUMMARY_BINDING_NOT_READY",
+    binding_missing_message="Full summary is not configured yet.",
+    binding_disabled_message="Full summary is disabled by the current binding.",
+    primary_profile_missing_message="The configured primary summary backend profile could not be found.",
+    capability_mismatch_message="The configured summary backend does not advertise the summary capability.",
+    primary_misconfigured_message="The configured summary backend is misconfigured right now.",
+    primary_unhealthy_message="The configured summary backend is not operational right now.",
+)
 _SUMMARY_PROMPT_VERSION = "2026-03-12"
 _TRANSLATE_FEATURE_KEY = "translate.turn_final"
 _TRANSLATE_REQUIRED_CAPABILITIES = {_TRANSLATE_FEATURE_KEY}
@@ -303,6 +320,17 @@ _TRANSLATE_RUNTIME_SPEC = ProviderRuntimeSpec(
     provider_title="Translate",
     error_prefix="TRANSLATE_PROVIDER",
     default_timeout_ms=20000,
+)
+_TRANSLATE_BINDING_TARGET_SPEC = FeatureBindingTargetSpec(
+    feature_key=_TRANSLATE_FEATURE_KEY,
+    required_capabilities=_TRANSLATE_REQUIRED_CAPABILITIES,
+    error_code="TRANSLATE_BINDING_NOT_READY",
+    binding_missing_message="Final-turn translation is not configured yet.",
+    binding_disabled_message="Final-turn translation is disabled by the current binding.",
+    primary_profile_missing_message="The configured primary translate backend profile could not be found.",
+    capability_mismatch_message="The configured translate backend does not advertise the final-turn translation capability.",
+    primary_misconfigured_message="The configured translate backend is misconfigured right now.",
+    primary_unhealthy_message="The configured translate backend is not operational right now.",
 )
 _TRANSLATE_PROMPT_VERSION = "2026-03-12"
 
@@ -320,6 +348,10 @@ def _raise_api_error(
 
 
 def _raise_provider_runtime_error(exc: ProviderRuntimeError) -> None:
+    _raise_api_error(exc.status_code, exc.code, exc.message, exc.details)
+
+
+def _raise_feature_binding_target_error(exc: FeatureBindingTargetError) -> None:
     _raise_api_error(exc.status_code, exc.code, exc.message, exc.details)
 
 
@@ -951,16 +983,15 @@ def _get_ready_fallback_profile(
     required_capabilities: set[str],
     selected_profile_id: Optional[str] = None,
 ) -> Optional[BackendProfileRecord]:
-    if not fallback_profile_id or fallback_profile_id == selected_profile_id:
-        return None
-    fallback_profile = get_backend_profile(settings.storage_base_dir, fallback_profile_id)
-    if fallback_profile is None:
-        return None
-    if not _backend_profile_is_ready_for_feature(
-        settings, fallback_profile, required_capabilities
-    ):
-        return None
-    return fallback_profile
+    return resolve_ready_fallback_profile(
+        settings=settings,
+        fallback_profile_id=fallback_profile_id,
+        required_capabilities=required_capabilities,
+        selected_profile_id=selected_profile_id,
+        get_backend_profile=lambda profile_id: get_backend_profile(
+            settings.storage_base_dir, profile_id
+        ),
+    )
 
 
 def _api_error_code(exc: HTTPException) -> Optional[str]:
@@ -985,82 +1016,20 @@ def _should_retry_provider_with_fallback(
 def _resolve_summary_binding_target(
     settings: Settings,
 ) -> tuple[FeatureBindingRecord, BackendProfileRecord, bool]:
-    binding = get_feature_binding(settings.storage_base_dir, _SUMMARY_FEATURE_KEY)
-    if binding is None:
-        _raise_api_error(
-            503,
-            "SUMMARY_BINDING_NOT_READY",
-            "Full summary is not configured yet.",
-            {"reason": "binding_missing"},
+    try:
+        target = resolve_feature_binding_target(
+            settings=settings,
+            spec=_SUMMARY_BINDING_TARGET_SPEC,
+            get_feature_binding=lambda feature_key: get_feature_binding(
+                settings.storage_base_dir, feature_key
+            ),
+            get_backend_profile=lambda profile_id: get_backend_profile(
+                settings.storage_base_dir, profile_id
+            ),
         )
-
-    if not binding.enabled:
-        _raise_api_error(
-            503,
-            "SUMMARY_BINDING_NOT_READY",
-            "Full summary is disabled by the current binding.",
-            {"reason": "binding_disabled"},
-        )
-
-    primary_profile = get_backend_profile(
-        settings.storage_base_dir, binding.primary_backend_profile_id
-    )
-    if primary_profile is None:
-        _raise_api_error(
-            503,
-            "SUMMARY_BINDING_NOT_READY",
-            "The configured primary summary backend profile could not be found.",
-            {"reason": "profile_missing"},
-        )
-
-    primary_ready = _backend_profile_is_ready_for_feature(
-        settings, primary_profile, _SUMMARY_REQUIRED_CAPABILITIES
-    )
-
-    if primary_ready:
-        return binding, primary_profile, False
-
-    fallback_profile = _get_ready_fallback_profile(
-        settings,
-        binding.fallback_backend_profile_id,
-        _SUMMARY_REQUIRED_CAPABILITIES,
-        primary_profile.id,
-    )
-    fallback_ready = fallback_profile is not None
-
-    if fallback_ready:
-        return binding, fallback_profile, True
-
-    if not _backend_profile_supports_capabilities(
-        primary_profile, _SUMMARY_REQUIRED_CAPABILITIES
-    ):
-        _raise_api_error(
-            503,
-            "SUMMARY_BINDING_NOT_READY",
-            "The configured summary backend does not advertise the summary capability.",
-            {"reason": "capability_mismatch"},
-        )
-
-    provider_runtime_error = _provider_runtime_profile_readiness_error(
-        settings, primary_profile
-    )
-    if provider_runtime_error:
-        _raise_api_error(
-            503,
-            "SUMMARY_BINDING_NOT_READY",
-            "The configured summary backend is misconfigured right now.",
-            {
-                "reason": "primary_misconfigured",
-                "message": provider_runtime_error,
-            },
-        )
-
-    _raise_api_error(
-        503,
-        "SUMMARY_BINDING_NOT_READY",
-        "The configured summary backend is not operational right now.",
-        {"reason": "primary_unhealthy"},
-    )
+    except FeatureBindingTargetError as exc:
+        _raise_feature_binding_target_error(exc)
+    return target.binding, target.profile, target.used_fallback
 
 
 def _resolve_summary_credential_value(
@@ -1517,80 +1486,20 @@ async def _request_summary_provider_payload(
 def _resolve_translate_binding_target(
     settings: Settings,
 ) -> tuple[FeatureBindingRecord, BackendProfileRecord, bool]:
-    binding = get_feature_binding(settings.storage_base_dir, _TRANSLATE_FEATURE_KEY)
-    if binding is None:
-        _raise_api_error(
-            503,
-            "TRANSLATE_BINDING_NOT_READY",
-            "Final-turn translation is not configured yet.",
-            {"reason": "binding_missing"},
+    try:
+        target = resolve_feature_binding_target(
+            settings=settings,
+            spec=_TRANSLATE_BINDING_TARGET_SPEC,
+            get_feature_binding=lambda feature_key: get_feature_binding(
+                settings.storage_base_dir, feature_key
+            ),
+            get_backend_profile=lambda profile_id: get_backend_profile(
+                settings.storage_base_dir, profile_id
+            ),
         )
-
-    if not binding.enabled:
-        _raise_api_error(
-            503,
-            "TRANSLATE_BINDING_NOT_READY",
-            "Final-turn translation is disabled by the current binding.",
-            {"reason": "binding_disabled"},
-        )
-
-    primary_profile = get_backend_profile(
-        settings.storage_base_dir, binding.primary_backend_profile_id
-    )
-    if primary_profile is None:
-        _raise_api_error(
-            503,
-            "TRANSLATE_BINDING_NOT_READY",
-            "The configured primary translate backend profile could not be found.",
-            {"reason": "profile_missing"},
-        )
-
-    primary_ready = _backend_profile_is_ready_for_feature(
-        settings, primary_profile, _TRANSLATE_REQUIRED_CAPABILITIES
-    )
-    if primary_ready:
-        return binding, primary_profile, False
-
-    fallback_profile = _get_ready_fallback_profile(
-        settings,
-        binding.fallback_backend_profile_id,
-        _TRANSLATE_REQUIRED_CAPABILITIES,
-        primary_profile.id,
-    )
-    fallback_ready = fallback_profile is not None
-    if fallback_ready:
-        return binding, fallback_profile, True
-
-    if not _backend_profile_supports_capabilities(
-        primary_profile, _TRANSLATE_REQUIRED_CAPABILITIES
-    ):
-        _raise_api_error(
-            503,
-            "TRANSLATE_BINDING_NOT_READY",
-            "The configured translate backend does not advertise the final-turn translation capability.",
-            {"reason": "capability_mismatch"},
-        )
-
-    provider_runtime_error = _provider_runtime_profile_readiness_error(
-        settings, primary_profile
-    )
-    if provider_runtime_error:
-        _raise_api_error(
-            503,
-            "TRANSLATE_BINDING_NOT_READY",
-            "The configured translate backend is misconfigured right now.",
-            {
-                "reason": "primary_misconfigured",
-                "message": provider_runtime_error,
-            },
-        )
-
-    _raise_api_error(
-        503,
-        "TRANSLATE_BINDING_NOT_READY",
-        "The configured translate backend is not operational right now.",
-        {"reason": "primary_unhealthy"},
-    )
+    except FeatureBindingTargetError as exc:
+        _raise_feature_binding_target_error(exc)
+    return target.binding, target.profile, target.used_fallback
 
 
 def _resolve_translate_credential_value(

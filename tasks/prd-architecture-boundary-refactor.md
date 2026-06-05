@@ -3,8 +3,8 @@
 ## Document Status
 - Status: In Progress
 - File Mode: Split
-- Current Phase: Phase 1 (Complete)
-- Active Phase File: [Phase 1](./prd-architecture-boundary-refactor/phase-01-provider-runtime-boundary.md)
+- Current Phase: Phase 2
+- Active Phase File: [Phase 2](./prd-architecture-boundary-refactor/phase-02-backend-route-boundary.md)
 - Context File: [context.md](./prd-architecture-boundary-refactor/context.md)
 - Last Updated: 2026-05-11
 - PRD File: `tasks/prd-architecture-boundary-refactor.md`
@@ -87,7 +87,7 @@ Malsori has accumulated feature growth around STT, summary, translate, and opera
 | Phase | File | Objective | Status |
 |---|---|---|---|
 | 1 | [Provider Runtime Boundary](./prd-architecture-boundary-refactor/phase-01-provider-runtime-boundary.md) | Extract shared summary/translate provider runtime policy from `main.py`. | Complete |
-| 2 | [Backend Route Boundary](./prd-architecture-boundary-refactor/phase-02-backend-route-boundary.md) | Split backend route adapters from STT/streaming orchestration where it reduces risk. | Not Started |
+| 2 | [Backend Route Boundary](./prd-architecture-boundary-refactor/phase-02-backend-route-boundary.md) | Split backend route adapters from STT/streaming orchestration where it reduces risk. | In Progress |
 | 3 | [Frontend Domain Boundaries](./prd-architecture-boundary-refactor/phase-03-frontend-domain-boundaries.md) | Remove domain dependencies on persistence/page-layer types through DTO boundaries. | Not Started |
 | 4 | [Page Orchestration Decomposition](./prd-architecture-boundary-refactor/phase-04-page-orchestration-decomposition.md) | Decompose oversized page controllers into tested models/hooks/components. | Not Started |
 
@@ -106,3 +106,5 @@ Malsori has accumulated feature growth around STT, summary, translate, and opera
 ## Change Log
 - 2026-05-11: Initial PRD created from Clean Architecture and refactoring discovery.
 - 2026-05-11: Phase 1 completed; provider runtime policy extracted and backend tests passed.
+- 2026-05-11: Phase 2 started with a narrow feature binding target resolver extraction before broader router moves.
+- 2026-05-11: Phase 2 T1302 implementation completed; summary/translate binding target resolution extracted and backend tests passed.

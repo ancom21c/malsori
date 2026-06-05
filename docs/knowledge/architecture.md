@@ -32,6 +32,7 @@ Malsori is a single-product repo with three runtime layers: a browser SPA, a Fas
 ## Refactor Guardrails
 
 - Provider-backed additive features such as summary and translate share runtime policy for auth headers, model selection, timeout, retry/backoff, chat path resolution, readiness checks, and HTTP request error mapping.
+- Provider-backed feature binding target resolution should stay framework-free: route modules may provide store lookup ports and map helper errors to HTTP responses, but binding selection/fallback policy should not live directly in FastAPI handlers.
 - FastAPI route handlers should map runtime errors into HTTP responses; shared provider runtime helpers should stay reusable and testable without importing route handlers.
 - Keep compatibility wrappers when existing tests or route code import private helpers during an incremental migration.
 - Frontend domain modules should own stable domain DTOs or receive adapter-mapped inputs; avoid importing Dexie persistence records or page-layer presentation types into domain-level helpers.
