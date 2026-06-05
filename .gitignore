@@ -49,8 +49,6 @@ __pycache__/
 
 # local deployment secrets
 infra/deploy/local/*
-!infra/deploy/local/deploy-dev.sh
-!infra/deploy/local/malsori-python-api-secret.yaml
 !infra/deploy/local/run-malsori-docker.sh
 infra/deploy/values.malsori.yaml
 infra/deploy/run-malsori-docker.sh
