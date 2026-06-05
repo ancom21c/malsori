@@ -32,6 +32,10 @@ _OVERRIDE_KEYS = {
     "pronaia_client_secret",
     "verify_ssl",
 }
+_NULLABLE_OVERRIDE_KEYS = {
+    "pronaia_client_id",
+    "pronaia_client_secret",
+}
 
 
 class Settings(BaseModel):
@@ -203,10 +207,14 @@ def _normalize_override_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         if key not in _OVERRIDE_KEYS:
             continue
         if value is None:
+            if key in _NULLABLE_OVERRIDE_KEYS:
+                normalized[key] = None
             continue
         if isinstance(value, str):
             trimmed = value.strip()
             if not trimmed:
+                if key in _NULLABLE_OVERRIDE_KEYS:
+                    normalized[key] = None
                 continue
             if key == "deployment":
                 normalized[key] = trimmed.lower()

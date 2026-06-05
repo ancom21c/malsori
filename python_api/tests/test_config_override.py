@@ -50,3 +50,32 @@ def test_apply_backend_override_preserves_existing_payload_on_replace_failure(
 
     assert override_path.read_text(encoding="utf-8") == original_content
     assert config.get_backend_override() == original_payload
+
+
+def test_apply_backend_override_clears_env_credentials_when_payload_omits_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STT_STORAGE_BASE_DIR", str(tmp_path))
+    monkeypatch.setenv("PRONAIA_CLIENT_ID", "env-client-id")
+    monkeypatch.setenv("PRONAIA_CLIENT_SECRET", "env-client-secret")
+
+    settings = config.apply_backend_override(
+        {
+            "deployment": "onprem",
+            "pronaia_api_base": "https://onprem.example.com",
+            "verify_ssl": False,
+            "pronaia_client_id": None,
+            "pronaia_client_secret": None,
+        }
+    )
+
+    assert settings.pronaia_client_id is None
+    assert settings.pronaia_client_secret is None
+    assert settings.auth_enabled is False
+    assert config.get_backend_override() == {
+        "deployment": "onprem",
+        "pronaia_api_base": "https://onprem.example.com",
+        "verify_ssl": False,
+        "pronaia_client_id": None,
+        "pronaia_client_secret": None,
+    }

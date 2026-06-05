@@ -713,12 +713,10 @@ async def set_backend_endpoint(
         "deployment": payload.deployment,
         "verify_ssl": payload.verify_ssl,
     }
-    if payload.client_id is not None:
-        client_id = payload.client_id.strip()
-        updates["pronaia_client_id"] = client_id or None
-    if payload.client_secret is not None:
-        client_secret = payload.client_secret.strip()
-        updates["pronaia_client_secret"] = client_secret or None
+    client_id = payload.client_id.strip() if payload.client_id is not None else ""
+    updates["pronaia_client_id"] = client_id or None
+    client_secret = payload.client_secret.strip() if payload.client_secret is not None else ""
+    updates["pronaia_client_secret"] = client_secret or None
     try:
         settings = apply_backend_override(updates)
     except RuntimeError as exc:
