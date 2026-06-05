@@ -28,4 +28,5 @@
 - private `rtzr` / `rtzr-internal` package 해상도가 local wheelhouse에 의존하는 환경에서는 `infra/deploy/local/run-malsori-docker.sh`를 compose entrypoint로 사용한다.
 - 기본 private pip source 위치는 `~/.local/share/malsori/python-api-pip/`이며, `PYTHON_API_PIP_SOURCE_DIR`로 override할 수 있다.
 - `infra/deploy/local/run-malsori-docker.sh`는 build 전에 gitignored `infra/docker-compose/docker-build/python-api-pip/`로 pip context를 임시 stage하고 종료 시 cleanup한다.
+- Helm/Kubernetes deploy는 webapp nginx `default.conf`를 ConfigMap으로 주입하므로, `webapp/docker-entrypoint.d/40-configure-https.sh`의 config swap은 Kubernetes에서 비활성화되고 compose/local HTTPS 경로에서만 동작한다.
 - production/Helm ingress TLS 정책은 이 compose contract의 범위 밖이다.

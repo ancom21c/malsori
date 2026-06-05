@@ -5,6 +5,11 @@ target_conf="/etc/nginx/conf.d/default.conf"
 http_conf="/etc/nginx/malsori/http.conf"
 https_conf="/etc/nginx/malsori/https.conf"
 
+if [ -n "${KUBERNETES_SERVICE_HOST:-}" ] && [ -e "$target_conf" ]; then
+    echo "Skipping nginx config swap because Kubernetes provides $target_conf"
+    exit 0
+fi
+
 if [ "${MALSORI_ENABLE_HTTPS:-0}" != "1" ]; then
     cp "$http_conf" "$target_conf"
     exit 0
