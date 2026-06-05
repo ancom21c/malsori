@@ -48,6 +48,36 @@ kubectl -n malsori create secret generic malsori-python-api-secret \
 
 `/v1/backend/*` endpoints are for internal-network operations only. Keep `BACKEND_ADMIN_ENABLED=false` unless you explicitly need runtime override APIs, and never expose admin tokens on public clients.
 
+## Private RTZR SDK Wheel Staging
+
+If `rtzr` / `rtzr-internal` are only available as private wheel files, keep the source wheelhouse outside git and let the repo stage it into the Docker build context temporarily.
+
+Recommended local source layout:
+
+```text
+~/.local/share/malsori/python-api-pip/
+  pip.conf
+  wheels/
+    rtzr-<version>-py3-none-any.whl
+    rtzr_internal-<version>-py3-none-any.whl
+```
+
+Example `pip.conf` for wheelhouse-only installs:
+
+```ini
+[global]
+no-index = true
+find-links = /root/.pip/wheels
+```
+
+Build/deploy helpers automatically stage this source dir into the gitignored Docker context path `infra/docker-compose/docker-build/python-api-pip/` and clean it up afterward:
+
+- local compose: `infra/deploy/local/run-malsori-docker.sh`
+- dev cluster image build/redeploy: `infra/deploy/local/deploy-dev.sh`
+- direct image build/push: `scripts/build-images.sh`
+
+Override the default source location with `PYTHON_API_PIP_SOURCE_DIR=/abs/path/to/python-api-pip`.
+
 ## Ingress Surface Policy (Public/Internal Split)
 
 Use split ingress surfaces in production:

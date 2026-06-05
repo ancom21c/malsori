@@ -85,5 +85,5 @@
 
 검증 메모:
 
-- raw `docker compose ... up -d --build`는 staged `~/.pip` config 없이 실행하면 기존 `python-api` 이미지 빌드 단계에서 `ERROR: No matching distribution found for rtzr`로 실패할 수 있다.
-- repo의 지원 경로인 `infra/deploy/run-malsori-docker.sh`는 local `~/.pip`를 임시 staging한 뒤 compose를 띄우며, same-origin `/api` build arg와 함께 실제 `https://localhost:4173/healthz` 및 `/api/v1/health` 응답을 정상 확인했다.
+- raw `docker compose ... up -d --build`는 staged private pip context 없이 실행하면 `python-api` 이미지 빌드 단계에서 `ERROR: No matching distribution found for rtzr`로 실패할 수 있다.
+- repo의 지원 경로인 `infra/deploy/local/run-malsori-docker.sh`는 local wheelhouse/pip config를 임시 staging한 뒤 compose를 띄우며, same-origin `/api` build arg와 함께 실제 `https://localhost:4173/healthz` 및 `/api/v1/health` 응답을 정상 확인했다.

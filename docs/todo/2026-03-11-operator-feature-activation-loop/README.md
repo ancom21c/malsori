@@ -37,6 +37,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
 | T1111 | P1 | Docker compose HTTPS self-signed ingress | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1111-docker-compose-https-self-signed-ingress.md` |
 | T1112 | P0 | State integrity / drift audit | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1112-state-integrity-drift-audit.md` |
+| T1113 | P1 | Private RTZR wheelhouse deploy staging | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1113-private-rtzr-wheelhouse-deploy-staging.md` |
 
 ## 현재 상태 스냅샷
 
@@ -57,6 +58,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1110`은 bundle gate recovery local verify는 닫았고, operator live runtime sync 구현이 남아 있다.
   - `T1111`은 compose webapp HTTPS/self-signed cert 경로와 helper-script 기반 full compose verify를 닫았다.
   - `T1112`는 persisted runtime surface의 stable-id / bootstrap / read-write drift hardening과 local verify를 닫았다.
+  - `T1113`은 private RTZR wheelhouse를 gitignored build context로 임시 stage하는 compose/build/deploy helper 경로와 local verify를 닫았다.
 
 ## 상태 분류
 
@@ -88,6 +90,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 7. polish finding으로 열린 `T1108`, `T1109`를 local green으로 닫고, `T1110`을 남은 runtime/gate follow-up으로 추적한다.
 8. `T1111`로 compose same-origin HTTPS smoke 경로를 보강한다.
 9. `T1112`로 persisted runtime/stateful store hardening을 실제 재현 기반 회귀 테스트와 함께 local closeout했다.
+10. `T1113`로 private RTZR wheelhouse를 local source -> gitignored build context -> compose/build/deploy helper 경로로 일관되게 stage하도록 정리했다.
 
 ## 의존성 메모
 
@@ -100,6 +103,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 - `T1110`은 operator live wiring과 release gate를 맞춰 `T1102`~`T1107` closeout 증거를 신뢰 가능하게 만드는 후속 task다.
 - `T1111`은 local compose ingress에서 secure-context/TLS 재현 경로를 제공하지만 public/internal boundary contract 자체를 바꾸지는 않는다.
 - `T1112`는 shared store/runtime 경계에서 additive surface가 core STT state를 조용히 훼손하지 않는지 검증하는 hardening task다.
+- `T1113`은 `T1111` 및 local/dev deploy 경로에서 private SDK 의존성으로 인한 python-api image build failure를 반복 가능하게 막는 deploy-support task다.
 
 ## 이번 루프 우선순위
 

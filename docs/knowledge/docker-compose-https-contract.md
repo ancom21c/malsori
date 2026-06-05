@@ -25,6 +25,7 @@
 
 - local browser 경고를 제거하려면 `infra/docker-compose/certs/tls.crt`를 OS 또는 browser trust store에 추가한다.
 - secure-context smoke나 OAuth callback 검증은 `https://localhost:4173` 기준으로 수행한다.
-- private `rtzr` / `rtzr-internal` package 해상도가 로컬 `~/.pip` config에 의존하는 환경에서는 `infra/deploy/run-malsori-docker.sh`를 compose entrypoint로 사용한다.
-- `infra/deploy/run-malsori-docker.sh`의 webapp API build arg 기본값은 same-origin `/api`다.
+- private `rtzr` / `rtzr-internal` package 해상도가 local wheelhouse에 의존하는 환경에서는 `infra/deploy/local/run-malsori-docker.sh`를 compose entrypoint로 사용한다.
+- 기본 private pip source 위치는 `~/.local/share/malsori/python-api-pip/`이며, `PYTHON_API_PIP_SOURCE_DIR`로 override할 수 있다.
+- `infra/deploy/local/run-malsori-docker.sh`는 build 전에 gitignored `infra/docker-compose/docker-build/python-api-pip/`로 pip context를 임시 stage하고 종료 시 cleanup한다.
 - production/Helm ingress TLS 정책은 이 compose contract의 범위 밖이다.
