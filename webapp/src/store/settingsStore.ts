@@ -7,6 +7,9 @@ import {
   normalizeAdminApiBaseUrl,
   normalizePublicApiBaseUrl,
 } from "../utils/baseUrl";
+import { platformBackendBindingRuntime } from "../app/backendBindingRuntime";
+import type { BackendProfile } from "../domain/backendProfile";
+import type { FeatureBinding } from "../domain/featureBinding";
 
 const DEFAULT_API_BASE_URL =
   normalizePublicApiBaseUrl(
@@ -28,7 +31,9 @@ export type SettingKey =
   | "adminApiBaseUrl"
   | "realtimeAutoSaveSeconds"
   | "activeBackendPresetId"
-  | "defaultSpeakerName";
+  | "defaultSpeakerName"
+  | "backendProfilesJson"
+  | "featureBindingsJson";
 
 type SettingsState = {
   apiBaseUrl: string;
@@ -36,6 +41,10 @@ type SettingsState = {
   realtimeAutoSaveSeconds: number;
   activeBackendPresetId: string | null;
   defaultSpeakerName: string;
+  backendProfiles: BackendProfile[];
+  featureBindings: FeatureBinding[];
+  backendProfilesJson?: string;
+  featureBindingsJson?: string;
   hydrated: boolean;
   hydrate: () => Promise<void>;
   updateConnectionSettings: (value: {
@@ -45,6 +54,10 @@ type SettingsState = {
   updateSetting: <T extends SettingKey>(
     key: T,
     value: SettingsState[T]
+  ) => Promise<void>;
+  updateBackendRuntime: (
+    profiles: BackendProfile[],
+    bindings: FeatureBinding[]
   ) => Promise<void>;
 };
 
@@ -113,17 +126,53 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   realtimeAutoSaveSeconds: DEFAULT_REALTIME_AUTOSAVE_SECONDS,
   activeBackendPresetId: null,
   defaultSpeakerName: "Speaker",
+  backendProfiles: platformBackendBindingRuntime.profiles,
+  featureBindings: platformBackendBindingRuntime.bindings,
   hydrated: false,
   hydrate: async () => {
     if (get().hydrated) return;
-    const [apiBaseUrl, adminApiBaseUrl, autoSave, activeBackendPresetId, defaultSpeakerName] =
-      await Promise.all([
-        loadSetting("apiBaseUrl"),
-        loadSetting("adminApiBaseUrl"),
-        loadSetting("realtimeAutoSaveSeconds"),
-        loadSetting("activeBackendPresetId"),
-        loadSetting("defaultSpeakerName"),
-      ]);
+    const [
+      apiBaseUrl,
+      adminApiBaseUrl,
+      autoSave,
+      activeBackendPresetId,
+      defaultSpeakerName,
+      backendProfilesJson,
+      featureBindingsJson,
+    ] = await Promise.all([
+      loadSetting("apiBaseUrl"),
+      loadSetting("adminApiBaseUrl"),
+      loadSetting("realtimeAutoSaveSeconds"),
+      loadSetting("activeBackendPresetId"),
+      loadSetting("defaultSpeakerName"),
+      loadSetting("backendProfilesJson"),
+      loadSetting("featureBindingsJson"),
+    ]);
+
+    let loadedProfiles = platformBackendBindingRuntime.profiles;
+    if (backendProfilesJson) {
+      try {
+        const parsed = JSON.parse(backendProfilesJson);
+        if (Array.isArray(parsed)) {
+          loadedProfiles = parsed;
+        }
+      } catch (e) {
+        console.warn("Failed to parse persisted backendProfilesJson", e);
+      }
+    }
+
+    let loadedBindings = platformBackendBindingRuntime.bindings;
+    if (featureBindingsJson) {
+      try {
+        const parsed = JSON.parse(featureBindingsJson);
+        if (Array.isArray(parsed)) {
+          loadedBindings = parsed;
+        }
+      } catch (e) {
+        console.warn("Failed to parse persisted featureBindingsJson", e);
+      }
+    }
+
     set({
       apiBaseUrl: normalizePublicApiBaseUrl(apiBaseUrl ?? DEFAULT_API_BASE_URL),
       adminApiBaseUrl: normalizeAdminApiBaseUrl(
@@ -135,6 +184,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           ? activeBackendPresetId
           : null,
       defaultSpeakerName: defaultSpeakerName ?? "Speaker",
+      backendProfiles: loadedProfiles,
+      featureBindings: loadedBindings,
       hydrated: true,
     });
   },
@@ -166,5 +217,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             ? ""
             : String(normalizedValue)
     );
+  },
+  updateBackendRuntime: async (profiles, bindings) => {
+    await persistSettingsBatch([
+      { key: "backendProfilesJson", value: JSON.stringify(profiles) },
+      { key: "featureBindingsJson", value: JSON.stringify(bindings) },
+    ]);
+    set({
+      backendProfiles: profiles,
+      featureBindings: bindings,
+    });
   },
 }));

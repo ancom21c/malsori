@@ -26,8 +26,8 @@ import {
 } from "../app/platformCapabilities";
 import {
   findPlatformBackendProfile,
-  platformBackendBindingRuntime,
 } from "../app/backendBindingRuntime";
+import { useBackendBindingRuntime } from "../hooks/useBackendBindingRuntime";
 import { buildTranslateBindingPresentation } from "./translateBindingModel";
 import { buildTranslateWorkspacePresentation } from "./translateWorkspaceModel";
 import { appDb } from "../data/app-db";
@@ -63,6 +63,7 @@ function buildTurnSourceRevision(turn: SessionTurn): string {
 }
 
 export default function TranslatePage() {
+  const runtime = useBackendBindingRuntime();
   const { t } = useI18n();
   const apiClient = useRtzrApiClient();
   const [targetLanguage, setTargetLanguage] = useState("en");
@@ -79,18 +80,18 @@ export default function TranslatePage() {
         platformFeatureFlags,
         platformCapabilities,
         availability,
-        platformBackendBindingRuntime
+        runtime
       ),
-    [availability]
+    [availability, runtime]
   );
   const finalTranslationResolution = bindingPresentation.finalTranslation.resolution;
   const finalTranslationProfile = useMemo(
     () =>
       findPlatformBackendProfile(
         finalTranslationResolution?.resolvedBackendProfileId,
-        platformBackendBindingRuntime
+        runtime
       ),
-    [finalTranslationResolution]
+    [finalTranslationResolution, runtime]
   );
   const translationReady =
     bindingPresentation.finalTranslation.ready && Boolean(finalTranslationResolution);

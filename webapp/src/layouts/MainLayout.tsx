@@ -50,7 +50,7 @@ import {
   derivePlatformFeatureAvailability,
   platformCapabilities,
 } from "../app/platformCapabilities";
-import { platformBackendBindingRuntime } from "../app/backendBindingRuntime";
+import { useBackendBindingRuntime } from "../hooks/useBackendBindingRuntime";
 import { buildTranslateBindingPresentation } from "../pages/translateBindingModel";
 
 type MainLayoutProps = {
@@ -67,13 +67,6 @@ type RouteChromePolicy = {
     sm: number;
   };
 };
-
-const translateRouteEnabled = buildTranslateBindingPresentation(
-  platformFeatureFlags,
-  platformCapabilities,
-  derivePlatformFeatureAvailability(platformFeatureFlags, platformCapabilities),
-  platformBackendBindingRuntime
-).finalTranslation.ready;
 
 function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
   if (pathname.startsWith("/realtime") || pathname.startsWith("/capture/realtime")) {
@@ -114,6 +107,26 @@ function resolveRouteChromePolicy(pathname: string): RouteChromePolicy {
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
+  const runtime = useBackendBindingRuntime();
+  const availability = useMemo(
+    () =>
+      derivePlatformFeatureAvailability(
+        platformFeatureFlags,
+        platformCapabilities
+      ),
+    []
+  );
+  const translateRouteEnabled = useMemo(
+    () =>
+      buildTranslateBindingPresentation(
+        platformFeatureFlags,
+        platformCapabilities,
+        availability,
+        runtime
+      ).finalTranslation.ready,
+    [availability, runtime]
+  );
+
   const theme = useTheme();
   const compactActions = useMediaQuery(theme.breakpoints.down("sm"));
   const location = useLocation();
@@ -236,7 +249,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           ]
         : []),
     ],
-    [canInstall, handleInstallClick, openUploadDialog, t]
+    [canInstall, handleInstallClick, openUploadDialog, t, translateRouteEnabled]
   );
 
   const normalizedNavPath = useMemo(() => {

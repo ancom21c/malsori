@@ -17,8 +17,8 @@ import {
   derivePlatformFeatureAvailability,
   platformCapabilities,
 } from "./platformCapabilities";
-import { platformBackendBindingRuntime } from "./backendBindingRuntime";
 import { buildTranslateBindingPresentation } from "../pages/translateBindingModel";
+import { useBackendBindingRuntime } from "../hooks/useBackendBindingRuntime";
 
 const TranscriptionListPage = lazy(
   () => import("../pages/TranscriptionListPage")
@@ -39,12 +39,6 @@ const devOnlyUiConceptsEnabled = import.meta.env.MODE === "development";
 const UiConceptsPage = devOnlyUiConceptsEnabled
   ? lazy(() => import("../pages/UiConceptsPage"))
   : null;
-const translateRouteEnabled = buildTranslateBindingPresentation(
-  platformFeatureFlags,
-  platformCapabilities,
-  derivePlatformFeatureAvailability(platformFeatureFlags, platformCapabilities),
-  platformBackendBindingRuntime
-).finalTranslation.ready;
 
 function Loader() {
   return (
@@ -72,6 +66,25 @@ function RootLayout() {
   );
 }
 
+function TranslateRouteWrapper() {
+  const runtime = useBackendBindingRuntime();
+  const availability = derivePlatformFeatureAvailability(
+    platformFeatureFlags,
+    platformCapabilities
+  );
+  const translateRouteEnabled = buildTranslateBindingPresentation(
+    platformFeatureFlags,
+    platformCapabilities,
+    availability,
+    runtime
+  ).finalTranslation.ready;
+
+  if (platformFeatureFlags.realtimeTranslate && translateRouteEnabled && TranslatePage) {
+    return <TranslatePage />;
+  }
+  return <Navigate to={resolveRealtimeCapturePath()} replace />;
+}
+
 function createAppRouter() {
   return createBrowserRouter(
     createRoutesFromElements(
@@ -93,13 +106,7 @@ function createAppRouter() {
         <Route path="/capture/realtime" element={<RealtimeSessionPage />} />
         <Route
           path="/translate"
-          element={
-            platformFeatureFlags.realtimeTranslate && translateRouteEnabled && TranslatePage ? (
-              <TranslatePage />
-            ) : (
-              <Navigate to={resolveRealtimeCapturePath()} replace />
-            )
-          }
+          element={<TranslateRouteWrapper />}
         />
         <Route path="/lab" element={<LabPage />} />
         {devOnlyUiConceptsEnabled && UiConceptsPage ? (

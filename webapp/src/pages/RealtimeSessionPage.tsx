@@ -76,8 +76,8 @@ import {
 import { platformFeatureFlags } from "../app/platformRoutes";
 import {
   findPlatformBackendProfile,
-  platformBackendBindingRuntime,
 } from "../app/backendBindingRuntime";
+import { useBackendBindingRuntime } from "../hooks/useBackendBindingRuntime";
 import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
 import {
   createSummaryPartition,
@@ -458,6 +458,7 @@ function summarizeRealtimeBlocks(
 }
 
 export default function RealtimeSessionPage() {
+  const runtime = useBackendBindingRuntime();
   const compactRealtimeLayout = useMediaQuery("(max-width: 959px), (hover: none) and (pointer: coarse)");
   const featureAvailability = derivePlatformFeatureAvailability(
     platformFeatureFlags,
@@ -739,25 +740,25 @@ export default function RealtimeSessionPage() {
     () =>
       resolveArtifactBindingPresentation(
         "summary",
-        platformBackendBindingRuntime.bindings,
-        platformBackendBindingRuntime.profiles
+        runtime.bindings,
+        runtime.profiles
       ),
-    []
+    [runtime]
   );
   const summaryFeatureBinding = useMemo(
     () =>
-      platformBackendBindingRuntime.bindings.find(
+      runtime.bindings.find(
         (binding) => binding.featureKey === "artifact.summary"
       ) ?? null,
-    []
+    [runtime]
   );
   const summaryResolvedProfile = useMemo(
     () =>
       findPlatformBackendProfile(
         summaryBinding.resolution?.resolvedBackendProfileId,
-        platformBackendBindingRuntime
+        runtime
       ),
-    [summaryBinding]
+    [summaryBinding, runtime]
   );
   const summaryRuntimePolicy = useMemo(
     () => resolveSummaryRuntimePolicy(summaryFeatureBinding),

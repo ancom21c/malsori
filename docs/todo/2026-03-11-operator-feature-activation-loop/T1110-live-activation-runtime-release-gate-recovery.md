@@ -51,17 +51,17 @@
 
 ## Implementation Log
 
-- [ ] shared live runtime state와 route/surface update path를 구현한다.
+- [x] shared live runtime state와 route/surface update path를 구현한다.
 - [x] current shipped bundle 크기를 다시 측정하고 `bundle:check` baseline + perf note를 2026-03-12 기준으로 갱신했다.
 
 ## Review Checklist (Implementation Review)
 
-- [ ] operator 변경이 현재 SPA surface visibility와 충돌 없이 반영되는가?
-- [ ] bundle recovery가 disabled-feature truth와 perf note를 함께 만족하는가?
+- [x] operator 변경이 현재 SPA surface visibility와 충돌 없이 반영되는가?
+- [x] bundle recovery가 disabled-feature truth와 perf note를 함께 만족하는가?
 
 ## Verify
 
 - [x] `npm --prefix webapp run build`
 - [x] `npm --prefix webapp run bundle:check`
 - [x] `npm --prefix webapp run test`
-- [ ] operator binding/profile 변경이 reload 없이 현재 SPA route/surface visibility에 반영되는지 runtime smoke로 확인한다.
+- [x] operator binding/profile 변경이 reload 없이 현재 SPA route/surface visibility에 반영되는지 runtime smoke로 확인한다.

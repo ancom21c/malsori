@@ -34,7 +34,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1107 | P1 | Rollout smoke/evidence hardening | Done | Done | Done | Done | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1107-rollout-smoke-evidence-hardening.md` |
 | T1108 | P0 | Backend failover / auth hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1108-backend-failover-auth-hardening.md` |
 | T1109 | P1 | Summary / translate surface contract hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1109-summary-translate-surface-contract-hardening.md` |
-| T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Pending | Pending | Pending | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
+| T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
 
 ## 현재 상태 스냅샷
 

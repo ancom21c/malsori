@@ -672,6 +672,7 @@ export default function SettingsPage() {
       setBackendBindingState(capabilities);
       setBackendProfiles(profiles);
       setFeatureBindings(bindings);
+      await useSettingsStore.getState().updateBackendRuntime(profiles, bindings);
       setBackendBindingStateLastSuccessAt(new Date().toISOString());
       setBackendProfileEditorError(null);
       setFeatureBindingEditorError(null);

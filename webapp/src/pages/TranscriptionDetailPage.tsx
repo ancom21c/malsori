@@ -71,8 +71,8 @@ import {
 } from "../app/platformCapabilities";
 import {
   findPlatformBackendProfile,
-  platformBackendBindingRuntime,
 } from "../app/backendBindingRuntime";
+import { useBackendBindingRuntime } from "../hooks/useBackendBindingRuntime";
 import { resolveArtifactBindingPresentation } from "./artifactBindingModel";
 import {
   buildSessionWorkspaceView,
@@ -444,6 +444,7 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 }
 
 export default function TranscriptionDetailPage() {
+  const runtime = useBackendBindingRuntime();
   const prefersReducedMotion = usePrefersReducedMotion();
   const compactSummarySurface = useMediaQuery("(max-width: 959px)");
   const featureAvailability = derivePlatformFeatureAvailability(
@@ -643,17 +644,17 @@ export default function TranscriptionDetailPage() {
       workspaceView?.artifacts.map((artifact) => {
         const binding = resolveArtifactBindingPresentation(
           artifact.type,
-          platformBackendBindingRuntime.bindings,
-          platformBackendBindingRuntime.profiles
+          runtime.bindings,
+          runtime.profiles
         );
         const lifecycle = resolveSessionArtifactLifecyclePresentation(artifact, binding);
         const resolvedProfile = findPlatformBackendProfile(
           binding.resolution?.resolvedBackendProfileId,
-          platformBackendBindingRuntime
+          runtime
         );
         return { artifact, binding, lifecycle, resolvedProfile };
       }) ?? [],
-    [workspaceView]
+    [workspaceView, runtime]
   );
   const nonSummaryArtifactCards = useMemo(
     () => artifactCards.filter((entry) => entry.artifact.type !== "summary"),
@@ -680,25 +681,25 @@ export default function TranscriptionDetailPage() {
     () =>
       resolveArtifactBindingPresentation(
         "summary",
-        platformBackendBindingRuntime.bindings,
-        platformBackendBindingRuntime.profiles
+        runtime.bindings,
+        runtime.profiles
       ),
-    []
+    [runtime]
   );
   const summaryFeatureBinding = useMemo(
     () =>
-      platformBackendBindingRuntime.bindings.find(
+      runtime.bindings.find(
         (binding) => binding.featureKey === "artifact.summary"
       ) ?? null,
-    []
+    [runtime]
   );
   const summaryResolvedProfile = useMemo(
     () =>
       findPlatformBackendProfile(
         summaryBinding.resolution?.resolvedBackendProfileId,
-        platformBackendBindingRuntime
+        runtime
       ),
-    [summaryBinding]
+    [summaryBinding, runtime]
   );
   const fullSummaryTurns = useMemo(
     () =>
