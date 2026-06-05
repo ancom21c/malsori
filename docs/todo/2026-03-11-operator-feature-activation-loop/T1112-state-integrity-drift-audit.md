@@ -71,6 +71,7 @@
 - [x] Round 4: Google Drive OAuth token 저장이 실패 중 기존 refresh token 파일을 깨뜨리는 silent corruption / recovery drift를 atomic write와 regression test로 막았다.
 - [x] Round 5: 업로드 오디오 metadata 저장 실패가 바이너리만 남겨 read/write inconsistency를 만드는 경로를 cleanup과 regression test로 막았다.
 - [x] Round 6: credential 없는 backend preset apply가 env credential을 계속 재사용하는 override merge drift를 null-clear payload와 regression test로 막았다.
+- [x] Round 7: transcription 생성과 search index 생성이 transaction 없이 분리돼 index write 실패 시 반쯤 생성된 session이 남는 read/write inconsistency를 regression test와 transaction guard로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

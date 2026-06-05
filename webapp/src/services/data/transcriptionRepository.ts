@@ -112,8 +112,10 @@ export async function createLocalTranscription(params: {
     searchTitle: normalizedTitle,
     ...params.metadata,
   };
-  await appDb.transcriptions.put(record);
-  await upsertTranscriptionSearchIndex(id, record.transcriptText);
+  await appDb.transaction("rw", appDb.transcriptions, appDb.searchIndexes, async () => {
+    await appDb.transcriptions.put(record);
+    await upsertTranscriptionSearchIndex(id, record.transcriptText);
+  });
   return record;
 }
 

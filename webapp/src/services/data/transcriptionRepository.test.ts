@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../../data/app-db";
 import {
   appendAudioChunk,
@@ -75,6 +75,24 @@ describe("transcriptionRepository", () => {
     expect(searchIndex).toBeTruthy();
     expect(searchIndex?.normalizedTranscript).toBe("hello");
     expect(searchIndex?.tokenSet).toContain("hello");
+  });
+
+  it("rolls back transcription creation when search index persistence fails", async () => {
+    const deleteSpy = vi
+      .spyOn(appDb.searchIndexes, "delete")
+      .mockRejectedValueOnce(new Error("search index failed"));
+
+    await expect(
+      createLocalTranscription({
+        title: "rollback guard",
+        kind: "realtime",
+      })
+    ).rejects.toThrow("search index failed");
+
+    await expect(appDb.transcriptions.count()).resolves.toBe(0);
+    await expect(appDb.searchIndexes.count()).resolves.toBe(0);
+
+    deleteSpy.mockRestore();
   });
 
   it("stores PCM audio chunks in order", async () => {
