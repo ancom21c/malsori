@@ -67,6 +67,9 @@
 - [x] Round 1: `replaceSegments` / segment edit 경계에서 stale translation이 새 turn에 재연결되는 stable-ID drift를 regression test와 함께 막았다.
 - [x] Round 1: jsdom/undici router test signal mismatch와 Python SDK eager import bootstrap drift를 regression test와 함께 막았다.
 - [x] Round 2: settings single-write ordering, no-op speaker/correction lifecycle drift, default preset transactionality를 regression test와 함께 막았다.
+- [x] Round 3: backend override 파일 쓰기 실패가 기존 설정을 직접 덮어써 silent corruption / recovery drift를 일으키는 경로를 atomic write와 regression test로 막았다.
+- [x] Round 4: Google Drive OAuth token 저장이 실패 중 기존 refresh token 파일을 깨뜨리는 silent corruption / recovery drift를 atomic write와 regression test로 막았다.
+- [x] Round 5: 업로드 오디오 metadata 저장 실패가 바이너리만 남겨 read/write inconsistency를 만드는 경로를 cleanup과 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

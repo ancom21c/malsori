@@ -2193,6 +2193,9 @@ def _persist_uploaded_audio(
         }
         artifacts["meta"].write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
     except OSError as exc:  # pragma: no cover - storage failure
+        for path in artifacts.values():
+            with contextlib.suppress(FileNotFoundError):
+                path.unlink()
         logger.error("Failed to persist uploaded audio for %s: %s", transcribe_id, exc)
         return None
     return artifacts["data"]

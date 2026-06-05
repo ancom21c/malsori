@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -122,3 +123,25 @@ def test_proxy_transcribe_preserves_queue_timeout_api_error(
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail["error"]["code"] == "TRANSCRIBE_QUEUE_TIMEOUT"
+
+
+def test_persist_uploaded_audio_cleans_partial_artifacts_on_metadata_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SimpleNamespace(storage_base_dir=tmp_path)
+    artifacts = main._audio_artifacts(settings, "job-a")
+    real_write_text = Path.write_text
+
+    def fail_meta_write(self: Path, data: str, *args: Any, **kwargs: Any) -> int:
+        if self == artifacts["meta"]:
+            raise OSError("metadata write failed")
+        return real_write_text(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_meta_write)
+
+    audio_path = main._persist_uploaded_audio(settings, "job-a", FakeUploadFile(), b"audio")
+
+    assert audio_path is None
+    assert not artifacts["data"].exists()
+    assert not artifacts["meta"].exists()
+    assert main._available_audio_url(settings, "job-a") is None

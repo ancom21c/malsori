@@ -8,6 +8,7 @@ import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Dict, Literal, Optional
 
@@ -235,6 +236,29 @@ def _load_override_payload(base_dir: Path) -> Dict[str, Any]:
     return _normalize_override_payload(data)
 
 
+def _write_override_payload(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Optional[Path] = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        temp_path.replace(path)
+    except Exception:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
+
+
 def get_backend_override() -> Dict[str, Any]:
     """Return the current backend override payload, if any."""
     base_dir = _resolve_storage_base_dir()
@@ -249,10 +273,7 @@ def apply_backend_override(payload: Dict[str, Any]) -> Settings:
     with _override_lock:
         path = _runtime_override_path(base_dir)
         if normalized:
-            path.write_text(
-                json.dumps(normalized, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            _write_override_payload(path, normalized)
         else:
             with contextlib.suppress(FileNotFoundError):
                 path.unlink()
