@@ -515,6 +515,8 @@ export class SyncManager {
                     createdAt: new Date().toISOString(),
                 });
             });
+        } else {
+            await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
         }
 
         // Video
@@ -538,6 +540,8 @@ export class SyncManager {
                     createdAt: new Date().toISOString(),
                 });
             });
+        } else {
+            await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
         }
     }
 }

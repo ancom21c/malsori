@@ -75,6 +75,8 @@
 - [x] Round 8: cloud sync account replace wipe가 `turnTranslations`를 지우지 않아 orphan translation artifact가 남는 lifecycle/read-write inconsistency를 regression test와 shared clear helper로 막았다.
 - [x] Round 9: cloud pull/download가 raw segment overwrite 시 repository invariant를 우회해 stale translation/summary를 남기는 lifecycle/parity drift를 regression test와 shared guard helper로 막았다.
 - [x] Round 10: downloaded cloud record refresh/download가 `segments.json` 누락 시 metadata만 섞거나 full download를 성공 처리하는 silent corruption / fallback drift를 regression test와 fail-closed segment fetch로 막았다.
+- [x] Round 11: full cloud download가 더 이상 존재하지 않는 audio/video artifact를 local store에 남겨두는 parity/lifecycle drift를 regression test와 missing-media clear로 막았다.
+- [x] Round 12: post-deploy UI smoke가 같은 browser context의 두 번째 `/` bootstrap을 900ms 고정 대기 후 바로 blank screen으로 오판하는 verification/bootstrap drift를 root-text stabilization과 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

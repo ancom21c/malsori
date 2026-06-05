@@ -119,7 +119,11 @@ function createPushDriveServiceMock(recordId: string, options?: { uploadError?: 
 
 function createPullDriveServiceMock(
   cloudRecord: LocalTranscription,
-  options?: { segments?: LocalSegment[] }
+  options?: {
+    segments?: LocalSegment[];
+    audioFile?: DriveFile & { payload?: Uint8Array };
+    videoFile?: DriveFile & { payload?: Uint8Array };
+  }
 ) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
   const transcriptionsFolder: DriveFile = {
@@ -155,6 +159,12 @@ function createPullDriveServiceMock(
       }
       return [];
     }
+    if (query.includes("name = 'audio.wav' or name = 'audio.webm'") && query.includes("'cloud-folder' in parents")) {
+      return options?.audioFile ? [options.audioFile] : [];
+    }
+    if (query.includes("name = 'video.webm' or name = 'video.mp4'") && query.includes("'cloud-folder' in parents")) {
+      return options?.videoFile ? [options.videoFile] : [];
+    }
     return [];
   });
 
@@ -177,6 +187,20 @@ function createPullDriveServiceMock(
       return {
         text: async () => payload,
         arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+      } as unknown as Blob;
+    }
+    if (fileId === options?.audioFile?.id) {
+      const payload = options.audioFile.payload ?? new Uint8Array([1, 2, 3]);
+      return {
+        text: async () => "",
+        arrayBuffer: async () => payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength),
+      } as unknown as Blob;
+    }
+    if (fileId === options?.videoFile?.id) {
+      const payload = options.videoFile.payload ?? new Uint8Array([4, 5, 6]);
+      return {
+        text: async () => "",
+        arrayBuffer: async () => payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength),
       } as unknown as Blob;
     }
     return {
@@ -607,5 +631,67 @@ describe("SyncManager", () => {
     const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
     expect(segments).toHaveLength(1);
     expect(segments[0]?.id).toBe("seg-download-missing-local");
+  });
+
+  it("clears stale local media artifacts when the cloud record no longer has them", async () => {
+    const recordId = "cloud-download-clears-stale-media";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-media-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([9, 9, 9]).buffer,
+      mimeType: "audio/webm",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.videoChunks.add({
+      id: "video-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([8, 8, 8]).buffer,
+      mimeType: "video/webm",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-media-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    const manager = new SyncManager(service);
+
+    await manager.downloadFullRecord(recordId);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("downloaded");
+    await expect(appDb.audioChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
+    await expect(appDb.videoChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
   });
 });

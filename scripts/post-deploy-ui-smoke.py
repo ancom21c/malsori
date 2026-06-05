@@ -22,6 +22,26 @@ class PageLoadResult:
     console_errors: list[str]
 
 
+def _read_root_text(page: Page) -> str:
+    return page.locator("#root").inner_text().strip()
+
+
+def _stabilize_root_text(
+    page: Page,
+    *,
+    min_root_text_length: int = 40,
+    max_attempts: int = 16,
+    delay_ms: int = 250,
+) -> str:
+    root_text = _read_root_text(page)
+    attempts = 0
+    while len(root_text) < min_root_text_length and attempts < max_attempts:
+        page.wait_for_timeout(delay_ms)
+        root_text = _read_root_text(page)
+        attempts += 1
+    return root_text
+
+
 def _rect_overlap(a: Dict[str, float], b: Dict[str, float]) -> bool:
     return not (
         a["x"] + a["width"] <= b["x"]
@@ -72,8 +92,7 @@ def _open_page_in_context(
     page.on("console", on_console)
 
     response = page.goto(f"{base_url}{path}", wait_until="networkidle", timeout=60_000)
-    page.wait_for_timeout(900)
-    root_text = page.locator("#root").inner_text().strip()
+    root_text = _stabilize_root_text(page)
 
     result = PageLoadResult(
         path=path,
