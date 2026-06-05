@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb, type LocalSegment, type LocalTranscription } from "../../data/app-db";
+import { createSummaryPartition, upsertPublishedSummary } from "../data/summaryRepository";
+import { buildTurnTranslationId, upsertTurnTranslation } from "../data/translationRepository";
 import { SyncManager } from "./syncManager";
 import type { DriveFile, GoogleDriveService } from "./googleDriveService";
 
@@ -340,6 +342,39 @@ describe("SyncManager", () => {
       text: "old text",
       createdAt: localUpdatedAt,
     });
+    await createSummaryPartition({
+      id: "partition-cloud-refresh",
+      sessionId: recordId,
+      startTurnId: "seg-local",
+      endTurnId: "seg-local",
+      turnCount: 1,
+      startedAt: localUpdatedAt,
+      endedAt: localUpdatedAt,
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: localUpdatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: recordId,
+      mode: "full",
+      runId: "run-cloud-refresh",
+      title: "Local summary",
+      content: "Persisted",
+      sourceRevision: localUpdatedAt,
+      partitionIds: ["partition-cloud-refresh"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(recordId, "seg-local", "en"),
+      sessionId: recordId,
+      turnId: "seg-local",
+      sourceRevision: localUpdatedAt,
+      sourceText: "old text",
+      targetLanguage: "en",
+      text: "old translation",
+      status: "ready",
+      requestedAt: localUpdatedAt,
+      completedAt: localUpdatedAt,
+    });
 
     const cloudSegments: LocalSegment[] = [
       {
@@ -376,6 +411,102 @@ describe("SyncManager", () => {
     const searchIndex = await appDb.searchIndexes.get(recordId);
     expect(searchIndex).toBeTruthy();
     expect(searchIndex?.normalizedTranscript).toContain("new");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(recordId).toArray();
+    expect(translations).toHaveLength(0);
+    const partition = await appDb.summaryPartitions.get("partition-cloud-refresh");
+    expect(partition?.status).toBe("stale");
+    expect(partition?.staleReason).toBe("partition_boundary_change");
+    const publishedSummary = await appDb.publishedSummaries.get(`${recordId}-full`);
+    expect(publishedSummary?.freshness).toBe("stale");
+    expect(publishedSummary?.staleReason).toBe("partition_boundary_change");
+  });
+
+  it("clears dependent translations and stales summaries when downloading replacement segments", async () => {
+    const recordId = "cloud-download";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date(Date.now()).toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: cloudUpdatedAt,
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-download-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await createSummaryPartition({
+      id: "partition-cloud-download",
+      sessionId: recordId,
+      startTurnId: "seg-download-local",
+      endTurnId: "seg-download-local",
+      turnCount: 1,
+      startedAt: localUpdatedAt,
+      endedAt: localUpdatedAt,
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: localUpdatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: recordId,
+      mode: "full",
+      runId: "run-cloud-download",
+      title: "Local summary",
+      content: "Persisted",
+      sourceRevision: localUpdatedAt,
+      partitionIds: ["partition-cloud-download"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(recordId, "seg-download-local", "en"),
+      sessionId: recordId,
+      turnId: "seg-download-local",
+      sourceRevision: localUpdatedAt,
+      sourceText: "local text",
+      targetLanguage: "en",
+      text: "local translation",
+      status: "ready",
+      requestedAt: localUpdatedAt,
+      completedAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-download-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1500,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    const manager = new SyncManager(service);
+
+    await manager.downloadFullRecord(recordId);
+
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-download-cloud");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(recordId).toArray();
+    expect(translations).toHaveLength(0);
+    const partition = await appDb.summaryPartitions.get("partition-cloud-download");
+    expect(partition?.status).toBe("stale");
+    expect(partition?.sourceRevision).toBe(cloudUpdatedAt);
+    const publishedSummary = await appDb.publishedSummaries.get(`${recordId}-full`);
+    expect(publishedSummary?.freshness).toBe("stale");
+    expect(publishedSummary?.staleReason).toBe("partition_boundary_change");
   });
 
   it("builds search index for pulled ghost records when transcript text is present", async () => {
@@ -396,5 +527,85 @@ describe("SyncManager", () => {
     const searchIndex = await appDb.searchIndexes.get(recordId);
     expect(searchIndex).toBeTruthy();
     expect(searchIndex?.normalizedTranscript).toContain("hello");
+  });
+
+  it("keeps downloaded local state unchanged when newer cloud metadata lacks segments", async () => {
+    const recordId = "cloud-missing-segments";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+        transcriptText: "local transcript",
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-missing-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+      transcriptText: "cloud transcript",
+    });
+    const { service } = createPullDriveServiceMock(cloudRecord);
+    const manager = new SyncManager(service);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const summary = await manager.pullUpdates();
+    warnSpy.mockRestore();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(1);
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(localUpdatedAt);
+    expect(stored?.transcriptText).toBe("local transcript");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-missing-local");
+  });
+
+  it("fails full download when cloud segments are missing instead of marking the record downloaded", async () => {
+    const recordId = "cloud-download-missing";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-download-missing-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: new Date().toISOString(),
+    });
+    const { service } = createPullDriveServiceMock(cloudRecord);
+    const manager = new SyncManager(service);
+
+    await expect(manager.downloadFullRecord(recordId)).rejects.toThrow('Cloud segments are missing');
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-download-missing-local");
   });
 });

@@ -2,6 +2,7 @@ import { appDb } from "../../data/app-db";
 import type { LocalTranscription, LocalSegment } from "../../data/app-db";
 import { GoogleDriveService } from "./googleDriveService";
 import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
+import { markSummaryStateStaleByMutation } from "../data/summaryRepository";
 import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
@@ -92,6 +93,32 @@ async function upsertTranscriptionSearchIndex(
         tokenSet,
         ngramSet,
         updatedAt: now,
+    });
+}
+
+async function replaceCloudSegmentsWithStateGuard(input: {
+    transcriptionId: string;
+    segments: LocalSegment[];
+    sourceRevision: string;
+    staleAt?: string;
+}) {
+    await appDb.transaction("rw", [appDb.segments, appDb.turnTranslations], async () => {
+        await appDb.turnTranslations.where("sessionId").equals(input.transcriptionId).delete();
+        await appDb.segments.where("transcriptionId").equals(input.transcriptionId).delete();
+        if (input.segments.length > 0) {
+            await appDb.segments.bulkAdd(
+                input.segments.map((segment) => ({
+                    ...segment,
+                    transcriptionId: input.transcriptionId,
+                }))
+            );
+        }
+    });
+    await markSummaryStateStaleByMutation({
+        sessionId: input.transcriptionId,
+        sourceRevision: input.sourceRevision,
+        trigger: "partition_boundary_change",
+        staleAt: input.staleAt,
     });
 }
 
@@ -215,20 +242,7 @@ export class SyncManager {
                     if (cloudUpdate > localUpdate) {
                         let nextSegments: LocalSegment[] | null = null;
                         if (localRecord.downloadStatus === "downloaded") {
-                            try {
-                                const segmentsQuery = `name = 'segments.json' and '${folder.id}' in parents and trashed = false`;
-                                const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
-                                if (segmentsFiles.length > 0) {
-                                    const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
-                                    const text = await blob.text();
-                                    const parsed: unknown = JSON.parse(text);
-                                    if (Array.isArray(parsed)) {
-                                        nextSegments = parsed as LocalSegment[];
-                                    }
-                                }
-                            } catch (error) {
-                                console.warn(`Failed to refresh cloud segments for "${transcriptionId}".`, error);
-                            }
+                            nextSegments = await this.downloadCloudSegments(folder.id, transcriptionId);
                         }
 
                         await appDb.transaction(
@@ -245,17 +259,16 @@ export class SyncManager {
                                     transcriptionId,
                                     cloudMetadata.transcriptText
                                 );
-                                if (nextSegments) {
-                                    await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
-                                    await appDb.segments.bulkAdd(
-                                        nextSegments.map((segment) => ({
-                                            ...segment,
-                                            transcriptionId,
-                                        }))
-                                    );
-                                }
                             }
                         );
+                        if (nextSegments) {
+                            await replaceCloudSegmentsWithStateGuard({
+                                transcriptionId,
+                                segments: nextSegments,
+                                sourceRevision: cloudMetadata.updatedAt,
+                                staleAt: syncedAt,
+                            });
+                        }
                     }
                 }
             } catch (error) {
@@ -428,6 +441,21 @@ export class SyncManager {
         }
     }
 
+    private async downloadCloudSegments(folderId: string, transcriptionId: string): Promise<LocalSegment[]> {
+        const segmentsQuery = `name = 'segments.json' and '${folderId}' in parents and trashed = false`;
+        const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
+        if (segmentsFiles.length === 0) {
+            throw new Error(`Cloud segments are missing for "${transcriptionId}"`);
+        }
+        const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
+        const text = await blob.text();
+        const parsed: unknown = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+            throw new Error(`Cloud segments are invalid for "${transcriptionId}"`);
+        }
+        return parsed as LocalSegment[];
+    }
+
     async downloadFullRecord(transcriptionId: string) {
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const query = `name = '${transcriptionId}' and '${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -440,18 +468,15 @@ export class SyncManager {
 
         try {
             // Download segments.json
-            const segmentsQuery = `name = 'segments.json' and '${folderId}' in parents and trashed = false`;
-            const segmentsFiles = await this.driveService.listFiles(segmentsQuery);
-            if (segmentsFiles.length > 0) {
-                const blob = await this.driveService.downloadFile(segmentsFiles[0].id);
-                const text = await blob.text();
-                const segments: LocalSegment[] = JSON.parse(text);
-
-                await appDb.transaction("rw", appDb.segments, async () => {
-                    await appDb.segments.where("transcriptionId").equals(transcriptionId).delete();
-                    await appDb.segments.bulkAdd(segments);
-                });
-            }
+            const segments = await this.downloadCloudSegments(folderId, transcriptionId);
+            const sourceRevision =
+                (await appDb.transcriptions.get(transcriptionId))?.updatedAt ?? new Date().toISOString();
+            await replaceCloudSegmentsWithStateGuard({
+                transcriptionId,
+                segments,
+                sourceRevision,
+                staleAt: new Date().toISOString(),
+            });
 
             // Download Media Files
             await this.downloadMediaFiles(transcriptionId, folderId);
