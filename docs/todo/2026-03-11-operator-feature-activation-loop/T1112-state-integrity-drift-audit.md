@@ -80,6 +80,7 @@
 - [x] Round 13: backend profile delete / feature binding write가 nonexistent profile reference를 허용해 broken binding state를 저장하던 stable-ID/read-write drift를 admin endpoint validation과 regression test로 막았다.
 - [x] Round 14: downloaded cloud refresh pull이 segment만 갱신하고 stale local audio/video artifact를 남기는 parity drift를 regression test와 media refresh relink로 막았다.
 - [x] Round 15: cloud push가 local에서 사라진 audio/video artifact나 replaced media format의 remote stale file을 남겨 다른 클라이언트 pull parity를 깨뜨리는 drift를 remote cleanup과 regression test로 막았다.
+- [x] Round 16: cloud pull ghost-record 생성이 `metadata.json`의 drifted `id`를 그대로 저장해 folder key와 local record/search index key를 갈라놓는 stable-ID drift를 canonical folder-id write와 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

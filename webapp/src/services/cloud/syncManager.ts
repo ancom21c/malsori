@@ -75,6 +75,16 @@ function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
     };
 }
 
+function canonicalizeCloudMetadata(
+    transcriptionId: string,
+    record: LocalTranscription
+): LocalTranscription {
+    return {
+        ...sanitizeCloudMetadata(record),
+        id: transcriptionId,
+    };
+}
+
 async function upsertTranscriptionSearchIndex(
     transcriptionId: string,
     transcriptText: string | undefined
@@ -222,22 +232,26 @@ export class SyncManager {
                 const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
                 const metadataText = await metadataBlob.text();
                 const cloudMetadata: LocalTranscription = JSON.parse(metadataText);
+                const normalizedCloudMetadata = canonicalizeCloudMetadata(transcriptionId, cloudMetadata);
 
                 if (!localRecord) {
                     // Create Ghost Record
                     await appDb.transaction("rw", [appDb.transcriptions, appDb.searchIndexes], async () => {
                         await appDb.transcriptions.put({
-                            ...sanitizeCloudMetadata(cloudMetadata),
+                            ...normalizedCloudMetadata,
                             isCloudSynced: true,
                             downloadStatus: "not_downloaded",
                             lastSyncedAt: syncedAt,
                         });
-                        await upsertTranscriptionSearchIndex(transcriptionId, cloudMetadata.transcriptText);
+                        await upsertTranscriptionSearchIndex(
+                            transcriptionId,
+                            normalizedCloudMetadata.transcriptText
+                        );
                     });
                 } else if (localRecord.isCloudSynced) {
                     // Update if cloud is newer
                     const localUpdate = parseIsoMillis(localRecord.updatedAt) ?? 0;
-                    const cloudUpdate = parseIsoMillis(cloudMetadata.updatedAt) ?? 0;
+                    const cloudUpdate = parseIsoMillis(normalizedCloudMetadata.updatedAt) ?? 0;
 
                     if (cloudUpdate > localUpdate) {
                         let nextSegments: LocalSegment[] | null = null;
@@ -251,14 +265,14 @@ export class SyncManager {
                             [appDb.transcriptions, appDb.searchIndexes, appDb.segments],
                             async () => {
                                 await appDb.transcriptions.update(transcriptionId, {
-                                    ...sanitizeCloudMetadata(cloudMetadata),
+                                    ...normalizedCloudMetadata,
                                     isCloudSynced: true,
                                     lastSyncedAt: syncedAt,
                                     // Keep local download status unless we want to force re-download.
                                 });
                                 await upsertTranscriptionSearchIndex(
                                     transcriptionId,
-                                    cloudMetadata.transcriptText
+                                    normalizedCloudMetadata.transcriptText
                                 );
                             }
                         );
@@ -266,7 +280,7 @@ export class SyncManager {
                             await replaceCloudSegmentsWithStateGuard({
                                 transcriptionId,
                                 segments: nextSegments,
-                                sourceRevision: cloudMetadata.updatedAt,
+                                sourceRevision: normalizedCloudMetadata.updatedAt,
                                 staleAt: syncedAt,
                             });
                         }

@@ -130,6 +130,7 @@ function createPushDriveServiceMock(
 function createPullDriveServiceMock(
   cloudRecord: LocalTranscription,
   options?: {
+    folderName?: string;
     segments?: LocalSegment[];
     audioFile?: DriveFile & { payload?: Uint8Array };
     videoFile?: DriveFile & { payload?: Uint8Array };
@@ -143,7 +144,7 @@ function createPullDriveServiceMock(
   };
   const cloudFolder: DriveFile = {
     id: "cloud-folder",
-    name: cloudRecord.id,
+    name: options?.folderName ?? cloudRecord.id,
     mimeType: FOLDER_MIME,
   };
 
@@ -378,6 +379,29 @@ describe("SyncManager", () => {
     expect(stored?.sourceFileStorageState).toBeUndefined();
     expect(stored?.sourceFileChunkCount).toBeUndefined();
     expect(stored?.sourceFileStoredBytes).toBeUndefined();
+  });
+
+  it("canonicalizes cloud record identity to the folder name during pull", async () => {
+    const cloudRecord = buildLocalRecord("metadata-id", {
+      isCloudSynced: true,
+      transcriptText: "cloud transcript",
+    });
+    const { service } = createPullDriveServiceMock(cloudRecord, {
+      folderName: "folder-id",
+    });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pullUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    const stored = await appDb.transcriptions.get("folder-id");
+    expect(stored).toBeTruthy();
+    expect(stored?.id).toBe("folder-id");
+    expect(stored?.transcriptText).toBe("cloud transcript");
+    expect(await appDb.transcriptions.get("metadata-id")).toBeUndefined();
+    const searchIndex = await appDb.searchIndexes.get("folder-id");
+    expect(searchIndex?.normalizedTranscript).toContain("cloud");
   });
 
   it("refreshes segments and search index when pulling a newer cloud record that is already downloaded", async () => {
