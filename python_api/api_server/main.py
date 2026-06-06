@@ -1790,6 +1790,71 @@ def _normalize_feature_binding_record(
     return FeatureBindingRecord.model_validate(data)
 
 
+def _is_legacy_capture_profile_reference_allowed(
+    feature_key: str, profile_id: str
+) -> bool:
+    return profile_id == _LEGACY_CAPTURE_PROFILE_ID and feature_key in {
+        "capture.realtime",
+        "capture.file",
+    }
+
+
+def _feature_binding_reference_exists(
+    settings: Settings,
+    *,
+    feature_key: str,
+    profile_id: str | None,
+) -> bool:
+    normalized_profile_id = (profile_id or "").strip()
+    if not normalized_profile_id:
+        return False
+    if _is_legacy_capture_profile_reference_allowed(feature_key, normalized_profile_id):
+        return True
+    return (
+        get_backend_profile(settings.storage_base_dir, normalized_profile_id) is not None
+    )
+
+
+def _validate_feature_binding_profile_references(
+    settings: Settings,
+    binding: FeatureBindingRecord,
+) -> None:
+    missing_references: list[dict[str, str]] = []
+
+    if not _feature_binding_reference_exists(
+        settings,
+        feature_key=binding.feature_key,
+        profile_id=binding.primary_backend_profile_id,
+    ):
+        missing_references.append(
+            {
+                "field": "primary_backend_profile_id",
+                "profile_id": binding.primary_backend_profile_id,
+            }
+        )
+
+    fallback_profile_id = (binding.fallback_backend_profile_id or "").strip()
+    if fallback_profile_id and not _feature_binding_reference_exists(
+        settings,
+        feature_key=binding.feature_key,
+        profile_id=fallback_profile_id,
+    ):
+        missing_references.append(
+            {
+                "field": "fallback_backend_profile_id",
+                "profile_id": fallback_profile_id,
+            }
+        )
+
+    if missing_references:
+        _raise_api_error(
+            400,
+            "FEATURE_BINDING_PROFILE_NOT_FOUND",
+            "Feature binding references a backend profile that does not exist.",
+            {"missing_profile_references": missing_references},
+        )
+
+
 def _build_legacy_capture_profile(
     settings: Settings, source: Literal["default", "override"]
 ) -> BackendProfileRecord:
@@ -1922,6 +1987,20 @@ async def delete_backend_profile_record(
     settings: Settings = Depends(_require_backend_admin),
 ) -> Response:
     """Delete an operator-managed backend profile."""
+    normalized_profile_id = profile_id.strip()
+    bindings_in_use = [
+        binding.feature_key
+        for binding in list_feature_bindings(settings.storage_base_dir)
+        if binding.primary_backend_profile_id == normalized_profile_id
+        or binding.fallback_backend_profile_id == normalized_profile_id
+    ]
+    if bindings_in_use:
+        _raise_api_error(
+            409,
+            "BACKEND_PROFILE_IN_USE",
+            "Backend profile is still referenced by an existing feature binding.",
+            {"feature_keys": sorted(bindings_in_use)},
+        )
     deleted = delete_backend_profile(settings.storage_base_dir, profile_id)
     if not deleted:
         _raise_api_error(404, "BACKEND_PROFILE_NOT_FOUND", "Backend profile was not found.")
@@ -1973,6 +2052,7 @@ async def put_backend_feature_binding(
             "FEATURE_BINDING_KEY_MISMATCH",
             "feature_key path parameter must match payload.feature_key.",
         )
+    _validate_feature_binding_profile_references(settings, normalized_payload)
     return upsert_feature_binding(settings.storage_base_dir, normalized_payload)
 
 

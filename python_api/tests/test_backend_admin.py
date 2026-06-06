@@ -8,7 +8,47 @@ from fastapi import HTTPException
 fastapi_dependency_utils.ensure_multipart_is_installed = lambda: None
 
 from api_server import main
-from api_server.models import BackendEndpointUpdateRequest
+from api_server.backend_bindings_store import (
+    get_backend_profile,
+    get_feature_binding,
+    upsert_backend_profile,
+    upsert_feature_binding,
+)
+from api_server.models import (
+    BackendAuthStrategyModel,
+    BackendEndpointUpdateRequest,
+    BackendHealthSnapshotModel,
+    BackendProfileRecord,
+    FeatureBindingRecord,
+)
+
+
+def create_backend_profile(**overrides: object) -> BackendProfileRecord:
+    payload = {
+        "id": "summary-primary",
+        "label": "Summary primary",
+        "kind": "llm",
+        "base_url": "https://summary.example.com",
+        "transport": "http",
+        "auth_strategy": BackendAuthStrategyModel(type="none"),
+        "capabilities": ["artifact.summary"],
+        "default_model": "gpt-5-mini",
+        "enabled": True,
+        "metadata": {},
+        "health": BackendHealthSnapshotModel(status="healthy"),
+    }
+    payload.update(overrides)
+    return BackendProfileRecord.model_validate(payload)
+
+
+def create_feature_binding(**overrides: object) -> FeatureBindingRecord:
+    payload = {
+        "feature_key": "artifact.summary",
+        "primary_backend_profile_id": "summary-primary",
+        "enabled": True,
+    }
+    payload.update(overrides)
+    return FeatureBindingRecord.model_validate(payload)
 
 
 def test_require_backend_admin_allows_missing_token_when_not_required(
@@ -106,3 +146,47 @@ def test_set_backend_endpoint_forwards_null_credentials_to_override_apply(
     assert response.auth_enabled is False
     assert response.has_client_id is False
     assert response.has_client_secret is False
+
+
+def test_delete_backend_profile_rejects_when_binding_still_references_it(
+    tmp_path,
+) -> None:
+    settings = SimpleNamespace(storage_base_dir=tmp_path)
+    upsert_backend_profile(tmp_path, create_backend_profile())
+    upsert_feature_binding(tmp_path, create_feature_binding())
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(main.delete_backend_profile_record("summary-primary", settings))
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["error"]["code"] == "BACKEND_PROFILE_IN_USE"
+    assert get_backend_profile(tmp_path, "summary-primary") is not None
+
+
+def test_put_backend_feature_binding_rejects_missing_primary_profile_reference(
+    tmp_path,
+) -> None:
+    settings = SimpleNamespace(storage_base_dir=tmp_path)
+    payload = create_feature_binding(primary_backend_profile_id="missing-profile")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(main.put_backend_feature_binding("artifact.summary", payload, settings))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["error"]["code"] == "FEATURE_BINDING_PROFILE_NOT_FOUND"
+    assert get_feature_binding(tmp_path, "artifact.summary") is None
+
+
+def test_put_backend_feature_binding_rejects_missing_fallback_profile_reference(
+    tmp_path,
+) -> None:
+    settings = SimpleNamespace(storage_base_dir=tmp_path)
+    upsert_backend_profile(tmp_path, create_backend_profile())
+    payload = create_feature_binding(fallback_backend_profile_id="missing-fallback")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(main.put_backend_feature_binding("artifact.summary", payload, settings))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["error"]["code"] == "FEATURE_BINDING_PROFILE_NOT_FOUND"
+    assert get_feature_binding(tmp_path, "artifact.summary") is None
