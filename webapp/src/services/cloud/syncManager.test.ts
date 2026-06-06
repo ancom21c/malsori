@@ -597,6 +597,69 @@ describe("SyncManager", () => {
     expect(segments[0]?.id).toBe("seg-missing-local");
   });
 
+  it("clears stale local media when refreshing a newer downloaded cloud record", async () => {
+    const recordId = "cloud-refresh-clears-stale-media";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+        transcriptText: "local transcript",
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-refresh-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-refresh-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([1, 2, 3]).buffer,
+      mimeType: "audio/webm",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.videoChunks.add({
+      id: "video-refresh-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([4, 5, 6]).buffer,
+      mimeType: "video/webm",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+      transcriptText: "cloud transcript",
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-refresh-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1100,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pullUpdates();
+
+    expect(summary.failed).toBe(0);
+    await expect(appDb.audioChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
+    await expect(appDb.videoChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
+  });
+
   it("fails full download when cloud segments are missing instead of marking the record downloaded", async () => {
     const recordId = "cloud-download-missing";
     const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();

@@ -78,6 +78,7 @@
 - [x] Round 11: full cloud download가 더 이상 존재하지 않는 audio/video artifact를 local store에 남겨두는 parity/lifecycle drift를 regression test와 missing-media clear로 막았다.
 - [x] Round 12: post-deploy UI smoke가 같은 browser context의 두 번째 `/` bootstrap을 900ms 고정 대기 후 바로 blank screen으로 오판하는 verification/bootstrap drift를 root-text stabilization과 regression test로 막았다.
 - [x] Round 13: backend profile delete / feature binding write가 nonexistent profile reference를 허용해 broken binding state를 저장하던 stable-ID/read-write drift를 admin endpoint validation과 regression test로 막았다.
+- [x] Round 14: downloaded cloud refresh pull이 segment만 갱신하고 stale local audio/video artifact를 남기는 parity drift를 regression test와 media refresh relink로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

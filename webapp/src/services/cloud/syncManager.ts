@@ -243,6 +243,7 @@ export class SyncManager {
                         let nextSegments: LocalSegment[] | null = null;
                         if (localRecord.downloadStatus === "downloaded") {
                             nextSegments = await this.downloadCloudSegments(folder.id, transcriptionId);
+                            await this.downloadMediaFiles(transcriptionId, folder.id);
                         }
 
                         await appDb.transaction(
