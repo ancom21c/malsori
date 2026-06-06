@@ -54,7 +54,10 @@ async function parseBlobJson(blob: unknown): Promise<Record<string, unknown>> {
   throw new Error("Blob payload is not readable");
 }
 
-function createPushDriveServiceMock(recordId: string, options?: { uploadError?: Error }) {
+function createPushDriveServiceMock(
+  recordId: string,
+  options?: { uploadError?: Error; existingFiles?: DriveFile[] }
+) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
   const transcriptionsFolder: DriveFile = {
     id: "transcriptions-folder",
@@ -66,6 +69,7 @@ function createPushDriveServiceMock(recordId: string, options?: { uploadError?: 
     name: recordId,
     mimeType: FOLDER_MIME,
   };
+  const existingFiles = options?.existingFiles ?? [];
 
   const listFiles = vi.fn(async (query: string): Promise<DriveFile[]> => {
     if (query.includes("name = 'Malsori Data'")) {
@@ -76,6 +80,9 @@ function createPushDriveServiceMock(recordId: string, options?: { uploadError?: 
     }
     if (query.includes(`name = '${recordId}'`) && query.includes("'transcriptions-folder' in parents")) {
       return [recordFolder];
+    }
+    if (query.includes(`'${recordFolder.id}' in parents`)) {
+      return existingFiles.filter((file) => query.includes(`name = '${file.name}'`));
     }
     return [];
   });
@@ -107,14 +114,17 @@ function createPushDriveServiceMock(recordId: string, options?: { uploadError?: 
     }
   );
 
+  const deleteFile = vi.fn(async (): Promise<void> => {});
+
   const service = {
     listFiles,
     createFolder,
     downloadFile,
     uploadFile,
+    deleteFile,
   } as unknown as GoogleDriveService;
 
-  return { service, listFiles, createFolder, downloadFile, uploadFile };
+  return { service, listFiles, createFolder, downloadFile, uploadFile, deleteFile };
 }
 
 function createPullDriveServiceMock(
@@ -317,6 +327,30 @@ describe("SyncManager", () => {
     const nextAttempt = Date.parse(stored?.nextSyncAttemptAt ?? "");
     expect(Number.isFinite(nextAttempt)).toBe(true);
     expect(nextAttempt).toBeGreaterThan(startTime);
+  });
+
+  it("deletes stale remote media artifacts when the local record no longer has media", async () => {
+    const record = buildLocalRecord("tx-prune-media", {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+    });
+    await appDb.transcriptions.put(record);
+
+    const { service, deleteFile } = createPushDriveServiceMock(record.id, {
+      existingFiles: [
+        { id: "remote-audio", name: "audio.webm", mimeType: "audio/webm" },
+        { id: "remote-video", name: "video.mp4", mimeType: "video/mp4" },
+      ],
+    });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pushUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(deleteFile.mock.calls).toEqual(
+      expect.arrayContaining([["remote-audio"], ["remote-video"]])
+    );
   });
 
   it("sanitizes retry/source-local fields when pulling cloud metadata", async () => {

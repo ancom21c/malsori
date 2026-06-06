@@ -367,10 +367,14 @@ export class SyncManager {
     }
 
     private async uploadMediaFiles(record: LocalTranscription, folderId: string) {
+        const audioFilenames = ["audio.wav", "audio.webm"] as const;
+        const videoFilenames = ["video.webm", "video.mp4"] as const;
+
         // Audio
         const audioChunks = (
             await appDb.audioChunks.where("transcriptionId").equals(record.id).sortBy("chunkIndex")
         ).filter((chunk) => chunk.role !== "source_file");
+        let uploadedAudioName: (typeof audioFilenames)[number] | null = null;
         if (audioChunks.length > 0) {
             const sourceMimeType = audioChunks.find((chunk) => chunk.mimeType)?.mimeType;
             const firstChunk = audioChunks[0]?.data;
@@ -397,13 +401,16 @@ export class SyncManager {
                 );
                 if (wavBlob) {
                     await this.uploadOrUpdateFile("audio.wav", wavBlob, folderId, "audio/wav");
+                    uploadedAudioName = "audio.wav";
                 }
             } else if (sourceMimeType.toLowerCase().includes("wav") && mimeLooksEncoded) {
                 const audioBlob = new Blob(audioChunks.map((c) => c.data), { type: "audio/wav" });
                 await this.uploadOrUpdateFile("audio.wav", audioBlob, folderId, "audio/wav");
+                uploadedAudioName = "audio.wav";
             } else if (sourceMimeType.toLowerCase().includes("webm") && mimeLooksEncoded) {
                 const audioBlob = new Blob(audioChunks.map((c) => c.data), { type: "audio/webm" });
                 await this.uploadOrUpdateFile("audio.webm", audioBlob, folderId, "audio/webm");
+                uploadedAudioName = "audio.webm";
             } else {
                 const sampleRate =
                     record.audioSampleRate ??
@@ -417,8 +424,17 @@ export class SyncManager {
                 );
                 if (wavBlob) {
                     await this.uploadOrUpdateFile("audio.wav", wavBlob, folderId, "audio/wav");
+                    uploadedAudioName = "audio.wav";
                 }
             }
+            if (uploadedAudioName) {
+                await this.deleteRemoteFiles(
+                    audioFilenames.filter((name) => name !== uploadedAudioName),
+                    folderId
+                );
+            }
+        } else {
+            await this.deleteRemoteFiles([...audioFilenames], folderId);
         }
 
         // Video
@@ -428,6 +444,9 @@ export class SyncManager {
             const videoName = determineVideoFilename(mimeType);
             const videoBlob = new Blob(videoChunks.map((c) => c.data), { type: mimeType });
             await this.uploadOrUpdateFile(videoName, videoBlob, folderId, mimeType);
+            await this.deleteRemoteFiles(videoFilenames.filter((name) => name !== videoName), folderId);
+        } else {
+            await this.deleteRemoteFiles([...videoFilenames], folderId);
         }
     }
 
@@ -440,6 +459,15 @@ export class SyncManager {
         } else {
             await this.driveService.uploadFile(name, blob, parentId, mimeType);
         }
+    }
+
+    private async deleteRemoteFiles(names: string[], parentId: string) {
+        if (names.length === 0) {
+            return;
+        }
+        const query = `(${names.map((name) => `name = '${name}'`).join(" or ")}) and '${parentId}' in parents and trashed = false`;
+        const files = await this.driveService.listFiles(query);
+        await Promise.all(files.map((file) => this.driveService.deleteFile(file.id)));
     }
 
     private async downloadCloudSegments(folderId: string, transcriptionId: string): Promise<LocalSegment[]> {
