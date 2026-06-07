@@ -83,6 +83,7 @@
 - [x] Round 16: cloud pull ghost-record 생성이 `metadata.json`의 drifted `id`를 그대로 저장해 folder key와 local record/search index key를 갈라놓는 stable-ID drift를 canonical folder-id write와 regression test로 막았다.
 - [x] Round 17: cloud metadata에 client-local lifecycle flag(`downloadStatus`/`lastSyncedAt`/`isCloudSynced`)가 섞여 pull refresh가 not-downloaded record를 downloaded로 오염시키는 read/write drift를 metadata sanitize와 local-state preserve regression test로 막았다.
 - [x] Round 18: cloud media refresh가 audio를 먼저 저장한 뒤 video download에서 실패하면 local media가 반쯤 교체되는 read/write inconsistency를 staged download + single transaction과 regression test로 막았다.
+- [x] Round 19: full download가 segments를 먼저 교체한 뒤 media fetch에서 실패하면 `not_downloaded` 상태에 새 cloud segments가 남는 read/write inconsistency를 staged media fetch와 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## Review Checklist (Implementation Review)

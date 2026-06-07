@@ -887,6 +887,79 @@ describe("SyncManager", () => {
     expect(segments[0]?.id).toBe("seg-download-missing-local");
   });
 
+  it("does not partially replace local segments when full download media fetch fails", async () => {
+    const recordId = "cloud-download-media-failure";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-download-failure-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-download-failure-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([9, 9, 9]).buffer,
+      mimeType: "audio/webm",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-download-failure-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, {
+      segments: cloudSegments,
+      audioFile: {
+        id: "audio-file",
+        name: "audio.webm",
+        mimeType: "audio/webm",
+        payload: new Uint8Array([1, 2, 3]),
+      },
+      videoFile: {
+        id: "video-file",
+        name: "video.webm",
+        mimeType: "video/webm",
+        payload: new Uint8Array([4, 5, 6]),
+      },
+      failingDownloadFileIds: ["video-file"],
+    });
+    const manager = new SyncManager(service);
+
+    await expect(manager.downloadFullRecord(recordId)).rejects.toThrow("download failed: video-file");
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-download-failure-local");
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(1);
+    expect(Array.from(new Uint8Array(audioChunks[0]?.data ?? new ArrayBuffer(0)))).toEqual([9, 9, 9]);
+  });
+
   it("clears stale local media artifacts when the cloud record no longer has them", async () => {
     const recordId = "cloud-download-clears-stale-media";
     const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();

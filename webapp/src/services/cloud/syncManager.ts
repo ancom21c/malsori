@@ -515,6 +515,7 @@ export class SyncManager {
         try {
             // Download segments.json
             const segments = await this.downloadCloudSegments(folderId, transcriptionId);
+            const media = await this.downloadRemoteMediaFiles(folderId);
             const sourceRevision =
                 (await appDb.transcriptions.get(transcriptionId))?.updatedAt ?? new Date().toISOString();
             await replaceCloudSegmentsWithStateGuard({
@@ -525,7 +526,7 @@ export class SyncManager {
             });
 
             // Download Media Files
-            await this.downloadMediaFiles(transcriptionId, folderId);
+            await this.replaceLocalMediaFiles(transcriptionId, media);
 
             // Update status
             await appDb.transcriptions.update(transcriptionId, {
@@ -539,42 +540,60 @@ export class SyncManager {
     }
 
     private async downloadMediaFiles(transcriptionId: string, folderId: string) {
-        const nextAudio = await this.downloadRemoteMediaFile(
+        const media = await this.downloadRemoteMediaFiles(folderId);
+        await this.replaceLocalMediaFiles(transcriptionId, media);
+    }
+
+    private async downloadRemoteMediaFiles(folderId: string): Promise<{
+        audio: { data: ArrayBuffer; mimeType?: string } | null;
+        video: { data: ArrayBuffer; mimeType?: string } | null;
+    }> {
+        const audio = await this.downloadRemoteMediaFile(
             `(name = 'audio.wav' or name = 'audio.webm') and '${folderId}' in parents and trashed = false`,
             (files) =>
                 files.find((entry) => entry.name === "audio.wav") ??
                 files.find((entry) => entry.name === "audio.webm") ??
                 files[0]
         );
-        const nextVideo = await this.downloadRemoteMediaFile(
+        const video = await this.downloadRemoteMediaFile(
             `(name = 'video.webm' or name = 'video.mp4') and '${folderId}' in parents and trashed = false`,
             (files) =>
                 files.find((entry) => entry.name === "video.webm") ??
                 files.find((entry) => entry.name === "video.mp4") ??
                 files[0]
         );
+        return { audio, video };
+    }
+
+    private async replaceLocalMediaFiles(
+        transcriptionId: string,
+        media: {
+            audio: { data: ArrayBuffer; mimeType?: string } | null;
+            video: { data: ArrayBuffer; mimeType?: string } | null;
+        }
+    ) {
         const now = new Date().toISOString();
         await appDb.transaction("rw", [appDb.audioChunks, appDb.videoChunks], async () => {
             await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
-            if (nextAudio) {
+            if (media.audio) {
                 await appDb.audioChunks.add({
                     id: crypto.randomUUID(),
                     transcriptionId,
                     chunkIndex: 0,
-                    data: nextAudio.data,
-                    mimeType: nextAudio.mimeType,
+                    data: media.audio.data,
+                    mimeType: media.audio.mimeType,
                     createdAt: now,
                 });
             }
 
             await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
-            if (nextVideo) {
+            if (media.video) {
                 await appDb.videoChunks.add({
                     id: crypto.randomUUID(),
                     transcriptionId,
                     chunkIndex: 0,
-                    data: nextVideo.data,
-                    mimeType: nextVideo.mimeType,
+                    data: media.video.data,
+                    mimeType: media.video.mimeType,
                     createdAt: now,
                 });
             }
