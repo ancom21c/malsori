@@ -513,11 +513,21 @@ export class SyncManager {
         await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloading" });
 
         try {
+            const metadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
+            const metadataFiles = await this.driveService.listFiles(metadataQuery);
+            if (metadataFiles.length === 0) {
+                throw new Error(`Cloud metadata is missing for "${transcriptionId}"`);
+            }
+            const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
+            const metadataText = await metadataBlob.text();
+            const cloudMetadata = canonicalizeCloudMetadata(
+                transcriptionId,
+                JSON.parse(metadataText) as LocalTranscription
+            );
             // Download segments.json
             const segments = await this.downloadCloudSegments(folderId, transcriptionId);
             const media = await this.downloadRemoteMediaFiles(folderId);
-            const sourceRevision =
-                (await appDb.transcriptions.get(transcriptionId))?.updatedAt ?? new Date().toISOString();
+            const sourceRevision = cloudMetadata.updatedAt ?? new Date().toISOString();
             await replaceCloudSegmentsWithStateGuard({
                 transcriptionId,
                 segments,
@@ -528,10 +538,16 @@ export class SyncManager {
             // Download Media Files
             await this.replaceLocalMediaFiles(transcriptionId, media);
 
-            // Update status
-            await appDb.transcriptions.update(transcriptionId, {
-                downloadStatus: "downloaded",
-                lastSyncedAt: new Date().toISOString(),
+            // Update status and local metadata projection to the downloaded cloud truth.
+            const syncedAt = new Date().toISOString();
+            await appDb.transaction("rw", [appDb.transcriptions, appDb.searchIndexes], async () => {
+                await appDb.transcriptions.update(transcriptionId, {
+                    ...cloudMetadata,
+                    isCloudSynced: true,
+                    downloadStatus: "downloaded",
+                    lastSyncedAt: syncedAt,
+                });
+                await upsertTranscriptionSearchIndex(transcriptionId, cloudMetadata.transcriptText);
             });
         } catch (error) {
             await appDb.transcriptions.update(transcriptionId, { downloadStatus: "not_downloaded" });

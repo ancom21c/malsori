@@ -84,7 +84,12 @@
 - [x] Round 17: cloud metadata에 client-local lifecycle flag(`downloadStatus`/`lastSyncedAt`/`isCloudSynced`)가 섞여 pull refresh가 not-downloaded record를 downloaded로 오염시키는 read/write drift를 metadata sanitize와 local-state preserve regression test로 막았다.
 - [x] Round 18: cloud media refresh가 audio를 먼저 저장한 뒤 video download에서 실패하면 local media가 반쯤 교체되는 read/write inconsistency를 staged download + single transaction과 regression test로 막았다.
 - [x] Round 19: full download가 segments를 먼저 교체한 뒤 media fetch에서 실패하면 `not_downloaded` 상태에 새 cloud segments가 남는 read/write inconsistency를 staged media fetch와 regression test로 막았다.
+- [x] Round 20: full download가 newer cloud metadata를 다시 materialize하지 않아 stale title/transcript/search projection과 stale sourceRevision을 남기는 source-of-truth drift를 metadata fetch/apply와 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
+
+## P2 / Minor Issues
+
+- cloud pull/download path는 `searchTitle` / `searchTranscript` projection을 eager materialization하지 않고 일부 UI fallback(`title.toLowerCase()`)과 transcript search index에 의존한다. 현재 runtime correctness break는 확인되지 않아 P2로만 기록하고 보류한다.
 
 ## Review Checklist (Implementation Review)
 

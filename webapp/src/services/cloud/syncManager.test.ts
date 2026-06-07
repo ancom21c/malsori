@@ -555,7 +555,7 @@ describe("SyncManager", () => {
       buildLocalRecord(recordId, {
         isCloudSynced: true,
         downloadStatus: "downloaded",
-        updatedAt: cloudUpdatedAt,
+        updatedAt: localUpdatedAt,
       })
     );
     await appDb.segments.add({
@@ -619,6 +619,8 @@ describe("SyncManager", () => {
 
     await manager.downloadFullRecord(recordId);
 
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(cloudUpdatedAt);
     const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
     expect(segments).toHaveLength(1);
     expect(segments[0]?.id).toBe("seg-download-cloud");
@@ -631,6 +633,51 @@ describe("SyncManager", () => {
     const publishedSummary = await appDb.publishedSummaries.get(`${recordId}-full`);
     expect(publishedSummary?.freshness).toBe("stale");
     expect(publishedSummary?.staleReason).toBe("partition_boundary_change");
+  });
+
+  it("refreshes transcription metadata and search index when full download materializes newer cloud data", async () => {
+    const recordId = "cloud-download-metadata-refresh";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+        transcriptText: "local transcript",
+      })
+    );
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+      title: "cloud title",
+      transcriptText: "cloud transcript",
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-download-metadata-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    const manager = new SyncManager(service);
+
+    await manager.downloadFullRecord(recordId);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("downloaded");
+    expect(stored?.updatedAt).toBe(cloudUpdatedAt);
+    expect(stored?.title).toBe("cloud title");
+    expect(stored?.transcriptText).toBe("cloud transcript");
+    const searchIndex = await appDb.searchIndexes.get(recordId);
+    expect(searchIndex?.normalizedTranscript).toContain("cloud");
   });
 
   it("builds search index for pulled ghost records when transcript text is present", async () => {
@@ -885,6 +932,78 @@ describe("SyncManager", () => {
     const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
     expect(segments).toHaveLength(1);
     expect(segments[0]?.id).toBe("seg-download-missing-local");
+  });
+
+  it("fails full download when cloud metadata is missing instead of applying partial artifacts", async () => {
+    const recordId = "cloud-download-missing-metadata";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-download-missing-metadata-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: new Date().toISOString(),
+      title: "cloud title",
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-download-missing-metadata-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text",
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const { service, listFiles } = createPullDriveServiceMock(cloudRecord, { segments: cloudSegments });
+    listFiles.mockImplementation(async (query: string) => {
+      if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder' in parents")) {
+        return [];
+      }
+      if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder' in parents")) {
+        return [{ id: "segments-file", name: "segments.json", mimeType: "application/json" }];
+      }
+      if (query.includes("name = 'Malsori Data'")) {
+        return [{ id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME }];
+      }
+      if (query.includes("name = 'transcriptions'")) {
+        return [{ id: "transcriptions-folder", name: "transcriptions", mimeType: FOLDER_MIME }];
+      }
+      if (
+        query.includes("'transcriptions-folder' in parents") &&
+        query.includes("mimeType = 'application/vnd.google-apps.folder'")
+      ) {
+        return [{ id: "cloud-folder", name: recordId, mimeType: FOLDER_MIME }];
+      }
+      return [];
+    });
+    const manager = new SyncManager(service);
+
+    await expect(manager.downloadFullRecord(recordId)).rejects.toThrow(
+      'Cloud metadata is missing for "cloud-download-missing-metadata"'
+    );
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    expect(stored?.title).toBe("local title");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-download-missing-metadata-local");
   });
 
   it("does not partially replace local segments when full download media fetch fails", async () => {
