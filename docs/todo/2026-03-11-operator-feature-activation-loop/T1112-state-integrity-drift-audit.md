@@ -88,6 +88,8 @@
 - [x] Round 21: cloud push가 metadata를 먼저 publish한 뒤 artifact upload에서 실패하면 다른 client가 newer metadata와 stale artifact를 함께 읽는 source-of-truth drift를 metadata-last publish ordering과 regression test로 막았다.
 - [x] Round 22: cloud pull/full-download가 stale `searchTitle/searchTranscript` projection을 그대로 보존해 title filter/read model이 cloud truth와 어긋나는 bug를 derived projection 재계산과 regression test로 막았다.
 - [x] Round 23: cloud push retry가 `metadata.json` file mtime만 보고 newer cloud로 오판해 partial-publish legacy state를 영구 skip하는 recovery/source-of-truth drift를 metadata payload revision compare와 regression test로 막았다.
+- [x] Round 24: in-flight full download가 더 새로운 cloud revision이 생긴 뒤에도 오래된 snapshot을 그대로 apply해 `updatedAt`/metadata/artifact를 rollback하던 lifecycle/read-write drift를 remote recheck + pre-apply revision guard와 regression test로 막았다.
+- [x] Round 25: downloaded pull refresh도 artifact fetch 뒤 revision recheck 없이 stale snapshot을 apply해 local downloaded state를 rollback하던 lifecycle/read-write drift를 staged media apply + pre-apply revision guard와 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## P2 / Minor Issues

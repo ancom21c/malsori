@@ -214,7 +214,7 @@ export class SyncManager {
     async pullUpdates(): Promise<SyncRunSummary> {
         let processed = 0;
         let failed = 0;
-        let skipped = 0;
+        const skipped = 0;
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const query = `'${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
         const cloudFolders = await this.driveService.listFiles(query);
@@ -228,18 +228,7 @@ export class SyncManager {
                 const localRecord = await appDb.transcriptions.get(transcriptionId);
 
                 // Get metadata.json from cloud folder
-                const metadataQuery = `name = 'metadata.json' and '${folder.id}' in parents and trashed = false`;
-                const metadataFiles = await this.driveService.listFiles(metadataQuery);
-
-                if (metadataFiles.length === 0) {
-                    skipped += 1;
-                    continue;
-                }
-
-                const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
-                const metadataText = await metadataBlob.text();
-                const cloudMetadata: LocalTranscription = JSON.parse(metadataText);
-                const normalizedCloudMetadata = canonicalizeCloudMetadata(transcriptionId, cloudMetadata);
+                const normalizedCloudMetadata = await this.downloadCloudMetadata(folder.id, transcriptionId);
 
                 if (!localRecord) {
                     // Create Ghost Record
@@ -262,9 +251,26 @@ export class SyncManager {
 
                     if (cloudUpdate > localUpdate) {
                         let nextSegments: LocalSegment[] | null = null;
+                        let nextMedia:
+                            | {
+                                  audio: { data: ArrayBuffer; mimeType?: string } | null;
+                                  video: { data: ArrayBuffer; mimeType?: string } | null;
+                              }
+                            | null = null;
+                        let nextMetadata = normalizedCloudMetadata;
                         if (localRecord.downloadStatus === "downloaded") {
                             nextSegments = await this.downloadCloudSegments(folder.id, transcriptionId);
-                            await this.downloadMediaFiles(transcriptionId, folder.id);
+                            nextMedia = await this.downloadRemoteMediaFiles(folder.id);
+                            nextMetadata = await this.downloadCloudMetadata(folder.id, transcriptionId);
+                            const currentRecord = await appDb.transcriptions.get(transcriptionId);
+                            const currentUpdate = parseIsoMillis(currentRecord?.updatedAt);
+                            const latestCloudUpdate = parseIsoMillis(nextMetadata.updatedAt);
+                            if (
+                                (latestCloudUpdate !== null && latestCloudUpdate > cloudUpdate) ||
+                                (currentUpdate !== null && currentUpdate > cloudUpdate)
+                            ) {
+                                throw new Error(`Cloud record changed while pulling "${transcriptionId}"`);
+                            }
                         }
 
                         await appDb.transaction(
@@ -272,22 +278,25 @@ export class SyncManager {
                             [appDb.transcriptions, appDb.searchIndexes, appDb.segments],
                             async () => {
                                 await appDb.transcriptions.update(transcriptionId, {
-                                    ...normalizedCloudMetadata,
+                                    ...nextMetadata,
                                     isCloudSynced: true,
                                     downloadStatus: localRecord.downloadStatus,
                                     lastSyncedAt: syncedAt,
                                 });
                                 await upsertTranscriptionSearchIndex(
                                     transcriptionId,
-                                    normalizedCloudMetadata.transcriptText
+                                    nextMetadata.transcriptText
                                 );
                             }
                         );
+                        if (nextMedia) {
+                            await this.replaceLocalMediaFiles(transcriptionId, nextMedia);
+                        }
                         if (nextSegments) {
                             await replaceCloudSegmentsWithStateGuard({
                                 transcriptionId,
                                 segments: nextSegments,
-                                sourceRevision: normalizedCloudMetadata.updatedAt,
+                                sourceRevision: nextMetadata.updatedAt,
                                 staleAt: syncedAt,
                             });
                         }
@@ -515,6 +524,17 @@ export class SyncManager {
         return parsed as LocalSegment[];
     }
 
+    private async downloadCloudMetadata(folderId: string, transcriptionId: string): Promise<LocalTranscription> {
+        const metadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
+        const metadataFiles = await this.driveService.listFiles(metadataQuery);
+        if (metadataFiles.length === 0) {
+            throw new Error(`Cloud metadata is missing for "${transcriptionId}"`);
+        }
+        const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
+        const metadataText = await metadataBlob.text();
+        return canonicalizeCloudMetadata(transcriptionId, JSON.parse(metadataText) as LocalTranscription);
+    }
+
     async downloadFullRecord(transcriptionId: string) {
         const transcriptionsFolderId = await this.getTranscriptionsFolder();
         const query = `name = '${transcriptionId}' and '${transcriptionsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -526,21 +546,23 @@ export class SyncManager {
         await appDb.transcriptions.update(transcriptionId, { downloadStatus: "downloading" });
 
         try {
-            const metadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
-            const metadataFiles = await this.driveService.listFiles(metadataQuery);
-            if (metadataFiles.length === 0) {
-                throw new Error(`Cloud metadata is missing for "${transcriptionId}"`);
-            }
-            const metadataBlob = await this.driveService.downloadFile(metadataFiles[0].id);
-            const metadataText = await metadataBlob.text();
-            const cloudMetadata = canonicalizeCloudMetadata(
-                transcriptionId,
-                JSON.parse(metadataText) as LocalTranscription
-            );
+            const cloudMetadata = await this.downloadCloudMetadata(folderId, transcriptionId);
             // Download segments.json
             const segments = await this.downloadCloudSegments(folderId, transcriptionId);
             const media = await this.downloadRemoteMediaFiles(folderId);
-            const sourceRevision = cloudMetadata.updatedAt ?? new Date().toISOString();
+            const latestCloudMetadata = await this.downloadCloudMetadata(folderId, transcriptionId);
+            const fetchedCloudUpdate = parseIsoMillis(cloudMetadata.updatedAt);
+            const latestCloudUpdate = parseIsoMillis(latestCloudMetadata.updatedAt);
+            const currentRecord = await appDb.transcriptions.get(transcriptionId);
+            const currentUpdate = parseIsoMillis(currentRecord?.updatedAt);
+            if (
+                fetchedCloudUpdate !== null &&
+                ((latestCloudUpdate !== null && latestCloudUpdate > fetchedCloudUpdate) ||
+                    (currentUpdate !== null && currentUpdate > fetchedCloudUpdate))
+            ) {
+                throw new Error(`Cloud record changed while downloading "${transcriptionId}"`);
+            }
+            const sourceRevision = latestCloudMetadata.updatedAt ?? new Date().toISOString();
             await replaceCloudSegmentsWithStateGuard({
                 transcriptionId,
                 segments,
@@ -555,22 +577,17 @@ export class SyncManager {
             const syncedAt = new Date().toISOString();
             await appDb.transaction("rw", [appDb.transcriptions, appDb.searchIndexes], async () => {
                 await appDb.transcriptions.update(transcriptionId, {
-                    ...cloudMetadata,
+                    ...latestCloudMetadata,
                     isCloudSynced: true,
                     downloadStatus: "downloaded",
                     lastSyncedAt: syncedAt,
                 });
-                await upsertTranscriptionSearchIndex(transcriptionId, cloudMetadata.transcriptText);
+                await upsertTranscriptionSearchIndex(transcriptionId, latestCloudMetadata.transcriptText);
             });
         } catch (error) {
             await appDb.transcriptions.update(transcriptionId, { downloadStatus: "not_downloaded" });
             throw error;
         }
-    }
-
-    private async downloadMediaFiles(transcriptionId: string, folderId: string) {
-        const media = await this.downloadRemoteMediaFiles(folderId);
-        await this.replaceLocalMediaFiles(transcriptionId, media);
     }
 
     private async downloadRemoteMediaFiles(folderId: string): Promise<{

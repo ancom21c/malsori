@@ -54,6 +54,16 @@ async function parseBlobJson(blob: unknown): Promise<Record<string, unknown>> {
   throw new Error("Blob payload is not readable");
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function createPushDriveServiceMock(
   recordId: string,
   options?: {
@@ -674,6 +684,148 @@ describe("SyncManager", () => {
     expect(publishedSummary?.staleReason).toBe("partition_boundary_change");
   });
 
+  it("fails closed when a newer cloud revision lands during downloaded pull refresh", async () => {
+    const recordId = "cloud-refresh-concurrent-newer-revision";
+    const localUpdatedAt = new Date(Date.now() - 180_000).toISOString();
+    const cloudAUpdatedAt = new Date(Date.now() - 120_000).toISOString();
+    const cloudBUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const audioRequested = deferred<void>();
+    const audioPayload = deferred<Blob>();
+    let remoteMetadata = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudAUpdatedAt,
+      title: "cloud title a",
+      transcriptText: "cloud transcript a",
+    });
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+        transcriptText: "local transcript",
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-local-refresh-race",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-local-refresh-race",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([9, 9, 9]).buffer,
+      mimeType: "audio/wav",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudSegmentsA: LocalSegment[] = [
+      {
+        id: "seg-cloud-refresh-a",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text a",
+        createdAt: cloudAUpdatedAt,
+      },
+    ];
+    const service = {
+      listFiles: vi.fn(async (query: string): Promise<DriveFile[]> => {
+        if (query.includes("name = 'Malsori Data'")) {
+          return [{ id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'transcriptions'")) {
+          return [{ id: "transcriptions-folder", name: "transcriptions", mimeType: FOLDER_MIME }];
+        }
+        if (
+          query.includes("'transcriptions-folder' in parents") &&
+          query.includes("mimeType = 'application/vnd.google-apps.folder'")
+        ) {
+          return [{ id: "cloud-folder", name: recordId, mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "meta-file", name: "metadata.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "segments-file", name: "segments.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'audio.wav' or name = 'audio.webm'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "audio-file", name: "audio.wav", mimeType: "audio/wav" }];
+        }
+        if (query.includes("name = 'video.webm' or name = 'video.mp4'") && query.includes("'cloud-folder' in parents")) {
+          return [];
+        }
+        return [];
+      }),
+      createFolder: vi.fn(async (name: string): Promise<DriveFile> => ({
+        id: `created-${name}`,
+        name,
+        mimeType: FOLDER_MIME,
+      })),
+      downloadFile: vi.fn(async (fileId: string): Promise<Blob> => {
+        if (fileId === "meta-file") {
+          const payload = JSON.stringify(remoteMetadata);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "segments-file") {
+          const payload = JSON.stringify(cloudSegmentsA);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "audio-file") {
+          audioRequested.resolve();
+          return await audioPayload.promise;
+        }
+        throw new Error(`unexpected file: ${fileId}`);
+      }),
+      uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
+    } as unknown as GoogleDriveService;
+
+    const manager = new SyncManager(service);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const pullPromise = manager.pullUpdates();
+    await audioRequested.promise;
+
+    remoteMetadata = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudBUpdatedAt,
+      title: "cloud title b",
+      transcriptText: "cloud transcript b",
+    });
+    audioPayload.resolve({
+      text: async () => "",
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    } as unknown as Blob);
+
+    const summary = await pullPromise;
+    warnSpy.mockRestore();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(1);
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(localUpdatedAt);
+    expect(stored?.title).toBe("local title");
+    expect(stored?.transcriptText).toBe("local transcript");
+    expect(stored?.downloadStatus).toBe("downloaded");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-local-refresh-race");
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(1);
+    expect(new Uint8Array(audioChunks[0]?.data ?? new ArrayBuffer(0))).toEqual(new Uint8Array([9, 9, 9]));
+  });
+
   it("preserves a not-downloaded local lifecycle state when pulling newer cloud metadata", async () => {
     const recordId = "cloud-not-downloaded";
     const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
@@ -841,6 +993,264 @@ describe("SyncManager", () => {
     expect(stored?.searchTitle).toBe("cloud title");
     const searchIndex = await appDb.searchIndexes.get(recordId);
     expect(searchIndex?.normalizedTranscript).toContain("cloud");
+  });
+
+  it("fails closed when a newer cloud revision lands during full download", async () => {
+    const recordId = "cloud-download-concurrent-newer-revision";
+    const localUpdatedAt = new Date(Date.now() - 180_000).toISOString();
+    const cloudAUpdatedAt = new Date(Date.now() - 120_000).toISOString();
+    const cloudBUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const audioRequested = deferred<void>();
+    const audioPayload = deferred<Blob>();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+        transcriptText: "local transcript",
+      })
+    );
+
+    const oldCloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudAUpdatedAt,
+      title: "cloud title a",
+      transcriptText: "cloud transcript a",
+    });
+    const oldCloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud-a",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text a",
+        createdAt: cloudAUpdatedAt,
+      },
+    ];
+    const oldCloudService = {
+      listFiles: vi.fn(async (query: string): Promise<DriveFile[]> => {
+        if (query.includes("name = 'Malsori Data'")) {
+          return [{ id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'transcriptions'")) {
+          return [{ id: "transcriptions-folder", name: "transcriptions", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes(`name = '${recordId}'`) && query.includes("'transcriptions-folder' in parents")) {
+          return [{ id: "cloud-folder-a", name: recordId, mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder-a' in parents")) {
+          return [{ id: "meta-file-a", name: "metadata.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder-a' in parents")) {
+          return [{ id: "segments-file-a", name: "segments.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'audio.wav' or name = 'audio.webm'") && query.includes("'cloud-folder-a' in parents")) {
+          return [{ id: "audio-file-a", name: "audio.wav", mimeType: "audio/wav" }];
+        }
+        if (query.includes("name = 'video.webm' or name = 'video.mp4'") && query.includes("'cloud-folder-a' in parents")) {
+          return [];
+        }
+        return [];
+      }),
+      createFolder: vi.fn(async (name: string): Promise<DriveFile> => ({
+        id: `created-${name}`,
+        name,
+        mimeType: FOLDER_MIME,
+      })),
+      downloadFile: vi.fn(async (fileId: string): Promise<Blob> => {
+        if (fileId === "meta-file-a") {
+          const payload = JSON.stringify(oldCloudRecord);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "segments-file-a") {
+          const payload = JSON.stringify(oldCloudSegments);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "audio-file-a") {
+          audioRequested.resolve();
+          return await audioPayload.promise;
+        }
+        throw new Error(`unexpected file: ${fileId}`);
+      }),
+      uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
+    } as unknown as GoogleDriveService;
+
+    const newerCloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudBUpdatedAt,
+      title: "cloud title b",
+      transcriptText: "cloud transcript b",
+    });
+    const newerCloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud-b",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text b",
+        createdAt: cloudBUpdatedAt,
+      },
+    ];
+    const { service: newerCloudService } = createPullDriveServiceMock(newerCloudRecord, {
+      segments: newerCloudSegments,
+    });
+
+    const oldManager = new SyncManager(oldCloudService);
+    const newerManager = new SyncManager(newerCloudService);
+
+    const downloadPromise = oldManager.downloadFullRecord(recordId);
+    await audioRequested.promise;
+
+    const pullSummary = await newerManager.pullUpdates();
+    expect(pullSummary.failed).toBe(0);
+    const midFlightRecord = await appDb.transcriptions.get(recordId);
+    expect(midFlightRecord?.updatedAt).toBe(cloudBUpdatedAt);
+    expect(midFlightRecord?.downloadStatus).toBe("downloading");
+
+    audioPayload.resolve({
+      text: async () => "",
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    } as unknown as Blob);
+
+    await expect(downloadPromise).rejects.toThrow(`Cloud record changed while downloading "${recordId}"`);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(cloudBUpdatedAt);
+    expect(stored?.title).toBe("cloud title b");
+    expect(stored?.transcriptText).toBe("cloud transcript b");
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    const searchIndex = await appDb.searchIndexes.get(recordId);
+    expect(searchIndex?.normalizedTranscript).toContain("cloud");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(0);
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(0);
+  });
+
+  it("rechecks remote metadata before applying a full download snapshot", async () => {
+    const recordId = "cloud-download-remote-revision-advanced";
+    const localUpdatedAt = new Date(Date.now() - 180_000).toISOString();
+    const cloudAUpdatedAt = new Date(Date.now() - 120_000).toISOString();
+    const cloudBUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const audioRequested = deferred<void>();
+    const audioPayload = deferred<Blob>();
+    let remoteMetadata = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudAUpdatedAt,
+      title: "cloud title a",
+      transcriptText: "cloud transcript a",
+    });
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+        transcriptText: "local transcript",
+      })
+    );
+
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud-snapshot",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text a",
+        createdAt: cloudAUpdatedAt,
+      },
+    ];
+    const service = {
+      listFiles: vi.fn(async (query: string): Promise<DriveFile[]> => {
+        if (query.includes("name = 'Malsori Data'")) {
+          return [{ id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'transcriptions'")) {
+          return [{ id: "transcriptions-folder", name: "transcriptions", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes(`name = '${recordId}'`) && query.includes("'transcriptions-folder' in parents")) {
+          return [{ id: "cloud-folder", name: recordId, mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "meta-file", name: "metadata.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "segments-file", name: "segments.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'audio.wav' or name = 'audio.webm'") && query.includes("'cloud-folder' in parents")) {
+          return [{ id: "audio-file", name: "audio.wav", mimeType: "audio/wav" }];
+        }
+        if (query.includes("name = 'video.webm' or name = 'video.mp4'") && query.includes("'cloud-folder' in parents")) {
+          return [];
+        }
+        return [];
+      }),
+      createFolder: vi.fn(async (name: string): Promise<DriveFile> => ({
+        id: `created-${name}`,
+        name,
+        mimeType: FOLDER_MIME,
+      })),
+      downloadFile: vi.fn(async (fileId: string): Promise<Blob> => {
+        if (fileId === "meta-file") {
+          const payload = JSON.stringify(remoteMetadata);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "segments-file") {
+          const payload = JSON.stringify(cloudSegments);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "audio-file") {
+          audioRequested.resolve();
+          return await audioPayload.promise;
+        }
+        throw new Error(`unexpected file: ${fileId}`);
+      }),
+      uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
+    } as unknown as GoogleDriveService;
+
+    const manager = new SyncManager(service);
+    const downloadPromise = manager.downloadFullRecord(recordId);
+    await audioRequested.promise;
+
+    remoteMetadata = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudBUpdatedAt,
+      title: "cloud title b",
+      transcriptText: "cloud transcript b",
+    });
+    audioPayload.resolve({
+      text: async () => "",
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    } as unknown as Blob);
+
+    await expect(downloadPromise).rejects.toThrow(`Cloud record changed while downloading "${recordId}"`);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(localUpdatedAt);
+    expect(stored?.title).toBe("local title");
+    expect(stored?.transcriptText).toBe("local transcript");
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(0);
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(0);
   });
 
   it("builds search index for pulled ghost records when transcript text is present", async () => {
