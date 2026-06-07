@@ -66,6 +66,9 @@ function resolveSyncErrorMessage(error: unknown): string {
 function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
     return {
         ...record,
+        isCloudSynced: undefined,
+        downloadStatus: undefined,
+        lastSyncedAt: undefined,
         syncRetryCount: undefined,
         nextSyncAttemptAt: undefined,
         syncErrorMessage: undefined,
@@ -267,8 +270,8 @@ export class SyncManager {
                                 await appDb.transcriptions.update(transcriptionId, {
                                     ...normalizedCloudMetadata,
                                     isCloudSynced: true,
+                                    downloadStatus: localRecord.downloadStatus,
                                     lastSyncedAt: syncedAt,
-                                    // Keep local download status unless we want to force re-download.
                                 });
                                 await upsertTranscriptionSearchIndex(
                                     transcriptionId,

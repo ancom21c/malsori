@@ -256,6 +256,7 @@ describe("SyncManager", () => {
     const record = buildLocalRecord("tx-sync", {
       isCloudSynced: true,
       downloadStatus: "downloaded",
+      lastSyncedAt: new Date(Date.now() - 1_000).toISOString(),
       syncRetryCount: 2,
       syncErrorMessage: "old error",
       sourceFileStorageState: "ready",
@@ -274,6 +275,9 @@ describe("SyncManager", () => {
     expect(metadataCall).toBeTruthy();
     const metadataBlob = metadataCall?.[1] as Blob;
     const metadataPayload = await parseBlobJson(metadataBlob);
+    expect(metadataPayload).not.toHaveProperty("isCloudSynced");
+    expect(metadataPayload).not.toHaveProperty("downloadStatus");
+    expect(metadataPayload).not.toHaveProperty("lastSyncedAt");
     expect(metadataPayload).not.toHaveProperty("syncRetryCount");
     expect(metadataPayload).not.toHaveProperty("nextSyncAttemptAt");
     expect(metadataPayload).not.toHaveProperty("syncErrorMessage");
@@ -502,6 +506,40 @@ describe("SyncManager", () => {
     const publishedSummary = await appDb.publishedSummaries.get(`${recordId}-full`);
     expect(publishedSummary?.freshness).toBe("stale");
     expect(publishedSummary?.staleReason).toBe("partition_boundary_change");
+  });
+
+  it("preserves a not-downloaded local lifecycle state when pulling newer cloud metadata", async () => {
+    const recordId = "cloud-not-downloaded";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date(Date.now()).toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        transcriptText: "local transcript",
+      })
+    );
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      lastSyncedAt: cloudUpdatedAt,
+      updatedAt: cloudUpdatedAt,
+      transcriptText: "cloud transcript",
+    });
+    const { service, downloadFile } = createPullDriveServiceMock(cloudRecord);
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pullUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+    expect(stored?.transcriptText).toBe("cloud transcript");
+    expect(downloadFile).toHaveBeenCalledWith("meta-file");
+    expect(downloadFile).not.toHaveBeenCalledWith("segments-file");
   });
 
   it("clears dependent translations and stales summaries when downloading replacement segments", async () => {
