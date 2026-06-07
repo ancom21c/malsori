@@ -66,6 +66,8 @@ function resolveSyncErrorMessage(error: unknown): string {
 function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
     return {
         ...record,
+        searchTitle: undefined,
+        searchTranscript: undefined,
         isCloudSynced: undefined,
         downloadStatus: undefined,
         lastSyncedAt: undefined,
@@ -85,6 +87,8 @@ function canonicalizeCloudMetadata(
     return {
         ...sanitizeCloudMetadata(record),
         id: transcriptionId,
+        searchTitle: normalizeSearchText(record.title),
+        searchTranscript: normalizeSearchText(record.transcriptText),
     };
 }
 

@@ -269,6 +269,8 @@ describe("SyncManager", () => {
       isCloudSynced: true,
       downloadStatus: "downloaded",
       lastSyncedAt: new Date(Date.now() - 1_000).toISOString(),
+      searchTitle: "stale local title",
+      searchTranscript: "stale local transcript",
       syncRetryCount: 2,
       syncErrorMessage: "old error",
       sourceFileStorageState: "ready",
@@ -287,6 +289,8 @@ describe("SyncManager", () => {
     expect(metadataCall).toBeTruthy();
     const metadataBlob = metadataCall?.[1] as Blob;
     const metadataPayload = await parseBlobJson(metadataBlob);
+    expect(metadataPayload).not.toHaveProperty("searchTitle");
+    expect(metadataPayload).not.toHaveProperty("searchTranscript");
     expect(metadataPayload).not.toHaveProperty("isCloudSynced");
     expect(metadataPayload).not.toHaveProperty("downloadStatus");
     expect(metadataPayload).not.toHaveProperty("lastSyncedAt");
@@ -435,6 +439,7 @@ describe("SyncManager", () => {
   it("canonicalizes cloud record identity to the folder name during pull", async () => {
     const cloudRecord = buildLocalRecord("metadata-id", {
       isCloudSynced: true,
+      title: "Cloud Title",
       transcriptText: "cloud transcript",
     });
     const { service } = createPullDriveServiceMock(cloudRecord, {
@@ -450,6 +455,7 @@ describe("SyncManager", () => {
     expect(stored).toBeTruthy();
     expect(stored?.id).toBe("folder-id");
     expect(stored?.transcriptText).toBe("cloud transcript");
+    expect(stored?.searchTitle).toBe("cloud title");
     expect(await appDb.transcriptions.get("metadata-id")).toBeUndefined();
     const searchIndex = await appDb.searchIndexes.get("folder-id");
     expect(searchIndex?.normalizedTranscript).toContain("cloud");
@@ -535,6 +541,7 @@ describe("SyncManager", () => {
     const stored = await appDb.transcriptions.get(recordId);
     expect(stored?.title).toBe("cloud-title");
     expect(stored?.transcriptText).toBe("new transcript");
+    expect(stored?.searchTitle).toBe("cloud-title");
 
     const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
     expect(segments).toHaveLength(1);
@@ -719,6 +726,7 @@ describe("SyncManager", () => {
     expect(stored?.updatedAt).toBe(cloudUpdatedAt);
     expect(stored?.title).toBe("cloud title");
     expect(stored?.transcriptText).toBe("cloud transcript");
+    expect(stored?.searchTitle).toBe("cloud title");
     const searchIndex = await appDb.searchIndexes.get(recordId);
     expect(searchIndex?.normalizedTranscript).toContain("cloud");
   });

@@ -86,11 +86,12 @@
 - [x] Round 19: full download가 segments를 먼저 교체한 뒤 media fetch에서 실패하면 `not_downloaded` 상태에 새 cloud segments가 남는 read/write inconsistency를 staged media fetch와 regression test로 막았다.
 - [x] Round 20: full download가 newer cloud metadata를 다시 materialize하지 않아 stale title/transcript/search projection과 stale sourceRevision을 남기는 source-of-truth drift를 metadata fetch/apply와 regression test로 막았다.
 - [x] Round 21: cloud push가 metadata를 먼저 publish한 뒤 artifact upload에서 실패하면 다른 client가 newer metadata와 stale artifact를 함께 읽는 source-of-truth drift를 metadata-last publish ordering과 regression test로 막았다.
+- [x] Round 22: cloud pull/full-download가 stale `searchTitle/searchTranscript` projection을 그대로 보존해 title filter/read model이 cloud truth와 어긋나는 bug를 derived projection 재계산과 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## P2 / Minor Issues
 
-- cloud pull/download path는 `searchTitle` / `searchTranscript` projection을 eager materialization하지 않고 일부 UI fallback(`title.toLowerCase()`)과 transcript search index에 의존한다. 현재 runtime correctness break는 확인되지 않아 P2로만 기록하고 보류한다.
+- 현재 새로운 P2/minor issue는 없다.
 
 ## Review Checklist (Implementation Review)
 
