@@ -32,7 +32,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloudIcon from "@mui/icons-material/Cloud";
 import CloudOffIcon from "@mui/icons-material/CloudOff";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
-import { updateLocalTranscription } from "../services/data/transcriptionRepository";
+import {
+  replaceDownloadStatusIfCurrent,
+  updateLocalTranscription,
+} from "../services/data/transcriptionRepository";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
@@ -455,7 +458,7 @@ export default function TranscriptionListPage() {
       enqueueSnackbar(t("downloadCompleted"), { variant: "success" });
     } catch (error) {
       console.error("Cloud download failed", error);
-      await updateLocalTranscription(transcription.id, { downloadStatus: "not_downloaded" });
+      await replaceDownloadStatusIfCurrent(transcription.id, "downloading", "not_downloaded");
       enqueueSnackbar(
         t("downloadFailed"),
         { variant: "error" }

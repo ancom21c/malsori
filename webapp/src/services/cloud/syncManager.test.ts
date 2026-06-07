@@ -1253,6 +1253,148 @@ describe("SyncManager", () => {
     expect(audioChunks).toHaveLength(0);
   });
 
+  it("does not downgrade a newer downloaded state after a stale full download fails", async () => {
+    const recordId = "cloud-download-preserve-newer-downloaded";
+    const localUpdatedAt = new Date(Date.now() - 180_000).toISOString();
+    const cloudAUpdatedAt = new Date(Date.now() - 120_000).toISOString();
+    const cloudBUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const oldAudioRequested = deferred<void>();
+    const oldAudioPayload = deferred<Blob>();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+        title: "local title",
+        transcriptText: "local transcript",
+      })
+    );
+
+    const oldCloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudAUpdatedAt,
+      title: "cloud title a",
+      transcriptText: "cloud transcript a",
+    });
+    const oldCloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud-preserve-old",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text a",
+        createdAt: cloudAUpdatedAt,
+      },
+    ];
+    const oldCloudService = {
+      listFiles: vi.fn(async (query: string): Promise<DriveFile[]> => {
+        if (query.includes("name = 'Malsori Data'")) {
+          return [{ id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'transcriptions'")) {
+          return [{ id: "transcriptions-folder", name: "transcriptions", mimeType: FOLDER_MIME }];
+        }
+        if (query.includes(`name = '${recordId}'`) && query.includes("'transcriptions-folder' in parents")) {
+          return [{ id: "cloud-folder-old", name: recordId, mimeType: FOLDER_MIME }];
+        }
+        if (query.includes("name = 'metadata.json'") && query.includes("'cloud-folder-old' in parents")) {
+          return [{ id: "meta-file-old", name: "metadata.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'segments.json'") && query.includes("'cloud-folder-old' in parents")) {
+          return [{ id: "segments-file-old", name: "segments.json", mimeType: "application/json" }];
+        }
+        if (query.includes("name = 'audio.wav' or name = 'audio.webm'") && query.includes("'cloud-folder-old' in parents")) {
+          return [{ id: "audio-file-old", name: "audio.wav", mimeType: "audio/wav" }];
+        }
+        if (query.includes("name = 'video.webm' or name = 'video.mp4'") && query.includes("'cloud-folder-old' in parents")) {
+          return [];
+        }
+        return [];
+      }),
+      createFolder: vi.fn(async (name: string): Promise<DriveFile> => ({
+        id: `created-${name}`,
+        name,
+        mimeType: FOLDER_MIME,
+      })),
+      downloadFile: vi.fn(async (fileId: string): Promise<Blob> => {
+        if (fileId === "meta-file-old") {
+          const payload = JSON.stringify(oldCloudRecord);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "segments-file-old") {
+          const payload = JSON.stringify(oldCloudSegments);
+          return {
+            text: async () => payload,
+            arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+          } as unknown as Blob;
+        }
+        if (fileId === "audio-file-old") {
+          oldAudioRequested.resolve();
+          return await oldAudioPayload.promise;
+        }
+        throw new Error(`unexpected file: ${fileId}`);
+      }),
+      uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
+    } as unknown as GoogleDriveService;
+
+    const newerCloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudBUpdatedAt,
+      title: "cloud title b",
+      transcriptText: "cloud transcript b",
+    });
+    const newerCloudSegments: LocalSegment[] = [
+      {
+        id: "seg-cloud-preserve-new",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text b",
+        createdAt: cloudBUpdatedAt,
+      },
+    ];
+    const { service: newerCloudService } = createPullDriveServiceMock(newerCloudRecord, {
+      segments: newerCloudSegments,
+      audioFile: {
+        id: "audio-file-new",
+        name: "audio.wav",
+        mimeType: "audio/wav",
+        payload: new Uint8Array([7, 8, 9]),
+      },
+    });
+
+    const oldManager = new SyncManager(oldCloudService);
+    const newerManager = new SyncManager(newerCloudService);
+
+    const staleDownloadPromise = oldManager.downloadFullRecord(recordId);
+    await oldAudioRequested.promise;
+    await newerManager.downloadFullRecord(recordId);
+
+    oldAudioPayload.resolve({
+      text: async () => "",
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    } as unknown as Blob);
+
+    await expect(staleDownloadPromise).rejects.toThrow(`Cloud record changed while downloading "${recordId}"`);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(cloudBUpdatedAt);
+    expect(stored?.title).toBe("cloud title b");
+    expect(stored?.transcriptText).toBe("cloud transcript b");
+    expect(stored?.downloadStatus).toBe("downloaded");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-cloud-preserve-new");
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(1);
+    expect(new Uint8Array(audioChunks[0]?.data ?? new ArrayBuffer(0))).toEqual(new Uint8Array([7, 8, 9]));
+  });
+
   it("builds search index for pulled ghost records when transcript text is present", async () => {
     const recordId = "ghost-idx";
     const cloudRecord = buildLocalRecord(recordId, {

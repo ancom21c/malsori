@@ -2,15 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../../data/app-db";
 import {
   appendAudioChunk,
-  appendVideoChunk,
-  createLocalTranscription,
-  deleteAudioChunksByRole,
-  deleteTranscription,
-  listAudioChunks,
-  listVideoChunks,
-  replaceSegments,
-  updateSegmentCorrection,
-  updateLocalTranscription,
+    appendVideoChunk,
+    createLocalTranscription,
+    deleteAudioChunksByRole,
+    deleteTranscription,
+    listAudioChunks,
+    listVideoChunks,
+    replaceDownloadStatusIfCurrent,
+    replaceSegments,
+    updateSegmentCorrection,
+    updateLocalTranscription,
   updateSegmentSpeakerLabel,
   updateSingleSegmentSpeakerLabel,
 } from "./transcriptionRepository";
@@ -75,6 +76,26 @@ describe("transcriptionRepository", () => {
     expect(searchIndex).toBeTruthy();
     expect(searchIndex?.normalizedTranscript).toBe("hello");
     expect(searchIndex?.tokenSet).toContain("hello");
+  });
+
+  it("replaces download status only when the current lifecycle state still matches", async () => {
+    const record = await createLocalTranscription({
+      title: "download-state-guard",
+      kind: "file",
+    });
+    await updateLocalTranscription(record.id, {
+      isCloudSynced: true,
+      downloadStatus: "downloading",
+    });
+
+    await expect(replaceDownloadStatusIfCurrent(record.id, "downloading", "not_downloaded")).resolves.toBe(true);
+    let stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+
+    await updateLocalTranscription(record.id, { downloadStatus: "downloaded" });
+    await expect(replaceDownloadStatusIfCurrent(record.id, "downloading", "not_downloaded")).resolves.toBe(false);
+    stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.downloadStatus).toBe("downloaded");
   });
 
   it("rolls back transcription creation when search index persistence fails", async () => {

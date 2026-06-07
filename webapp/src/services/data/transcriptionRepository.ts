@@ -142,6 +142,23 @@ export async function updateLocalTranscription(
   });
 }
 
+export async function replaceDownloadStatusIfCurrent(
+  id: string,
+  expectedStatus: LocalTranscription["downloadStatus"],
+  nextStatus: LocalTranscription["downloadStatus"]
+) {
+  return await appDb.transaction("rw", appDb.transcriptions, async () => {
+    const existing = await appDb.transcriptions.get(id);
+    if (!existing || existing.downloadStatus !== expectedStatus) {
+      return false;
+    }
+    await appDb.transcriptions.update(id, {
+      downloadStatus: nextStatus,
+    });
+    return true;
+  });
+}
+
 export async function deleteTranscription(id: string) {
   await appDb.transaction(
     "rw",

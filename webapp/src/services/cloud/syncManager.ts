@@ -3,6 +3,7 @@ import type { LocalTranscription, LocalSegment } from "../../data/app-db";
 import { GoogleDriveService, type DriveFile } from "./googleDriveService";
 import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
 import { markSummaryStateStaleByMutation } from "../data/summaryRepository";
+import { replaceDownloadStatusIfCurrent } from "../data/transcriptionRepository";
 import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
@@ -585,7 +586,7 @@ export class SyncManager {
                 await upsertTranscriptionSearchIndex(transcriptionId, latestCloudMetadata.transcriptText);
             });
         } catch (error) {
-            await appDb.transcriptions.update(transcriptionId, { downloadStatus: "not_downloaded" });
+            await replaceDownloadStatusIfCurrent(transcriptionId, "downloading", "not_downloaded");
             throw error;
         }
     }
