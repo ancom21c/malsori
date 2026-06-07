@@ -339,7 +339,16 @@ export class SyncManager {
                 const localUpdated = parseIsoMillis(record.updatedAt);
                 const cloudMetadataQuery = `name = 'metadata.json' and '${folderId}' in parents and trashed = false`;
                 const cloudMetadataFiles = await this.driveService.listFiles(cloudMetadataQuery);
-                const cloudUpdated = parseIsoMillis(cloudMetadataFiles[0]?.modifiedTime);
+                let cloudUpdated: number | null = null;
+                if (cloudMetadataFiles.length > 0) {
+                    const metadataBlob = await this.driveService.downloadFile(cloudMetadataFiles[0].id);
+                    const metadataText = await metadataBlob.text();
+                    const cloudMetadata = canonicalizeCloudMetadata(
+                        record.id,
+                        JSON.parse(metadataText) as LocalTranscription
+                    );
+                    cloudUpdated = parseIsoMillis(cloudMetadata.updatedAt);
+                }
                 if (localUpdated !== null && cloudUpdated !== null && cloudUpdated > localUpdated) {
                     await appDb.transcriptions.update(record.id, {
                         syncRetryCount: undefined,

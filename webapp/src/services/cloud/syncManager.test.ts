@@ -60,6 +60,7 @@ function createPushDriveServiceMock(
     uploadError?: Error;
     uploadErrorsByName?: Partial<Record<string, Error>>;
     existingFiles?: DriveFile[];
+    downloadedMetadataById?: Record<string, LocalTranscription>;
   }
 ) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
@@ -97,7 +98,17 @@ function createPushDriveServiceMock(
     mimeType: FOLDER_MIME,
   }));
 
-  const downloadFile = vi.fn(async (): Promise<Blob> => new Blob([], { type: "application/json" }));
+  const downloadFile = vi.fn(async (fileId: string): Promise<Blob> => {
+    const downloadedMetadata = options?.downloadedMetadataById?.[fileId];
+    if (downloadedMetadata) {
+      const payload = JSON.stringify(downloadedMetadata);
+      return {
+        text: async () => payload,
+        arrayBuffer: async () => new TextEncoder().encode(payload).buffer,
+      } as unknown as Blob;
+    }
+    return new Blob([], { type: "application/json" });
+  });
 
   const uploadFile = vi.fn(
     async (
@@ -407,6 +418,107 @@ describe("SyncManager", () => {
     const stored = await appDb.transcriptions.get(record.id);
     expect(stored?.syncRetryCount).toBe(1);
     expect(stored?.syncErrorMessage).toBe("segments upload failed");
+  });
+
+  it("retries push when cloud metadata file is newer but its payload revision is not newer", async () => {
+    const recordId = "tx-retry-cloud-mtime";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const metadataCheckedAt = new Date(Date.now()).toISOString();
+    const record = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      updatedAt: localUpdatedAt,
+      lastSyncedAt: new Date(Date.now() - 120_000).toISOString(),
+    });
+    await appDb.transcriptions.put(record);
+    await appDb.segments.add({
+      id: "seg-retry-cloud-mtime",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "segment text",
+      createdAt: localUpdatedAt,
+    });
+
+    const { service, uploadFile, downloadFile } = createPushDriveServiceMock(record.id, {
+      existingFiles: [
+        {
+          id: "remote-metadata",
+          name: "metadata.json",
+          mimeType: "application/json",
+          modifiedTime: metadataCheckedAt,
+        },
+      ],
+      downloadedMetadataById: {
+        "remote-metadata": {
+          ...record,
+          lastSyncedAt: metadataCheckedAt,
+        },
+      },
+    });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pushUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(downloadFile).toHaveBeenCalledWith("remote-metadata");
+    expect(uploadFile.mock.calls.map((call) => call[0])).toEqual(["segments.json", "metadata.json"]);
+    const stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.syncRetryCount).toBeUndefined();
+    expect(stored?.syncErrorMessage).toBeUndefined();
+  });
+
+  it("skips push when the cloud metadata payload revision is newer than local", async () => {
+    const recordId = "tx-skip-newer-cloud-revision";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date(Date.now()).toISOString();
+    const record = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      updatedAt: localUpdatedAt,
+      syncRetryCount: 2,
+      syncErrorMessage: "previous retry",
+    });
+    await appDb.transcriptions.put(record);
+    await appDb.segments.add({
+      id: "seg-skip-newer-cloud-revision",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "segment text",
+      createdAt: localUpdatedAt,
+    });
+
+    const { service, uploadFile, downloadFile } = createPushDriveServiceMock(record.id, {
+      existingFiles: [
+        {
+          id: "remote-metadata-newer",
+          name: "metadata.json",
+          mimeType: "application/json",
+          modifiedTime: new Date(Date.now() + 60_000).toISOString(),
+        },
+      ],
+      downloadedMetadataById: {
+        "remote-metadata-newer": buildLocalRecord(recordId, {
+          isCloudSynced: true,
+          updatedAt: cloudUpdatedAt,
+          lastSyncedAt: cloudUpdatedAt,
+        }),
+      },
+    });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pushUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(downloadFile).toHaveBeenCalledWith("remote-metadata-newer");
+    expect(uploadFile).not.toHaveBeenCalled();
+    const stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.syncRetryCount).toBeUndefined();
+    expect(stored?.syncErrorMessage).toBeUndefined();
+    expect(stored?.lastSyncedAt).toBeTruthy();
   });
 
   it("sanitizes retry/source-local fields when pulling cloud metadata", async () => {
