@@ -56,7 +56,11 @@ async function parseBlobJson(blob: unknown): Promise<Record<string, unknown>> {
 
 function createPushDriveServiceMock(
   recordId: string,
-  options?: { uploadError?: Error; existingFiles?: DriveFile[] }
+  options?: {
+    uploadError?: Error;
+    uploadErrorsByName?: Partial<Record<string, Error>>;
+    existingFiles?: DriveFile[];
+  }
 ) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
   const transcriptionsFolder: DriveFile = {
@@ -103,6 +107,10 @@ function createPushDriveServiceMock(
       mimeType?: string
     ): Promise<DriveFile> => {
       void parentId;
+      const namedError = options?.uploadErrorsByName?.[name];
+      if (namedError) {
+        throw namedError;
+      }
       if (options?.uploadError) {
         throw options.uploadError;
       }
@@ -360,6 +368,41 @@ describe("SyncManager", () => {
     expect(deleteFile.mock.calls).toEqual(
       expect.arrayContaining([["remote-audio"], ["remote-video"]])
     );
+  });
+
+  it("publishes metadata only after artifact uploads succeed", async () => {
+    const record = buildLocalRecord("tx-metadata-last", {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      transcriptText: "new transcript",
+    });
+    await appDb.transcriptions.put(record);
+    await appDb.segments.add({
+      id: "seg-metadata-last",
+      transcriptionId: record.id,
+      startMs: 0,
+      endMs: 1000,
+      text: "segment text",
+      createdAt: record.updatedAt,
+    });
+
+    const { service, uploadFile } = createPushDriveServiceMock(record.id, {
+      uploadErrorsByName: {
+        "segments.json": new Error("segments upload failed"),
+      },
+    });
+    const manager = new SyncManager(service);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const summary = await manager.pushUpdates();
+    warnSpy.mockRestore();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(1);
+    expect(uploadFile.mock.calls.map((call) => call[0])).toEqual(["segments.json"]);
+    const stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.syncRetryCount).toBe(1);
+    expect(stored?.syncErrorMessage).toBe("segments upload failed");
   });
 
   it("sanitizes retry/source-local fields when pulling cloud metadata", async () => {

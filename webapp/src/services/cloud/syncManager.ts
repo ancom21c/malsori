@@ -346,11 +346,6 @@ export class SyncManager {
                     continue;
                 }
 
-                // Upload metadata.json
-                const cloudMetadata = sanitizeCloudMetadata(record);
-                const metadataBlob = new Blob([JSON.stringify(cloudMetadata)], { type: "application/json" });
-                await this.uploadOrUpdateFile("metadata.json", metadataBlob, folderId, "application/json");
-
                 // Upload segments.json
                 const segments = await appDb.segments.where("transcriptionId").equals(record.id).toArray();
                 const segmentsBlob = new Blob([JSON.stringify(segments)], { type: "application/json" });
@@ -358,6 +353,11 @@ export class SyncManager {
 
                 // Upload Media Files (Audio/Video)
                 await this.uploadMediaFiles(record, folderId);
+                // Publish metadata last so other clients only observe the new revision
+                // after its dependent artifacts have been written successfully.
+                const cloudMetadata = sanitizeCloudMetadata(record);
+                const metadataBlob = new Blob([JSON.stringify(cloudMetadata)], { type: "application/json" });
+                await this.uploadOrUpdateFile("metadata.json", metadataBlob, folderId, "application/json");
                 await appDb.transcriptions.update(record.id, {
                     isCloudSynced: true,
                     lastSyncedAt: syncedAt,
