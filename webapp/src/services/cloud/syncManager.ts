@@ -1,6 +1,6 @@
 import { appDb } from "../../data/app-db";
 import type { LocalTranscription, LocalSegment } from "../../data/app-db";
-import { GoogleDriveService } from "./googleDriveService";
+import { GoogleDriveService, type DriveFile } from "./googleDriveService";
 import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
 import { markSummaryStateStaleByMutation } from "../data/summaryRepository";
 import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
@@ -539,55 +539,64 @@ export class SyncManager {
     }
 
     private async downloadMediaFiles(transcriptionId: string, folderId: string) {
-        // Audio
-        const audioQuery = `(name = 'audio.wav' or name = 'audio.webm') and '${folderId}' in parents and trashed = false`;
-        const audioFiles = await this.driveService.listFiles(audioQuery);
-        if (audioFiles.length > 0) {
-            const file =
-                audioFiles.find((entry) => entry.name === "audio.wav") ??
-                audioFiles.find((entry) => entry.name === "audio.webm") ??
-                audioFiles[0];
-            const blob = await this.driveService.downloadFile(file.id);
-            const buffer = await blob.arrayBuffer();
-            // Store as a single chunk for simplicity
-            await appDb.transaction("rw", appDb.audioChunks, async () => {
-                await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
+        const nextAudio = await this.downloadRemoteMediaFile(
+            `(name = 'audio.wav' or name = 'audio.webm') and '${folderId}' in parents and trashed = false`,
+            (files) =>
+                files.find((entry) => entry.name === "audio.wav") ??
+                files.find((entry) => entry.name === "audio.webm") ??
+                files[0]
+        );
+        const nextVideo = await this.downloadRemoteMediaFile(
+            `(name = 'video.webm' or name = 'video.mp4') and '${folderId}' in parents and trashed = false`,
+            (files) =>
+                files.find((entry) => entry.name === "video.webm") ??
+                files.find((entry) => entry.name === "video.mp4") ??
+                files[0]
+        );
+        const now = new Date().toISOString();
+        await appDb.transaction("rw", [appDb.audioChunks, appDb.videoChunks], async () => {
+            await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
+            if (nextAudio) {
                 await appDb.audioChunks.add({
                     id: crypto.randomUUID(),
                     transcriptionId,
                     chunkIndex: 0,
-                    data: buffer,
-                    mimeType: file.mimeType,
-                    createdAt: new Date().toISOString(),
+                    data: nextAudio.data,
+                    mimeType: nextAudio.mimeType,
+                    createdAt: now,
                 });
-            });
-        } else {
-            await appDb.audioChunks.where("transcriptionId").equals(transcriptionId).delete();
-        }
+            }
 
-        // Video
-        const videoQuery = `(name = 'video.webm' or name = 'video.mp4') and '${folderId}' in parents and trashed = false`;
-        const videoFiles = await this.driveService.listFiles(videoQuery);
-        if (videoFiles.length > 0) {
-            const file =
-                videoFiles.find((entry) => entry.name === "video.webm") ??
-                videoFiles.find((entry) => entry.name === "video.mp4") ??
-                videoFiles[0];
-            const blob = await this.driveService.downloadFile(file.id);
-            const buffer = await blob.arrayBuffer();
-            await appDb.transaction("rw", appDb.videoChunks, async () => {
-                await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
+            await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
+            if (nextVideo) {
                 await appDb.videoChunks.add({
                     id: crypto.randomUUID(),
                     transcriptionId,
                     chunkIndex: 0,
-                    data: buffer,
-                    mimeType: file.mimeType,
-                    createdAt: new Date().toISOString(),
+                    data: nextVideo.data,
+                    mimeType: nextVideo.mimeType,
+                    createdAt: now,
                 });
-            });
-        } else {
-            await appDb.videoChunks.where("transcriptionId").equals(transcriptionId).delete();
+            }
+        });
+    }
+
+    private async downloadRemoteMediaFile(
+        query: string,
+        selectFile: (files: DriveFile[]) => DriveFile | undefined
+    ): Promise<{ data: ArrayBuffer; mimeType?: string } | null> {
+        const files = await this.driveService.listFiles(query);
+        if (files.length === 0) {
+            return null;
         }
+        const file = selectFile(files);
+        if (!file) {
+            return null;
+        }
+        const blob = await this.driveService.downloadFile(file.id);
+        return {
+            data: await blob.arrayBuffer(),
+            mimeType: file.mimeType,
+        };
     }
 }

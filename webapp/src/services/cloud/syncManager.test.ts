@@ -134,6 +134,7 @@ function createPullDriveServiceMock(
     segments?: LocalSegment[];
     audioFile?: DriveFile & { payload?: Uint8Array };
     videoFile?: DriveFile & { payload?: Uint8Array };
+    failingDownloadFileIds?: string[];
   }
 ) {
   const rootFolder: DriveFile = { id: "root-folder", name: "Malsori Data", mimeType: FOLDER_MIME };
@@ -186,6 +187,9 @@ function createPullDriveServiceMock(
   }));
 
   const downloadFile = vi.fn(async (fileId: string): Promise<Blob> => {
+    if (options?.failingDownloadFileIds?.includes(fileId)) {
+      throw new Error(`download failed: ${fileId}`);
+    }
     if (fileId === "meta-file") {
       return {
         text: async () => JSON.stringify(cloudRecord),
@@ -754,6 +758,97 @@ describe("SyncManager", () => {
     expect(summary.failed).toBe(0);
     await expect(appDb.audioChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
     await expect(appDb.videoChunks.where("transcriptionId").equals(recordId).count()).resolves.toBe(0);
+  });
+
+  it("does not partially replace local media when downloaded-cloud refresh media download fails", async () => {
+    const recordId = "cloud-refresh-media-failure";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "downloaded",
+        updatedAt: localUpdatedAt,
+        transcriptText: "local transcript",
+      })
+    );
+    await appDb.segments.add({
+      id: "seg-refresh-failure-local",
+      transcriptionId: recordId,
+      startMs: 0,
+      endMs: 1000,
+      text: "local text",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-refresh-failure-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([9, 9, 9]).buffer,
+      mimeType: "audio/webm",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.videoChunks.add({
+      id: "video-refresh-failure-local",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([8, 8, 8]).buffer,
+      mimeType: "video/webm",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+      transcriptText: "cloud transcript",
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-refresh-failure-cloud",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1100,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, {
+      segments: cloudSegments,
+      audioFile: {
+        id: "audio-file",
+        name: "audio.webm",
+        mimeType: "audio/webm",
+        payload: new Uint8Array([1, 2, 3]),
+      },
+      videoFile: {
+        id: "video-file",
+        name: "video.webm",
+        mimeType: "video/webm",
+        payload: new Uint8Array([4, 5, 6]),
+      },
+      failingDownloadFileIds: ["video-file"],
+    });
+    const manager = new SyncManager(service);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const summary = await manager.pullUpdates();
+    warnSpy.mockRestore();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(1);
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.updatedAt).toBe(localUpdatedAt);
+    expect(stored?.transcriptText).toBe("local transcript");
+    const segments = await appDb.segments.where("transcriptionId").equals(recordId).toArray();
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.id).toBe("seg-refresh-failure-local");
+    const audioChunks = await appDb.audioChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(audioChunks).toHaveLength(1);
+    expect(Array.from(new Uint8Array(audioChunks[0]?.data ?? new ArrayBuffer(0)))).toEqual([9, 9, 9]);
+    const videoChunks = await appDb.videoChunks.where("transcriptionId").equals(recordId).toArray();
+    expect(videoChunks).toHaveLength(1);
+    expect(Array.from(new Uint8Array(videoChunks[0]?.data ?? new ArrayBuffer(0)))).toEqual([8, 8, 8]);
   });
 
   it("fails full download when cloud segments are missing instead of marking the record downloaded", async () => {
