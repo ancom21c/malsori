@@ -44,6 +44,8 @@ import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
 import {
   buildTranscriptionDetailPath,
   resolveRealtimeStreamingConfigString,
+  shouldKeepCaptureAliveDuringBackgroundRecovery,
+  type RealtimeInputSource,
 } from "./realtimeSessionModel";
 import { useAppPortalContainer } from "../hooks/useAppPortalContainer";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
@@ -117,7 +119,6 @@ import type {
 } from "../domain/session";
 
 type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
-type RealtimeInputSource = "microphone" | "uploaded_file";
 
 type RealtimeStartInput =
   | { source: "microphone" }
@@ -426,6 +427,8 @@ export default function RealtimeSessionPage() {
   const sessionConnectedRef = useRef(false);
   const connectionReadyRef = useRef(false);
   const countdownFinishedRef = useRef(false);
+  const sessionBackgroundedRef = useRef(false);
+  const documentHiddenRef = useRef(false);
 
   useEffect(() => {
     if (!runtimeSettingsOpen) {
@@ -519,6 +522,61 @@ export default function RealtimeSessionPage() {
     sessionState === "paused" ||
     sessionState === "connecting" ||
     sessionState === "countdown";
+
+  useEffect(() => {
+    const markSessionBackgrounded = () => {
+      if (!sessionActive || simulatedFileSession) {
+        return;
+      }
+      sessionBackgroundedRef.current = true;
+    };
+
+    const restoreCaptureAfterForeground = () => {
+      documentHiddenRef.current = typeof document !== "undefined" ? document.hidden : false;
+      sessionBackgroundedRef.current = false;
+      if (!sessionActive || simulatedFileSession) {
+        return;
+      }
+      const recorder = recorderRef.current;
+      if (!recorder) {
+        return;
+      }
+      void recorder.restoreAfterInterruption().catch((error) => {
+        console.error("Failed to restore recorder after visibility change", error);
+      });
+    };
+
+    if (typeof document !== "undefined") {
+      documentHiddenRef.current = document.hidden;
+    }
+
+    const handleVisibilityChange = () => {
+      documentHiddenRef.current = typeof document !== "undefined" ? document.hidden : false;
+      if (documentHiddenRef.current) {
+        markSessionBackgrounded();
+        return;
+      }
+      restoreCaptureAfterForeground();
+    };
+
+    const handleWindowBlur = () => {
+      markSessionBackgrounded();
+    };
+
+    const handleWindowFocus = () => {
+      restoreCaptureAfterForeground();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [sessionActive, simulatedFileSession]);
 
   const latencyLevel = classifyRealtimeLatencyLevel(lastLatencyMs, latencyStaleMs);
   const preferredSummaryMode = useMemo<SummarySurfaceMode>(() => {
@@ -1898,6 +1956,8 @@ export default function RealtimeSessionPage() {
     recordedSampleRateRef.current = null;
     simulatedFileStreamingAbortRef.current = false;
     simulatedFileStreamingStartedRef.current = false;
+    sessionBackgroundedRef.current = false;
+    documentHiddenRef.current = typeof document !== "undefined" ? document.hidden : false;
     finalizingRef.current = false;
     finalizeReasonRef.current = "normal";
     cameraShouldRecordRef.current = false;
@@ -2174,6 +2234,7 @@ export default function RealtimeSessionPage() {
     options: {
       inputSource?: RealtimeInputSource;
       simulatedFileAudio?: DecodedPcmAudio;
+      reuseRecorder?: boolean;
     } = {}
   ) => {
     const inputSource = options.inputSource ?? "microphone";
@@ -2185,7 +2246,12 @@ export default function RealtimeSessionPage() {
     streamingClientRef.current = client;
     const sampleRate = extractSampleRateFromConfig(decoderConfig);
 
-    if (inputSource === "microphone") {
+    const shouldReuseRecorder =
+      inputSource === "microphone" &&
+      options.reuseRecorder === true &&
+      recorderRef.current?.recorderState === "recording";
+
+    if (inputSource === "microphone" && !shouldReuseRecorder) {
       const recorder = new RecorderManager();
       recorderRef.current = recorder;
       try {
@@ -2224,7 +2290,7 @@ export default function RealtimeSessionPage() {
         stopSession(true);
         throw error instanceof Error ? error : new Error(t("yourMicrophoneDeviceCannotBeUsed"));
       }
-    } else {
+    } else if (inputSource !== "microphone") {
       recorderRef.current = null;
     }
 
@@ -2254,10 +2320,32 @@ export default function RealtimeSessionPage() {
           setSessionState("connecting");
         }
       },
+      onReconnectBudgetExhausted: () => {
+        const shouldKeepCaptureAlive = shouldKeepCaptureAliveDuringBackgroundRecovery({
+          inputSource,
+          sessionWasBackgrounded: sessionBackgroundedRef.current,
+          countdownFinished: countdownFinishedRef.current,
+          recorderState: recorderRef.current?.recorderState ?? null,
+          sessionState: sessionStateRef.current,
+        });
+        if (!shouldKeepCaptureAlive) {
+          return false;
+        }
+        if (countdownFinishedRef.current) {
+          setSessionState("connecting");
+        }
+        setErrorMessage(t("aStreamingErrorOccurredTheConnectionIsBeingRestored"));
+        setConnectionEventMessage(t("aStreamingErrorOccurredTryReconnecting"));
+        setConnectionUxState((prev) =>
+          reduceRealtimeConnectionUxState(prev, { type: "manual-retry" })
+        );
+        return true;
+      },
       onOpen: () => {
         const recovered = connectionUxStateRef.current.phase !== "normal";
         sessionConnectedRef.current = true;
         connectionReadyRef.current = true;
+        sessionBackgroundedRef.current = false;
         if (sessionStateRef.current === "stopping") {
           setConnectionEventMessage(t("finalizing"));
           return;
@@ -2466,7 +2554,14 @@ export default function RealtimeSessionPage() {
     streamingClientRef.current = null;
 
     try {
-      await prepareSession(decoderConfig);
+      const shouldReuseRecorder = recorderRef.current?.recorderState === "recording";
+      if (shouldReuseRecorder) {
+        await recorderRef.current?.restoreAfterInterruption();
+      }
+      await prepareSession(decoderConfig, {
+        inputSource: "microphone",
+        reuseRecorder: shouldReuseRecorder,
+      });
     } catch (error) {
       console.error("Failed to retry streaming session", error);
       const message = t("retryConnectionFailed");
@@ -2672,6 +2767,8 @@ export default function RealtimeSessionPage() {
     lastResultAtRef.current = null;
     finalizeReasonRef.current = "normal";
     countdownFinishedRef.current = false;
+    sessionBackgroundedRef.current = false;
+    documentHiddenRef.current = typeof document !== "undefined" ? document.hidden : false;
 
     setCountdown(3);
     setSessionState("countdown");

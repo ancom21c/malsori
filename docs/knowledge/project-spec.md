@@ -9,6 +9,7 @@ Malsori is a browser-based RTZR speech-to-text workstation. The repo currently s
 - Support reliable realtime recording/transcription and file transcription from the same operator-facing webapp.
 - Keep the browser contract stable even as upstream RTZR integration, deployment topology, or storage details evolve.
 - Preserve operator-grade boundaries for internal/admin functions, observability, and cloud sync credentials.
+- Preserve in-progress microphone capture across transient mobile background/focus loss when the browser keeps media access alive, and recover streaming transport without discarding the live session.
 - Keep durable repo truth easy to find and separate from finished execution history.
 
 ## Non-goals

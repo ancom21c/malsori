@@ -91,6 +91,7 @@
 - [x] Round 24: in-flight full download가 더 새로운 cloud revision이 생긴 뒤에도 오래된 snapshot을 그대로 apply해 `updatedAt`/metadata/artifact를 rollback하던 lifecycle/read-write drift를 remote recheck + pre-apply revision guard와 regression test로 막았다.
 - [x] Round 25: downloaded pull refresh도 artifact fetch 뒤 revision recheck 없이 stale snapshot을 apply해 local downloaded state를 rollback하던 lifecycle/read-write drift를 staged media apply + pre-apply revision guard와 regression test로 막았다.
 - [x] Round 26: stale full download failure가 이미 다른 경로가 만든 newer `downloaded` state를 blind `not_downloaded` rollback으로 덮어쓰는 lifecycle drift를 status-conditional rollback guard와 regression test로 막았다.
+- [x] Round 27: mobile background/focus loss 뒤 reconnect budget exhaustion이 live microphone capture를 곧바로 끊어버려 session continuity를 깨뜨리던 recovery/lifecycle drift를 background-aware reconnect cycle 유지와 regression test로 막았다.
 - [x] 마지막 review pass에서 같은 클래스의 추가 실제 결함을 더 찾지 못했다.
 
 ## P2 / Minor Issues

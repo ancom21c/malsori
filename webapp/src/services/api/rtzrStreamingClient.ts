@@ -20,6 +20,7 @@ export interface StreamingSessionOptions {
   onReconnectAttempt?: (attempt: number) => void;
   onBufferMetrics?: (metrics: StreamingBufferMetrics) => void;
   onPermanentFailure?: (event: CloseEvent | Event) => void;
+  onReconnectBudgetExhausted?: (event: CloseEvent) => boolean;
 }
 
 export interface StreamingBufferMetrics {
@@ -207,6 +208,13 @@ export class RtzrStreamingClient {
         this.state = "error";
         this.handlePermanentFailure(terminalFailureEvent ?? event);
       } else if (this.shouldReconnect && this.reconnectAttempt < (this.options?.reconnectAttempts ?? 0)) {
+        this.scheduleReconnect();
+      } else if (
+        event.code !== 1000 &&
+        this.shouldReconnect &&
+        this.options?.onReconnectBudgetExhausted?.(event) === true
+      ) {
+        this.reconnectAttempt = 0;
         this.scheduleReconnect();
       } else {
         this.state = "closed";

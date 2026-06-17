@@ -3,6 +3,7 @@ import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
 import {
   buildTranscriptionDetailPath,
   resolveRealtimeStreamingConfigString,
+  shouldKeepCaptureAliveDuringBackgroundRecovery,
 } from "./realtimeSessionModel";
 
 describe("resolveRealtimeStreamingConfigString", () => {
@@ -47,5 +48,51 @@ describe("resolveRealtimeStreamingConfigString", () => {
 describe("buildTranscriptionDetailPath", () => {
   it("returns the canonical session detail route without extra spaces", () => {
     expect(buildTranscriptionDetailPath("abc-123")).toBe("/sessions/abc-123");
+  });
+});
+
+describe("shouldKeepCaptureAliveDuringBackgroundRecovery", () => {
+  it("keeps microphone capture alive when a backgrounded live session loses transport", () => {
+    expect(
+      shouldKeepCaptureAliveDuringBackgroundRecovery({
+        inputSource: "microphone",
+        sessionWasBackgrounded: true,
+        countdownFinished: true,
+        recorderState: "recording",
+        sessionState: "recording",
+      })
+    ).toBe(true);
+  });
+
+  it("fails closed for non-backgrounded, non-microphone, or inactive capture states", () => {
+    expect(
+      shouldKeepCaptureAliveDuringBackgroundRecovery({
+        inputSource: "uploaded_file",
+        sessionWasBackgrounded: true,
+        countdownFinished: true,
+        recorderState: "recording",
+        sessionState: "recording",
+      })
+    ).toBe(false);
+
+    expect(
+      shouldKeepCaptureAliveDuringBackgroundRecovery({
+        inputSource: "microphone",
+        sessionWasBackgrounded: false,
+        countdownFinished: true,
+        recorderState: "recording",
+        sessionState: "recording",
+      })
+    ).toBe(false);
+
+    expect(
+      shouldKeepCaptureAliveDuringBackgroundRecovery({
+        inputSource: "microphone",
+        sessionWasBackgrounded: true,
+        countdownFinished: true,
+        recorderState: "stopped",
+        sessionState: "paused",
+      })
+    ).toBe(false);
   });
 });

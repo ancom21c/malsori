@@ -156,6 +156,16 @@ export class RecorderManager {
     this.paused = false;
   }
 
+  async restoreAfterInterruption() {
+    if (this.state !== "recording" || !this.audioContext) {
+      return;
+    }
+    if (this.audioContext.state !== "suspended") {
+      return;
+    }
+    await this.audioContext.resume();
+  }
+
   stop() {
     if (this.state === "idle" || this.state === "stopped") {
       return;
