@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from api_server import config
 
@@ -79,3 +80,27 @@ def test_apply_backend_override_clears_env_credentials_when_payload_omits_them(
         "pronaia_client_id": None,
         "pronaia_client_secret": None,
     }
+
+
+def test_settings_parse_cors_allowed_origins_from_csv(
+    tmp_path: Path,
+) -> None:
+    settings = config.Settings(
+        STT_STORAGE_BASE_DIR=tmp_path,
+        CORS_ALLOWED_ORIGINS=" https://pages.example.dev,https://app.example.com/ ",
+    )
+
+    assert settings.cors_allowed_origins == (
+        "https://pages.example.dev",
+        "https://app.example.com",
+    )
+
+
+def test_settings_reject_cors_allowed_origin_with_path(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValidationError, match="must not include a path"):
+        config.Settings(
+            STT_STORAGE_BASE_DIR=tmp_path,
+            CORS_ALLOWED_ORIGINS="https://pages.example.dev/app",
+        )

@@ -1,4 +1,11 @@
 window.__MALSORI_CONFIG__ = window.__MALSORI_CONFIG__ || {};
-// Optional runtime override for the Python API base URL.
-// If not provided, the app will fall back to the build-time VITE_API_BASE or /api (dev proxy).
+// Example static-profile override for Cloudflare Pages or another separate frontend origin:
+// Object.assign(window.__MALSORI_CONFIG__, {
+//   apiBaseUrl: "https://api.example.com",
+//   adminApiBaseUrl: "",
+//   driveAuthMode: "disabled",
+//   runtimeErrorReportingEnabled: false,
+// });
+//
+// If not provided, the app falls back to build-time values or the same-origin default.
 window.__MALSORI_CONFIG__.apiBaseUrl = window.__MALSORI_CONFIG__.apiBaseUrl || undefined;

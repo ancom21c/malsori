@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Dict, Literal, Optional
+from urllib.parse import urlparse
 
 from pydantic import (
     BaseModel,
@@ -86,10 +87,14 @@ class Settings(BaseModel):
         True, alias="BACKEND_ADMIN_TOKEN_REQUIRED"
     )
     backend_admin_token: Optional[str] = Field(default=None, alias="BACKEND_ADMIN_TOKEN")
+    cors_allowed_origins_raw: Optional[str] = Field(
+        default=None, alias="CORS_ALLOWED_ORIGINS"
+    )
 
     _transcribe_path: str = PrivateAttr("/v1/transcribe")
     _transcribe_status_path: str = PrivateAttr("/v1/transcribe/{transcribe_id}")
     _streaming_path: str = PrivateAttr("/v1/transcribe:streaming")
+    _cors_allowed_origins: tuple[str, ...] = PrivateAttr(default=())
 
     @model_validator(mode="after")
     def _prepare(self) -> "Settings":
@@ -117,6 +122,9 @@ class Settings(BaseModel):
             if not config_path.is_file():
                 raise ValueError(f"STT config path does not exist: {config_path}")
             self.stt_config_path = config_path
+        self._cors_allowed_origins = _parse_cors_allowed_origins(
+            self.cors_allowed_origins_raw
+        )
         return self
 
     @property
@@ -183,9 +191,78 @@ class Settings(BaseModel):
         return bool(self.collector_url)
 
     @property
+    def cors_allowed_origins(self) -> tuple[str, ...]:
+        """Return the configured public-web origins allowed for CORS."""
+        return self._cors_allowed_origins
+
+    @property
     def has_stt_config(self) -> bool:
         """Return True when an external STT config was provided."""
         return self.stt_config_path is not None
+
+
+def _normalize_cors_origin(value: str) -> str:
+    origin = value.strip()
+    if not origin:
+        raise ValueError("CORS_ALLOWED_ORIGINS entries must not be empty.")
+
+    parsed = urlparse(origin)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS entries must be absolute http(s) origins."
+        )
+    if (
+        parsed.username
+        or parsed.password
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS entries must not include credentials, query, or fragment."
+        )
+    if parsed.path not in {"", "/"}:
+        raise ValueError("CORS_ALLOWED_ORIGINS entries must not include a path.")
+
+    return f"{scheme}://{parsed.netloc}"
+
+
+def _parse_cors_allowed_origins(value: Optional[str]) -> tuple[str, ...]:
+    if value is None:
+        return ()
+
+    raw = value.strip()
+    if not raw:
+        return ()
+
+    candidates: list[str]
+    if raw.startswith("["):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must be a JSON array of origins or a comma-separated string."
+            ) from exc
+        if not isinstance(decoded, list) or not all(
+            isinstance(item, str) for item in decoded
+        ):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS JSON form must be an array of origin strings."
+            )
+        candidates = decoded
+    else:
+        candidates = raw.replace("\n", ",").split(",")
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        origin = _normalize_cors_origin(candidate)
+        if origin in seen:
+            continue
+        seen.add(origin)
+        normalized.append(origin)
+    return tuple(normalized)
 
 
 def _resolve_storage_base_dir(value: Optional[str] = None) -> Path:

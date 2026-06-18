@@ -17,6 +17,7 @@ This repository uses `docs/` as the durable source of truth for product, rollout
 - `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
 - `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md` - current execution board for realtime STT file upload promotion
 - `docs/knowledge/operator-feature-activation-contract.md` - durable activation order, boundary, and rollout rules
+- `docs/knowledge/cloudflare-pages-static-profile.md` - static frontend + remote API deployment contract
 - `docs/knowledge/realtime-file-upload-contract.md` - durable storage / UX contract for realtime API file uploads
 - `docs/knowledge/summary-feature-contract.md` - durable summary partition, preset, and freshness rules
 - `docs/plan-operator-feature-activation-2026-03-11.md` - active operator activation and summary/translate plan

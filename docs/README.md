@@ -22,6 +22,7 @@
 - `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md` - current execution board for realtime STT file upload promotion
 - `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan
 - `docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - active operator execution board
+- `docs/knowledge/cloudflare-pages-static-profile.md` - static frontend + remote API deployment contract
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 

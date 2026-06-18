@@ -132,6 +132,30 @@ ingress:
 
 If internal ingress is disabled, these internal-only paths stay non-routable (fail-closed).
 
+## Cloudflare Pages Static Frontend Profile
+
+If you deploy only the frontend on Cloudflare Pages and keep `python-api` on a separate origin:
+
+- keep the same repository; publish `webapp/dist` as the Pages artifact
+- configure `config/malsori-config.js` on the static host with:
+  - `apiBaseUrl: "https://<public-api-origin>"`
+  - `adminApiBaseUrl: ""`
+  - `driveAuthMode: "disabled"`
+  - `runtimeErrorReportingEnabled: false`
+- set `pythonApi.env.CORS_ALLOWED_ORIGINS` to the exact frontend origin list, for example:
+
+```yaml
+pythonApi:
+  env:
+    STT_STORAGE_BASE_DIR: /data
+    CORS_ALLOWED_ORIGINS: "https://malsori.pages.dev,https://malsori.example.com"
+```
+
+Notes:
+
+- The repo now ships `webapp/public/_redirects` for SPA route fallback and `webapp/public/_headers` so `/config/malsori-config.js` stays uncached on Cloudflare Pages.
+- Google Drive auth broker is intentionally out of scope for this profile because its OAuth callback/return contract is backend-relative. Keep Drive disabled here unless that broker contract is redesigned.
+
 ## Persistent Storage (Recommended for broker mode)
 
 If you enable the Drive auth broker, the server stores refresh tokens under `STT_STORAGE_BASE_DIR` (`/data` in the chart).

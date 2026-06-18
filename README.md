@@ -70,6 +70,7 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.
 - `BACKEND_ADMIN_TOKEN_REQUIRED` – set to `0` to allow `/v1/backend/*` calls without `X-Malsori-Admin-Token`. Defaults to `1`.
 - `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled and `BACKEND_ADMIN_TOKEN_REQUIRED=1`; callers must send `X-Malsori-Admin-Token`.
+- `CORS_ALLOWED_ORIGINS` – optional comma-separated or JSON-array list of exact public frontend origins allowed to call the API from another host (for example Cloudflare Pages).
 - `STT_STORAGE_PERSISTENT` – set to `1` when `STT_STORAGE_BASE_DIR` is backed by persistent storage (PVC).
 
 Example launch:
@@ -161,6 +162,7 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-operator-feature-activation-2026-03-11.md` – current execution plan for operator-managed backend activation and summary/translate implementation.
 - `docs/knowledge/README.md` – durable knowledge index.
 - `docs/knowledge/docker-compose-https-contract.md` – durable local compose HTTPS/TLS contract.
+- `docs/knowledge/cloudflare-pages-static-profile.md` – durable static frontend + remote API deployment contract.
 - `docs/knowledge/operator-feature-activation-contract.md` – durable operator activation order and boundary rules.
 - `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
 - Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`.

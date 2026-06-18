@@ -33,6 +33,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import grpc
 import requests
@@ -275,6 +276,30 @@ logging.getLogger("uvicorn.access").addFilter(_SuppressDocsAccessFilter())
 
 
 app = FastAPI(title="RTZR STT Delegation API", version="0.1.0")
+
+
+def _configure_public_cors(app_instance: FastAPI, settings: Settings) -> None:
+    origins = list(settings.cors_allowed_origins)
+    if not origins:
+        return
+
+    app_instance.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["DELETE", "GET", "OPTIONS", "POST", "PUT"],
+        allow_headers=["*"],
+        max_age=600,
+    )
+
+
+try:
+    _configure_public_cors(app, get_settings())
+except RuntimeError:
+    logger.debug(
+        "Skipped public CORS middleware initialization because settings are unavailable during import."
+    )
+
 app.include_router(google_drive_oauth_router)
 
 _client: Optional[RTZRClient] = None

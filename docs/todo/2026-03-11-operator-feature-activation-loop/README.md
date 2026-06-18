@@ -39,6 +39,7 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1112 | P0 | State integrity / drift audit | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1112-state-integrity-drift-audit.md` |
 | T1113 | P1 | Private RTZR wheelhouse deploy staging | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1113-private-rtzr-wheelhouse-deploy-staging.md` |
 | T1114 | P1 | Kubernetes nginx ConfigMap entrypoint guard | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1114-k8s-nginx-configmap-entrypoint-guard.md` |
+| T1115 | P1 | Cloudflare Pages static frontend profile | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1115-cloudflare-pages-static-profile.md` |
 
 ## 현재 상태 스냅샷
 
@@ -107,11 +108,12 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1112`는 shared store/runtime 경계에서 additive surface가 core STT state를 조용히 훼손하지 않는지 검증하는 hardening task다.
   - `T1113`은 `T1111` 및 local/dev deploy 경로에서 private SDK 의존성으로 인한 python-api image build failure를 반복 가능하게 막는 deploy-support task다.
   - `T1114`는 `T1113` 이후 dev cluster rollout에서 Helm-provided nginx ConfigMap을 webapp image startup script가 훼손하지 않도록 막는 deploy-reliability task다.
+  - `T1115`는 same repo를 유지한 채 Cloudflare Pages static frontend와 remote python-api 조합을 public deploy profile로 고정하는 task다.
 
 ## 이번 루프 우선순위
 
 - Now: `T1101`, `T1110`
-- Next: `T1102`, `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1111`
+- Next: `T1102`, `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1111`, `T1115`
 - Later: 없음
 
 ## Loop Hygiene
