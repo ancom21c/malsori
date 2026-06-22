@@ -48,9 +48,15 @@ __pycache__/
 .playwright-cli/
 
 # local deployment secrets
-infra/deploy/local/
+infra/deploy/local/*
+!infra/deploy/local/run-malsori-docker.sh
 infra/deploy/values.malsori.yaml
 infra/deploy/run-malsori-docker.sh
+infra/docker-compose/docker-build/python-api-pip/*
+!infra/docker-compose/docker-build/python-api-pip/.gitkeep
+!infra/docker-compose/docker-build/python-api-pip/wheels/
+infra/docker-compose/docker-build/python-api-pip/wheels/*
+!infra/docker-compose/docker-build/python-api-pip/wheels/.gitkeep
 
 # local codex skills
 .codex/skills/malsori-local-deployer/

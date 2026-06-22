@@ -797,6 +797,10 @@ export class RtzrApiClient {
         typeof raw.backend_admin_enabled === "boolean"
           ? raw.backend_admin_enabled
           : undefined,
+      backendAdminTokenRequired:
+        typeof raw.backend_admin_token_required === "boolean"
+          ? raw.backend_admin_token_required
+          : undefined,
     };
   }
 

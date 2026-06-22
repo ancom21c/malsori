@@ -10,10 +10,16 @@
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - operator-managed backend binding architecture
 - `docs/plan-summary-feature-2026-03-11.md` - canonical summary feature spec
-- `docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan for internal operator activation and summary/translate implementation
-- `docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - current execution board for operator activation and summary/translate work
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` - current architecture boundary refactor plan
+- `docs/todo/2026-05-11-architecture-boundary-refactor-loop/README.md` - current architecture boundary refactor board
+- `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
+- `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md` - current execution board for realtime STT file upload promotion
+- `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan for internal operator activation and summary/translate implementation
+- `docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - active operator execution board for operator activation and summary/translate work
 - `docs/knowledge/backend-settings-operator-contract.md` - durable operator UX and safety rules for live backend mutations
+- `docs/knowledge/cloudflare-pages-static-profile.md` - durable deploy contract for static frontend hosting with a separate public API origin
 - `docs/knowledge/operator-feature-activation-contract.md` - durable activation order and boundary rules for operator-managed additive features
+- `docs/knowledge/realtime-file-upload-contract.md` - durable storage and UX rules for realtime API file uploads
 - `docs/knowledge/summary-feature-contract.md` - durable summary terminology and invariants
 
 ## Usage Rules

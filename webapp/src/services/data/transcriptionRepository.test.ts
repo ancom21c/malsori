@@ -1,15 +1,19 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../../data/app-db";
 import {
   appendAudioChunk,
-  appendVideoChunk,
-  createLocalTranscription,
-  deleteAudioChunksByRole,
-  deleteTranscription,
-  listAudioChunks,
-  listVideoChunks,
-  replaceSegments,
-  updateLocalTranscription,
+    appendVideoChunk,
+    createLocalTranscription,
+    deleteAudioChunksByRole,
+    deleteTranscription,
+    listAudioChunks,
+    listVideoChunks,
+    replaceDownloadStatusIfCurrent,
+    replaceSegments,
+    updateSegmentCorrection,
+    updateLocalTranscription,
+  updateSegmentSpeakerLabel,
+  updateSingleSegmentSpeakerLabel,
 } from "./transcriptionRepository";
 import {
   createSummaryPartition,
@@ -38,16 +42,22 @@ describe("transcriptionRepository", () => {
       title: "테스트",
       kind: "realtime",
       metadata: {
+        sttTransport: "streaming",
+        captureInput: "microphone",
         configPresetId: "preset-1",
         configPresetName: "테스트 프리셋",
         modelName: "sommers",
         backendEndpointId: "server-default",
         backendEndpointSource: "server-default",
         backendEndpointName: "서버 기본",
+        realtimeSimulationEnabled: true,
       },
     });
     expect(record.status).toBe("pending");
+    expect(record.sttTransport).toBe("streaming");
+    expect(record.captureInput).toBe("microphone");
     expect(record.modelName).toBe("sommers");
+    expect(record.realtimeSimulationEnabled).toBe(true);
     expect(record.searchTitle).toBe("테스트");
 
     await updateLocalTranscription(record.id, {
@@ -66,6 +76,44 @@ describe("transcriptionRepository", () => {
     expect(searchIndex).toBeTruthy();
     expect(searchIndex?.normalizedTranscript).toBe("hello");
     expect(searchIndex?.tokenSet).toContain("hello");
+  });
+
+  it("replaces download status only when the current lifecycle state still matches", async () => {
+    const record = await createLocalTranscription({
+      title: "download-state-guard",
+      kind: "file",
+    });
+    await updateLocalTranscription(record.id, {
+      isCloudSynced: true,
+      downloadStatus: "downloading",
+    });
+
+    await expect(replaceDownloadStatusIfCurrent(record.id, "downloading", "not_downloaded")).resolves.toBe(true);
+    let stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.downloadStatus).toBe("not_downloaded");
+
+    await updateLocalTranscription(record.id, { downloadStatus: "downloaded" });
+    await expect(replaceDownloadStatusIfCurrent(record.id, "downloading", "not_downloaded")).resolves.toBe(false);
+    stored = await appDb.transcriptions.get(record.id);
+    expect(stored?.downloadStatus).toBe("downloaded");
+  });
+
+  it("rolls back transcription creation when search index persistence fails", async () => {
+    const deleteSpy = vi
+      .spyOn(appDb.searchIndexes, "delete")
+      .mockRejectedValueOnce(new Error("search index failed"));
+
+    await expect(
+      createLocalTranscription({
+        title: "rollback guard",
+        kind: "realtime",
+      })
+    ).rejects.toThrow("search index failed");
+
+    await expect(appDb.transcriptions.count()).resolves.toBe(0);
+    await expect(appDb.searchIndexes.count()).resolves.toBe(0);
+
+    deleteSpy.mockRestore();
   });
 
   it("stores PCM audio chunks in order", async () => {
@@ -239,6 +287,115 @@ describe("transcriptionRepository", () => {
     const nextSegments = await appDb.segments.where("transcriptionId").equals(record.id).toArray();
     expect(nextSegments).toHaveLength(1);
     expect(nextSegments[0].correctedText).toBe("hello corrected");
+  });
+
+  it("removes persisted turn translations before replacing segment ids", async () => {
+    const record = await createLocalTranscription({
+      title: "translation relink guard",
+      kind: "realtime",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "첫 번째 발화",
+        startMs: 0,
+        endMs: 1000,
+        isFinal: true,
+      },
+    ]);
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-1",
+      sourceText: "첫 번째 발화",
+      targetLanguage: "en",
+      text: "First utterance.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      completedAt: "2026-03-12T00:00:01.000Z",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "완전히 다른 새 발화",
+        startMs: 0,
+        endMs: 900,
+        isFinal: true,
+      },
+    ]);
+
+    await expect(
+      appDb.turnTranslations.where("sessionId").equals(record.id).toArray()
+    ).resolves.toEqual([]);
+  });
+
+  it("removes affected turn translations when a segment source turn is edited", async () => {
+    const record = await createLocalTranscription({
+      title: "translation correction guard",
+      kind: "realtime",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "원문 하나",
+        startMs: 0,
+        endMs: 900,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+      {
+        text: "원문 둘",
+        startMs: 1000,
+        endMs: 1800,
+        isFinal: true,
+        spk: "2",
+        speaker_label: "Speaker 2",
+      },
+    ]);
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-a",
+      sourceText: "원문 하나",
+      targetLanguage: "en",
+      text: "First source.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:01:00.000Z",
+      completedAt: "2026-03-12T00:01:01.000Z",
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-1`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-1`,
+      sourceRevision: "rev-b",
+      sourceText: "원문 둘",
+      targetLanguage: "en",
+      text: "Second source.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:02:00.000Z",
+      completedAt: "2026-03-12T00:02:01.000Z",
+    });
+
+    await updateSegmentCorrection(`${record.id}-segment-0`, "수정된 원문 하나");
+
+    let remainingTranslations = await appDb.turnTranslations
+      .where("sessionId")
+      .equals(record.id)
+      .toArray();
+    expect(remainingTranslations.map((translation) => translation.turnId)).toEqual([
+      `${record.id}-segment-1`,
+    ]);
+
+    await updateSegmentSpeakerLabel(record.id, "2", "Moderator");
+
+    remainingTranslations = await appDb.turnTranslations
+      .where("sessionId")
+      .equals(record.id)
+      .toArray();
+    expect(remainingTranslations).toEqual([]);
   });
 
   it("does not preserve segment corrections when preserve flag is disabled", async () => {
@@ -432,5 +589,176 @@ describe("transcriptionRepository", () => {
     expect(partition?.sourceRevision).not.toBe(record.updatedAt);
     expect(summary?.freshness).toBe("stale");
     expect(summary?.stalePartitionIds).toEqual(["partition-1"]);
+  });
+
+  it("keeps summary state unchanged when speaker relabel matches no segments", async () => {
+    const record = await createLocalTranscription({
+      title: "no speaker relabel drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-keep-fresh",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-keep-fresh",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-keep-fresh"],
+    });
+
+    await updateSegmentSpeakerLabel(record.id, "missing-speaker", "Moderator");
+
+    const partition = await appDb.summaryPartitions.get("partition-keep-fresh");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(partition?.status).toBe("finalized");
+    expect(partition?.staleReason ?? null).toBeNull();
+    expect(summary?.freshness).toBe("fresh");
+    expect(summary?.stalePartitionIds).toEqual([]);
+  });
+
+  it("keeps translations and summary state unchanged when correction is a no-op", async () => {
+    const record = await createLocalTranscription({
+      title: "no-op correction drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        correctedText: "speaker one corrected",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-noop-correction",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-noop-correction",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-noop-correction"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-noop-correction",
+      sourceText: "speaker one corrected",
+      targetLanguage: "en",
+      text: "Speaker one corrected.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:03:00.000Z",
+      completedAt: "2026-03-12T00:03:01.000Z",
+    });
+
+    await updateSegmentCorrection(`${record.id}-segment-0`, "speaker one corrected");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(record.id).toArray();
+    const partition = await appDb.summaryPartitions.get("partition-noop-correction");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(translations).toHaveLength(1);
+    expect(partition?.status).toBe("finalized");
+    expect(summary?.freshness).toBe("fresh");
+  });
+
+  it("keeps translations and summary state unchanged when speaker relabel is a no-op", async () => {
+    const record = await createLocalTranscription({
+      title: "no-op speaker drift",
+      kind: "file",
+    });
+
+    await replaceSegments(record.id, [
+      {
+        text: "speaker one",
+        startMs: 0,
+        endMs: 800,
+        isFinal: true,
+        spk: "1",
+        speaker_label: "Speaker 1",
+      },
+    ]);
+    await createSummaryPartition({
+      id: "partition-noop-speaker",
+      sessionId: record.id,
+      startTurnId: `${record.id}-segment-0`,
+      endTurnId: `${record.id}-segment-0`,
+      turnCount: 1,
+      startedAt: "2026-03-10T00:00:00.000Z",
+      endedAt: "2026-03-10T00:00:01.000Z",
+      status: "finalized",
+      reason: "manual",
+      sourceRevision: record.updatedAt,
+    });
+    await upsertPublishedSummary({
+      sessionId: record.id,
+      mode: "full",
+      runId: "run-noop-speaker",
+      title: "Summary",
+      content: "Should stay fresh",
+      sourceRevision: record.updatedAt,
+      partitionIds: ["partition-noop-speaker"],
+    });
+    await upsertTurnTranslation({
+      id: buildTurnTranslationId(record.id, `${record.id}-segment-0`, "en"),
+      sessionId: record.id,
+      turnId: `${record.id}-segment-0`,
+      sourceRevision: "rev-noop-speaker",
+      sourceText: "speaker one",
+      targetLanguage: "en",
+      text: "Speaker one.",
+      status: "ready",
+      requestedAt: "2026-03-12T00:04:00.000Z",
+      completedAt: "2026-03-12T00:04:01.000Z",
+    });
+
+    await updateSegmentSpeakerLabel(record.id, "1", "Speaker 1");
+    await updateSingleSegmentSpeakerLabel(`${record.id}-segment-0`, "Speaker 1", "1");
+
+    const translations = await appDb.turnTranslations.where("sessionId").equals(record.id).toArray();
+    const partition = await appDb.summaryPartitions.get("partition-noop-speaker");
+    const summary = await appDb.publishedSummaries.get(`${record.id}-full`);
+
+    expect(translations).toHaveLength(1);
+    expect(partition?.status).toBe("finalized");
+    expect(summary?.freshness).toBe("fresh");
   });
 });

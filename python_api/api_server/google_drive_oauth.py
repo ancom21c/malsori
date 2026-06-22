@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlparse
@@ -174,6 +175,29 @@ def _load_token_file(path: Path) -> Dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _write_token_file(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Optional[Path] = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        temp_path.replace(path)
+    except Exception:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
 
 
 @dataclass(frozen=True)
@@ -559,7 +583,7 @@ def google_drive_oauth_callback(
                 "picture": userinfo.get("picture"),
             },
         }
-        token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        _write_token_file(token_path, payload)
         with contextlib.suppress(Exception):
             os.chmod(token_path, 0o600)
 

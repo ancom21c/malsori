@@ -1,0 +1,4 @@
+interface:
+  display_name: "Malsori Tekton Deployer"
+  short_description: "Run Malsori cluster release via the release broker API"
+  default_prompt: "Deploy the committed Malsori revision through the live release broker API. Run ./.codex/skills/malsori-tekton-deployer/scripts/run-release.sh, which should submit a malsori/default request to https://deployer.ancom.duckdns.org and wait until the broker reports a terminal phase."

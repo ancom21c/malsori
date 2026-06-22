@@ -4,8 +4,27 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 REGISTRY="${REGISTRY:?Set REGISTRY to the target container registry (e.g. ghcr.io/your-org)}"
 DEV_BUILD="${DEV_BUILD:-0}"
+STAGE_HELPER="${ROOT_DIR}/scripts/stage-python-api-pip.sh"
+DEFAULT_PIP_SOURCE_DIR="${HOME}/.local/share/malsori/python-api-pip"
+STAGED_PIP_CONTEXT=0
+
+cleanup() {
+  if [[ "${STAGED_PIP_CONTEXT}" == "1" ]]; then
+    "${STAGE_HELPER}" cleanup
+  fi
+}
+
+trap cleanup EXIT
 
 pushd "${ROOT_DIR}" >/dev/null
+
+if [[ -n "${PYTHON_API_PIP_SOURCE_DIR:-}" || -d "${DEFAULT_PIP_SOURCE_DIR}" ]]; then
+  echo "Staging python-api pip context for image builds"
+  "${STAGE_HELPER}" stage
+  STAGED_PIP_CONTEXT=1
+else
+  echo "No local python-api pip source dir detected; builds will rely on public pip resolution."
+fi
 
 SHORT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo "workspace")"
 FULL_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo "workspace")"

@@ -5,6 +5,22 @@ import {
 } from "./runtimeErrorReporter";
 import { useSettingsStore } from "../../store/settingsStore";
 
+type SendBeacon = typeof navigator.sendBeacon;
+
+function mockSendBeacon() {
+  return vi.fn((...args: Parameters<SendBeacon>) => {
+    void args;
+    return true;
+  });
+}
+
+function mockFetch() {
+  return vi.fn(async (...args: Parameters<typeof fetch>) => {
+    void args;
+    return new Response();
+  });
+}
+
 describe("runtimeErrorReporter", () => {
   const originalSendBeacon = navigator.sendBeacon;
   const originalFetch = globalThis.fetch;
@@ -37,12 +53,12 @@ describe("runtimeErrorReporter", () => {
   });
 
   it("sends window errors through sendBeacon", async () => {
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
-      value: sendBeacon,
+      value: sendBeacon as SendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch() as typeof fetch;
 
     initRuntimeErrorReporter();
     const error = new Error("boom");
@@ -60,10 +76,10 @@ describe("runtimeErrorReporter", () => {
   });
 
   it("deduplicates repeated runtime errors", async () => {
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
-      value: sendBeacon,
+      value: sendBeacon as SendBeacon,
     });
 
     initRuntimeErrorReporter();
@@ -80,9 +96,7 @@ describe("runtimeErrorReporter", () => {
       configurable: true,
       value: undefined,
     });
-    const fetchMock = vi.fn<[RequestInfo | URL, RequestInit | undefined], Promise<Response>>(() =>
-      Promise.resolve(new Response())
-    );
+    const fetchMock = mockFetch();
     globalThis.fetch = fetchMock as typeof fetch;
 
     initRuntimeErrorReporter();
@@ -108,12 +122,12 @@ describe("runtimeErrorReporter", () => {
       ...(window.__MALSORI_CONFIG__ ?? {}),
       runtimeErrorReportingEnabled: false,
     };
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
-      value: sendBeacon,
+      value: sendBeacon as SendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch() as typeof fetch;
 
     initRuntimeErrorReporter();
     const rejection = new Event("unhandledrejection");
@@ -130,12 +144,12 @@ describe("runtimeErrorReporter", () => {
 
   it("does not initialize when admin base url is not configured", async () => {
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
-      value: sendBeacon,
+      value: sendBeacon as SendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch() as typeof fetch;
 
     initRuntimeErrorReporter();
     await Promise.resolve();
@@ -146,12 +160,12 @@ describe("runtimeErrorReporter", () => {
 
   it("can initialize after admin base becomes available later", async () => {
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "" });
-    const sendBeacon = vi.fn<[string | URL, BodyInit | null | undefined], boolean>(() => true);
+    const sendBeacon = mockSendBeacon();
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
-      value: sendBeacon,
+      value: sendBeacon as SendBeacon,
     });
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response())) as typeof fetch;
+    globalThis.fetch = mockFetch() as typeof fetch;
 
     initRuntimeErrorReporter();
     useSettingsStore.setState({ apiBaseUrl: "/", adminApiBaseUrl: "/internal" });

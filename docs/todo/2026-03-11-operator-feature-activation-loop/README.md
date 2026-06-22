@@ -35,6 +35,11 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 | T1108 | P0 | Backend failover / auth hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1108-backend-failover-auth-hardening.md` |
 | T1109 | P1 | Summary / translate surface contract hardening | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1109-summary-translate-surface-contract-hardening.md` |
 | T1110 | P1 | Live activation runtime / release gate recovery | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1110-live-activation-runtime-release-gate-recovery.md` |
+| T1111 | P1 | Docker compose HTTPS self-signed ingress | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1111-docker-compose-https-self-signed-ingress.md` |
+| T1112 | P0 | State integrity / drift audit | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1112-state-integrity-drift-audit.md` |
+| T1113 | P1 | Private RTZR wheelhouse deploy staging | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1113-private-rtzr-wheelhouse-deploy-staging.md` |
+| T1114 | P1 | Kubernetes nginx ConfigMap entrypoint guard | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1114-k8s-nginx-configmap-entrypoint-guard.md` |
+| T1115 | P1 | Cloudflare Pages static frontend profile | Done | Done | Done | Done | Done | `docs/todo/2026-03-11-operator-feature-activation-loop/T1115-cloudflare-pages-static-profile.md` |
 
 ## 현재 상태 스냅샷
 
@@ -52,21 +57,24 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
   - `T1107`은 smoke/evidence template, rollback checklist, local verify가 닫혔고, 실제 deploy smoke evidence 캡처만 남아 있다.
   - `T1108`은 provider health/auth/fallback hardening과 local verify를 닫았다.
   - `T1109`는 full summary stale/failure contract와 translate artifact cleanup hardening, local verify를 닫았다.
-  - `T1110`은 bundle gate recovery local verify는 닫았고, operator live runtime sync 구현이 남아 있다.
+  - `T1110`은 operator live runtime sync, release gate recovery, local verify를 닫았다.
+  - `T1111`은 compose webapp HTTPS/self-signed cert 경로와 helper-script 기반 full compose verify를 닫았다.
+  - `T1112`는 persisted runtime surface의 stable-id / bootstrap / read-write drift hardening과 local verify를 닫았다.
+  - `T1113`은 private RTZR wheelhouse를 gitignored build context로 임시 stage하는 compose/build/deploy helper 경로와 local verify를 닫았다.
+  - `T1114`는 Helm ConfigMap가 주입하는 `default.conf`를 webapp entrypoint가 다시 덮어써 CrashLoop 나던 deploy regression을 local regression + redeploy smoke까지 닫았다.
+  - `T1115`는 same repo를 유지한 채 Cloudflare Pages static frontend와 remote python-api 조합을 public deploy profile로 고정했다.
 
 ## 상태 분류
 
 - Active now:
   - `T1101` internal operator admin surface activation
-  - `T1110` live activation runtime / release gate recovery
+  - `T1102` backend health/capability live wiring
 - Ready next:
-  - `T1102` backend health/capability live wiring verify
   - `T1103` full summary provider-backed execution verify
   - `T1104` full summary UX activation verify
   - `T1105` realtime summary partition runner verify
   - `T1106` translate final-turn vertical slice verify
   - `T1107` rollout smoke/evidence hardening verify
-  - `T1110` live activation runtime / release gate recovery
 - Blocked by realtime/translate follow-up execution:
   - 없음
 - Closeout gate:
@@ -80,7 +88,8 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 4. `T1104`를 바로 이어 붙여 full summary action UX를 shell에서 실행 단계로 올린다.
 5. `T1105`, `T1106`을 순서대로 열고 additive surface를 확장한다.
 6. `T1107`에서 internal/public/admin/summary/translate evidence를 한 번에 닫는다.
-7. polish finding으로 열린 `T1108`, `T1109`를 local green으로 닫고, `T1110`을 남은 runtime/gate follow-up으로 추적한다.
+7. polish finding으로 열린 `T1108`, `T1109`를 local green으로 닫고, `T1110`으로 live runtime sync와 release gate recovery를 정리했다.
+8. `T1111`~`T1115`는 compose/dev deploy reliability, state hardening, wheel staging, and Cloudflare static-profile support까지 local closeout했다.
 
 ## 의존성 메모
 
@@ -91,11 +100,16 @@ internal operator backend binding plane을 실제 배포/운영 구조로 열고
 - `T1108`은 `T1102`, `T1103`, `T1106`의 운영 truth를 맞추는 hardening task다.
 - `T1109`는 `T1104`, `T1106`의 UX/runtime contract drift를 바로잡는 hardening task다.
 - `T1110`은 operator live wiring과 release gate를 맞춰 `T1102`~`T1107` closeout 증거를 신뢰 가능하게 만드는 후속 task다.
+- `T1111`은 local compose ingress에서 secure-context/TLS 재현 경로를 제공하지만 public/internal boundary contract 자체를 바꾸지는 않는다.
+- `T1112`는 shared store/runtime 경계에서 additive surface가 core STT state를 조용히 훼손하지 않는지 검증하는 hardening task다.
+- `T1113`은 `T1111` 및 local/dev deploy 경로에서 private SDK 의존성으로 인한 python-api image build failure를 반복 가능하게 막는 deploy-support task다.
+- `T1114`는 `T1113` 이후 dev cluster rollout에서 Helm-provided nginx ConfigMap을 webapp image startup script가 훼손하지 않도록 막는 deploy-reliability task다.
+- `T1115`는 same repo를 유지한 채 Cloudflare Pages static frontend와 remote python-api 조합을 public deploy profile로 고정하는 task다.
 
 ## 이번 루프 우선순위
 
 - Now: `T1101`, `T1102`
-- Next: `T1103`, `T1104`, `T1105`, `T1106`, `T1107`, `T1110`
+- Next: `T1103`, `T1104`, `T1105`, `T1106`, `T1107`
 - Later: 없음
 
 ## Loop Hygiene

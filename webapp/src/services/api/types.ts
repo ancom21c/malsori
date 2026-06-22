@@ -116,6 +116,7 @@ export interface HealthStatus {
   authEnabled: boolean;
   source: "default" | "override";
   backendAdminEnabled?: boolean;
+  backendAdminTokenRequired?: boolean;
 }
 
 export interface RawHealthStatus {
@@ -126,6 +127,7 @@ export interface RawHealthStatus {
   auth_enabled: boolean;
   source: "default" | "override";
   backend_admin_enabled?: boolean;
+  backend_admin_token_required?: boolean;
 }
 
 export interface BackendEndpointUpdatePayload {

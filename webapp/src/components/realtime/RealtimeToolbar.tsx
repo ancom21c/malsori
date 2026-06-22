@@ -30,10 +30,12 @@ interface RealtimeToolbarProps {
   onMainAction: () => void;
   onStopAction: () => void;
   onRuntimeSettingsOpen: () => void;
+  onRealtimeFileUpload: () => void;
   cameraSupported: boolean;
   cameraEnabled: boolean;
   onToggleCamera: () => void;
   audioLevel: number;
+  streamProgressPercent?: number | null;
   runtimeSettingsButtonRef?: RefObject<HTMLButtonElement | null>;
   mainButtonPointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
   clearPointerState?: () => void;
@@ -46,10 +48,12 @@ export default function RealtimeToolbar({
   onMainAction,
   onStopAction,
   onRuntimeSettingsOpen,
+  onRealtimeFileUpload,
   cameraSupported,
   cameraEnabled,
   onToggleCamera,
   audioLevel,
+  streamProgressPercent = null,
   runtimeSettingsButtonRef,
   mainButtonPointerDown,
   clearPointerState,
@@ -60,10 +64,27 @@ export default function RealtimeToolbar({
 
   const sessionActive = sessionState !== "idle";
   const isRecording = sessionState === "recording";
+  const fileSimulationActive = streamProgressPercent !== null && sessionActive;
+  const clampedProgress =
+    streamProgressPercent === null ? 0 : Math.min(100, Math.max(0, streamProgressPercent));
   const mainButtonDisabled =
     sessionState === "saving" ||
     sessionState === "stopping" ||
-    retryingConnection;
+    retryingConnection ||
+    fileSimulationActive;
+  const controlButtonSx = {
+    bgcolor: alpha(theme.palette.background.default, 0.8),
+    backdropFilter: "blur(12px)",
+    border: "1px solid",
+    borderColor: alpha(theme.palette.common.white, 0.1),
+    transition: CONTROL_TRANSITION,
+    "&:hover": {
+      bgcolor: alpha(theme.palette.background.default, 0.95),
+      transform: "translateY(-1px)",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    },
+    "&:active": { transform: "translateY(0)" },
+  };
 
   const mainButtonIcon = (() => {
     switch (sessionState) {
@@ -120,12 +141,13 @@ export default function RealtimeToolbar({
         zIndex: docked ? 1 : 1000,
         display: "flex",
         alignItems: "center",
+        justifyContent: "center",
       }}
     >
       <Box
         sx={{
           width: "100%",
-          maxWidth: docked ? "none" : 640,
+          maxWidth: 640,
           borderRadius: docked ? 3 : 4,
           px: docked ? 1.5 : 2,
           py: docked ? 1.25 : 1.5,
@@ -147,33 +169,62 @@ export default function RealtimeToolbar({
           }}
         >
           <AudioVisualizer level={audioLevel} active={isRecording || sessionState === "paused"} />
-        </Box>
-
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-          <Tooltip title={t("streamTranscriptionSettings")}>
-            <IconButton
-              ref={runtimeSettingsButtonRef}
-              onClick={onRuntimeSettingsOpen}
-              aria-label={t("streamTranscriptionSettings")}
+          {streamProgressPercent !== null ? (
+            <Box
               sx={{
-                bgcolor: alpha(theme.palette.background.default, 0.8),
-                backdropFilter: "blur(12px)",
-                border: "1px solid",
-                borderColor: alpha(theme.palette.common.white, 0.1),
-                transition: CONTROL_TRANSITION,
-                "&:hover": {
-                  bgcolor: alpha(theme.palette.background.default, 0.95),
-                  transform: "translateY(-1px)",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                },
-                "&:active": { transform: "translateY(0)" },
+                mt: 0.75,
+                height: 3,
+                borderRadius: 999,
+                overflow: "hidden",
+                bgcolor: alpha(theme.palette.common.white, 0.08),
               }}
             >
-              <SettingsRoundedIcon />
-            </IconButton>
-          </Tooltip>
+              <Box
+                sx={{
+                  width: `${clampedProgress}%`,
+                  height: "100%",
+                  bgcolor: "primary.main",
+                }}
+              />
+            </Box>
+          ) : null}
+        </Box>
 
-          <Box sx={{ position: "relative" }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+            alignItems: "center",
+            columnGap: { xs: 1.25, sm: 2 },
+          }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-start">
+            <Tooltip title={t("streamTranscriptionSettings")}>
+              <IconButton
+                ref={runtimeSettingsButtonRef}
+                onClick={onRuntimeSettingsOpen}
+                aria-label={t("streamTranscriptionSettings")}
+                sx={controlButtonSx}
+              >
+                <SettingsRoundedIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title={t("simulateRealtimeFromFile")}>
+              <span>
+                <IconButton
+                  onClick={onRealtimeFileUpload}
+                  disabled={sessionActive}
+                  aria-label={t("simulateRealtimeFromFile")}
+                  sx={controlButtonSx}
+                >
+                  <PlayArrowRoundedIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+
+          <Box sx={{ position: "relative", justifySelf: "center" }}>
             <Fab
               color={mainButtonColor}
               size="large"
@@ -222,54 +273,46 @@ export default function RealtimeToolbar({
             )}
           </Box>
 
-          {sessionActive && (
-            <Tooltip title={t("sessionEnds")}>
-              <Fab
-                color="error"
-                size="medium"
-                onClick={onStopAction}
-                aria-label={t("sessionEnds")}
-                sx={{
-                  bgcolor: theme.palette.error.main,
-                  boxShadow: `0 12px 28px ${alpha(theme.palette.error.main, 0.3)}`,
-                  transition: CONTROL_TRANSITION,
-                  "&:hover": {
-                    transform: "scale(1.05)",
-                    boxShadow: `0 16px 36px ${alpha(theme.palette.error.main, 0.4)}`,
-                  },
-                  "&:active": { transform: "scale(0.95)" },
-                }}
-              >
-                <StopCircleIcon />
-              </Fab>
-            </Tooltip>
-          )}
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+            {sessionActive && (
+              <Tooltip title={t("sessionEnds")}>
+                <Fab
+                  color="error"
+                  size="medium"
+                  onClick={onStopAction}
+                  aria-label={t("sessionEnds")}
+                  sx={{
+                    bgcolor: theme.palette.error.main,
+                    boxShadow: `0 12px 28px ${alpha(theme.palette.error.main, 0.3)}`,
+                    transition: CONTROL_TRANSITION,
+                    "&:hover": {
+                      transform: "scale(1.05)",
+                      boxShadow: `0 16px 36px ${alpha(theme.palette.error.main, 0.4)}`,
+                    },
+                    "&:active": { transform: "scale(0.95)" },
+                  }}
+                >
+                  <StopCircleIcon />
+                </Fab>
+              </Tooltip>
+            )}
 
-          {cameraSupported && (
-            <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
-              <IconButton
-                onClick={onToggleCamera}
-                aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
-                sx={{
-                  color: cameraEnabled ? theme.palette.primary.main : theme.palette.text.secondary,
-                  bgcolor: alpha(theme.palette.background.default, 0.8),
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid",
-                  borderColor: alpha(theme.palette.common.white, 0.1),
-                  transition: CONTROL_TRANSITION,
-                  "&:hover": {
-                    bgcolor: alpha(theme.palette.background.default, 0.95),
-                    transform: "translateY(-1px)",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                  },
-                  "&:active": { transform: "translateY(0)" },
-                }}
-              >
-                {cameraEnabled ? <VideocamRoundedIcon /> : <VideocamOffRoundedIcon />}
-              </IconButton>
-            </Tooltip>
-          )}
-        </Stack>
+            {cameraSupported && (
+              <Tooltip title={cameraEnabled ? t("disableCamera") : t("enableCamera")}>
+                <IconButton
+                  onClick={onToggleCamera}
+                  aria-label={cameraEnabled ? t("disableCamera") : t("enableCamera")}
+                  sx={{
+                    ...controlButtonSx,
+                    color: cameraEnabled ? theme.palette.primary.main : theme.palette.text.secondary,
+                  }}
+                >
+                  {cameraEnabled ? <VideocamRoundedIcon /> : <VideocamOffRoundedIcon />}
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+        </Box>
       </Box>
     </Box>
   );

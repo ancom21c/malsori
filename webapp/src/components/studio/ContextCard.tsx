@@ -15,7 +15,7 @@ export function ContextCard({ title, value, tone = "neutral" }: ContextCardProps
       sx={{
         flex: 1,
         p: 1.5,
-        borderRadius: 2.5,
+        borderRadius: "12px",
         border: "1px solid",
         borderColor: (theme) => alpha(theme.palette.common.white, 0.08),
         bgcolor: (theme) => {

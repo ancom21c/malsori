@@ -16,8 +16,13 @@
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - operator-managed backend binding architecture
 - `docs/plan-summary-feature-2026-03-11.md` - canonical summary feature spec
-- `docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan
-- `docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - current execution board
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` - current architecture boundary refactor plan
+- `docs/todo/2026-05-11-architecture-boundary-refactor-loop/README.md` - current architecture boundary refactor board
+- `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
+- `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md` - current execution board for realtime STT file upload promotion
+- `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan
+- `docs/todo/2026-03-11-operator-feature-activation-loop/README.md` - active operator execution board
+- `docs/knowledge/cloudflare-pages-static-profile.md` - static frontend + remote API deployment contract
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 

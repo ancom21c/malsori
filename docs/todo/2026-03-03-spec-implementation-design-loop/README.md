@@ -1,5 +1,7 @@
 # Malsori Spec/Implementation/Design Loop Board (2026-03-03)
 
+> Status: historical execution board. This loop is complete. The latest completed execution board is `docs/todo/2026-03-08-contract-ux-loop/README.md`. No active remediation loop is currently registered.
+
 ## 목적
 
 RTZR 공식 문서 기준으로 식별된 `P0~P2` 이슈를 `스펙 -> 계획 리뷰 -> 구현 -> 구현 리뷰` 루프로 정리하고, Studio Console 기반 디자인 적용 계획까지 동일 보드에서 추적한다.

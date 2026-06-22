@@ -4,24 +4,133 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from dataclasses import dataclass
+import inspect
 import json
 import logging
-import time
-import inspect
-from typing import Any, Dict, Optional
-from urllib.parse import urlencode, urlparse
+import re
+from typing import Any, Dict, Literal, Optional
+from urllib.parse import quote, urlencode, urlparse
 
+import grpc
 import httpx
+from google.protobuf import json_format
 import websockets
 from websockets.client import WebSocketClientProtocol
-import grpc
-from google.protobuf import json_format
 
 from .config import Settings
 from .protos import vito_stt_client_pb2 as stt_pb2
 from .protos import vito_stt_client_pb2_grpc as stt_pb2_grpc
 
+_SDK_IMPORT_ERROR: ModuleNotFoundError | None = None
+
+try:
+    from rtzr import AsyncRtzr
+    from rtzr.types import STTConfig
+    from rtzr_internal import AsyncInternalRtzr
+    from rtzr_internal import file_transcribe as internal_file_transcribe
+except ModuleNotFoundError as exc:
+    if not str(exc.name or "").startswith("rtzr"):
+        raise
+    _SDK_IMPORT_ERROR = exc
+
+    class _FallbackSttConfigPayload:
+        def __init__(self, payload: Dict[str, Any]):
+            self._payload = payload
+
+        def to_dict(self) -> Dict[str, Any]:
+            return dict(self._payload)
+
+    class STTConfig:  # type: ignore[no-redef]
+        @classmethod
+        def from_payload(cls, payload: Dict[str, Any]) -> _FallbackSttConfigPayload:
+            normalized: Dict[str, Any] = {}
+            for key, value in payload.items():
+                if isinstance(value, str):
+                    lowered = value.strip().lower()
+                    if lowered in {"1", "true", "yes", "on"}:
+                        normalized[key] = True
+                        continue
+                    if lowered in {"0", "false", "no", "off"}:
+                        normalized[key] = False
+                        continue
+                normalized[key] = value
+            return _FallbackSttConfigPayload(normalized)
+
+    class _FallbackAsyncRtzrBase:
+        def __init__(
+            self,
+            *,
+            client_id: str,
+            client_secret: str,
+            api_base: str,
+            grpc_base: Optional[str] = None,
+            websocket_base: Optional[str] = None,
+            **_: Any,
+        ):
+            self.client_id = client_id
+            self.client_secret = client_secret
+            self.api_base = api_base.rstrip("/")
+            self.grpc_base = grpc_base
+            self.websocket_base = (
+                websocket_base.rstrip("/")
+                if websocket_base
+                else self.api_base.replace("https://", "wss://").replace("http://", "ws://")
+            )
+            self._sess = httpx.AsyncClient()
+
+        async def _get_token(self) -> Optional[str]:
+            return None
+
+        async def _build_auth_headers(self) -> Dict[str, str]:
+            token = await self._get_token()
+            return {"Authorization": f"bearer {token}"} if token else {}
+
+        async def get_transcribe_result(self, job_id: str) -> Dict[str, Any]:
+            response = await self._sess.get(f"{self.api_base}/v1/transcribe/{job_id}")
+            response.raise_for_status()
+            return dict(response.json())
+
+        async def aclose(self) -> None:
+            await self._sess.aclose()
+
+    class AsyncRtzr(_FallbackAsyncRtzrBase):  # type: ignore[no-redef]
+        pass
+
+    class AsyncInternalRtzr(_FallbackAsyncRtzrBase):  # type: ignore[no-redef]
+        def __init__(
+            self,
+            *,
+            phase: Optional[Literal["dev", "sandbox"]] = None,
+            grpc_secure: Optional[bool] = None,
+            **kwargs: Any,
+        ):
+            self.phase = phase
+            self.grpc_secure = grpc_secure
+            super().__init__(**kwargs)
+
+    class _FallbackInternalFileTranscribe:
+        @staticmethod
+        def _split_internal_payload(
+            payload: Dict[str, Any],
+        ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+            return dict(payload), {}
+
+        @staticmethod
+        def _validate_internal_options_scope(
+            client: Any,
+            internal_payload: Dict[str, Any],
+        ) -> None:
+            return None
+
+    internal_file_transcribe = _FallbackInternalFileTranscribe()
+
 logger = logging.getLogger(__name__)
+
+if _SDK_IMPORT_ERROR is not None:
+    logger.warning(
+        "RTZR SDK packages are unavailable in the current environment; using test/bootstrap fallbacks."
+    )
 
 _CONNECT_SUPPORTS_ADDITIONAL_HEADERS = (
     "additional_headers" in inspect.signature(websockets.connect).parameters
@@ -35,6 +144,42 @@ DEFAULT_STREAMING_CONFIG: Dict[str, str] = {
     "use_disfluency_filter": "false",
     "use_profanity_filter": "false",
 }
+
+_INTERNAL_PHASE_BY_HOST: dict[str, Literal["dev", "sandbox"]] = {
+    "dev-openapi.vito.ai": "dev",
+    "sandbox-openapi.vito.ai": "sandbox",
+}
+_GRPC_METADATA_KEY_RE = re.compile(r"[^0-9a-z_.-]+")
+
+
+def _normalize_grpc_metadata_key(key: Any) -> Optional[str]:
+    normalized = _GRPC_METADATA_KEY_RE.sub("-", str(key).strip().lower()).strip("-")
+    if not normalized or normalized.endswith("-bin"):
+        return None
+    return normalized
+
+
+def _normalize_grpc_metadata_value(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        text = "true" if value else "false"
+    else:
+        text = str(value)
+    text = text.replace("\r", " ").replace("\n", " ").strip()
+    if all(0x20 <= ord(char) <= 0x7E for char in text):
+        return text
+    return quote(text, safe="")
+
+
+def _normalize_grpc_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    normalized: Dict[str, str] = {}
+    for raw_key, raw_value in (metadata or {}).items():
+        key = _normalize_grpc_metadata_key(raw_key)
+        value = _normalize_grpc_metadata_value(raw_value)
+        if key and value is not None:
+            normalized[key] = value
+    return normalized
 
 
 class GrpcStreamingSession:
@@ -134,98 +279,239 @@ class GrpcStreamingSession:
         return self._last_error
 
 
-class RTZRClient:
-    """Thin wrapper for RTZR STT REST endpoints with token caching."""
+@dataclass(frozen=True)
+class CloudSdkTarget:
+    package: Literal["public", "internal"]
+    phase: Optional[Literal["dev", "sandbox"]] = None
+
+
+def _resolve_cloud_sdk_target(api_base: str) -> CloudSdkTarget:
+    """Select the RTZR SDK family for a cloud endpoint."""
+    host = (urlparse(api_base).hostname or "").strip().lower()
+    phase = _INTERNAL_PHASE_BY_HOST.get(host)
+    if phase:
+        return CloudSdkTarget(package="internal", phase=phase)
+    return CloudSdkTarget(package="public")
+
+
+class _ManualTokenAsyncRtzr(AsyncRtzr):
+    """Async RTZR SDK client that accepts a pre-minted access token."""
+
+    def __init__(
+        self,
+        *,
+        client_id: Optional[str],
+        client_secret: Optional[str],
+        manual_token: Optional[str],
+        api_base: str,
+        grpc_base: Optional[str] = None,
+        websocket_base: Optional[str] = None,
+    ):
+        self._manual_token = (manual_token or "").strip() or None
+        super().__init__(
+            client_id=client_id or "",
+            client_secret=client_secret or "",
+            api_base=api_base,
+            grpc_base=grpc_base,
+            websocket_base=websocket_base,
+        )
+
+    async def _get_token(self) -> Optional[str]:
+        if self._manual_token:
+            return self._manual_token
+        return await super()._get_token()
+
+
+class _ManualTokenAsyncInternalRtzr(AsyncInternalRtzr):
+    """Async internal RTZR SDK client that accepts a pre-minted access token."""
+
+    def __init__(
+        self,
+        *,
+        client_id: Optional[str],
+        client_secret: Optional[str],
+        manual_token: Optional[str],
+        phase: Optional[Literal["dev", "sandbox"]],
+        api_base: str,
+        grpc_base: Optional[str] = None,
+        websocket_base: Optional[str] = None,
+        grpc_secure: Optional[bool] = None,
+    ):
+        self._manual_token = (manual_token or "").strip() or None
+        super().__init__(
+            client_id=client_id or "",
+            client_secret=client_secret or "",
+            phase=phase,
+            api_base=api_base,
+            grpc_base=grpc_base,
+            websocket_base=websocket_base,
+            grpc_secure=grpc_secure,
+        )
+
+    async def _get_token(self) -> Optional[str]:
+        if self._manual_token:
+            return self._manual_token
+        return await super()._get_token()
+
+
+def _build_async_http_client(*, verify_ssl: bool) -> httpx.AsyncClient:
+    """Prefer HTTP/2 when available, but stay usable in lean local environments."""
+    client_kwargs = {
+        "verify": verify_ssl,
+        "timeout": httpx.Timeout(connect=30.0, read=60.0, write=60.0, pool=60.0),
+    }
+    try:
+        return httpx.AsyncClient(http2=True, **client_kwargs)
+    except ImportError:
+        logger.warning(
+            "httpx HTTP/2 extras are unavailable; falling back to HTTP/1.1."
+        )
+        return httpx.AsyncClient(http2=False, **client_kwargs)
+
+
+def _replace_sdk_session(sdk: Any, *, verify_ssl: bool) -> httpx.AsyncClient:
+    """Swap the SDK-managed AsyncClient so we control TLS + HTTP/2 behavior."""
+    stale_session = sdk._sess
+    sdk._sess = _build_async_http_client(verify_ssl=verify_ssl)
+    return stale_session
+
+
+class CloudApiAdapter:
+    """Cloud-only adapter backed by the official RTZR SDK packages."""
 
     def __init__(self, settings: Settings):
-        self._session = httpx.AsyncClient(verify=settings.verify_ssl, http2=True)
-        self._client_id = settings.pronaia_client_id or ""
-        self._client_secret = settings.pronaia_client_secret or ""
+        self._target = _resolve_cloud_sdk_target(settings.pronaia_api_base)
+        common_kwargs = {
+            "client_id": settings.pronaia_client_id,
+            "client_secret": settings.pronaia_client_secret,
+            "manual_token": settings.pronaia_access_token,
+            "api_base": settings.pronaia_api_base.rstrip("/"),
+        }
+
+        if self._target.package == "internal":
+            self._sdk: _ManualTokenAsyncRtzr | _ManualTokenAsyncInternalRtzr = (
+                _ManualTokenAsyncInternalRtzr(
+                    phase=self._target.phase,
+                    grpc_secure=True,
+                    **common_kwargs,
+                )
+            )
+        else:
+            self._sdk = _ManualTokenAsyncRtzr(**common_kwargs)
+
+        self._stale_sessions: list[httpx.AsyncClient] = [
+            _replace_sdk_session(self._sdk, verify_ssl=settings.verify_ssl)
+        ]
+
+    @property
+    def websocket_base(self) -> str:
+        return str(self._sdk.websocket_base).rstrip("/")
+
+    @property
+    def package(self) -> Literal["public", "internal"]:
+        return self._target.package
+
+    @property
+    def phase(self) -> Optional[Literal["dev", "sandbox"]]:
+        return self._target.phase
+
+    async def submit_transcription(
+        self,
+        audio_bytes: bytes,
+        config: Optional[Dict[str, Any]] = None,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Submit batch audio through the SDK-authenticated HTTP session."""
+        request_config = self._normalize_batch_config(config)
+        headers = await self._sdk._build_auth_headers()
+        data: Dict[str, Any] = {"config": json.dumps(request_config)}
+        if title:
+            data["title"] = title
+
+        response = await self._sdk._sess.post(
+            f"{self._sdk.api_base}/v1/transcribe",
+            headers=headers,
+            data=data,
+            files={"file": ("audio.wav", audio_bytes)},
+        )
+        response.raise_for_status()
+        payload = dict(response.json())
+        transcribe_id = (
+            payload.get("transcribe_id") or payload.get("id") or payload.get("tid")
+        )
+        if not transcribe_id:
+            raise RuntimeError("Transcribe response missing 'id'.")
+        payload.setdefault("transcribe_id", transcribe_id)
+        return payload
+
+    async def get_transcription(self, job_id: str) -> Dict[str, Any]:
+        """Fetch the current transcription state using the SDK route contract."""
+        return await self._sdk.get_transcribe_result(job_id)
+
+    async def build_auth_headers(self) -> Dict[str, str]:
+        """Expose SDK-generated auth headers for websocket setup."""
+        headers = await self._sdk._build_auth_headers()
+        return {str(key): str(value) for key, value in headers.items()}
+
+    def _normalize_batch_config(
+        self, config: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        payload = {} if config is None else dict(config)
+        if self._target.package == "internal":
+            validated_payload, internal_payload = (
+                internal_file_transcribe._split_internal_payload(payload)
+            )
+            internal_file_transcribe._validate_internal_options_scope(
+                client=self._sdk,
+                internal_payload=internal_payload,
+            )
+            try:
+                request_config = STTConfig.from_payload(validated_payload).to_dict()
+            except (TypeError, ValueError) as exc:
+                logger.error("Invalid STT configuration: %s", exc, exc_info=True)
+                request_config = dict(validated_payload)
+            request_config.update(internal_payload)
+            return request_config
+
+        try:
+            return STTConfig.from_payload(payload).to_dict()
+        except (TypeError, ValueError) as exc:
+            logger.error("Invalid STT configuration: %s", exc, exc_info=True)
+            return payload
+
+    async def aclose(self) -> None:
+        """Close both the replacement session and the SDK's original session."""
+        try:
+            await self._sdk.aclose()
+        finally:
+            for stale_session in self._stale_sessions:
+                with contextlib.suppress(Exception):
+                    await stale_session.aclose()
+
+
+class RTZRClient:
+    """SDK-backed wrapper for RTZR STT endpoints plus on-prem bridging."""
+
+    def __init__(self, settings: Settings):
+        self._session: Optional[httpx.AsyncClient] = None
         self._api_base = settings.pronaia_api_base.rstrip("/")
         self._manual_token = (settings.pronaia_access_token or "").strip()
         self._deployment = settings.deployment
         self._transcribe_path = settings.transcribe_path
         self._transcribe_status_path = settings.transcribe_status_path
         self._streaming_path = settings.streaming_path
-        self._auth_enabled = settings.auth_enabled
         self._verify_ssl = settings.verify_ssl
-        self._token_lock = asyncio.Lock()
-
-        self._access_token: Optional[str] = None
-        self._token_expiry: float = 0.0
-
-    async def _refresh_token(self) -> None:
-        """Obtain a fresh access token from the authentication endpoint."""
-        if not self._auth_enabled:
-            raise RuntimeError(
-                "Attempted to refresh token while authentication is disabled."
-            )
-        logger.debug("Refreshing RTZR access token.")
-        resp = await self._session.post(
-            f"{self._api_base}/v1/authenticate",
-            data={"client_id": self._client_id, "client_secret": self._client_secret},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-        access_token = payload.get("access_token")
-        if not access_token:
-            raise RuntimeError("Authentication response missing 'access_token'.")
-
-        now = time.time()
-        expire_at = payload.get("expire_at")
-        expires_in = payload.get("expires_in")
-        expiry = None
-
-        for candidate in (expire_at, expires_in):
-            if candidate is None:
-                continue
-            try:
-                candidate_float = float(candidate)
-            except (TypeError, ValueError):
-                continue
-            if candidate is expire_at:
-                expiry = candidate_float
-                break
-            expiry = now + candidate_float
-            break
-
-        if expiry is None or expiry <= now:
-            expiry = now + 300  # default to 5 minutes if response lacks info
-
-        self._access_token = access_token
-        self._token_expiry = expiry
-
-    async def _ensure_token(self) -> str:
-        """Return a valid access token, refreshing if needed."""
-        if self._manual_token:
-            return self._manual_token
-        if not self._auth_enabled:
-            raise RuntimeError(
-                "Authentication requested but credentials are not configured."
-            )
-        now = time.time()
-        if self._access_token and now < self._token_expiry - 5:
-            return self._access_token
-
-        async with self._token_lock:
-            now = time.time()
-            if self._access_token and now < self._token_expiry - 5:
-                return self._access_token
-            await self._refresh_token()
-            if not self._access_token:
-                raise RuntimeError("Unable to obtain RTZR access token.")
-            return self._access_token
+        self._cloud_api: Optional[CloudApiAdapter] = None
+        if self._deployment == "cloud":
+            self._cloud_api = CloudApiAdapter(settings)
+        else:
+            self._session = _build_async_http_client(verify_ssl=settings.verify_ssl)
 
     async def _resolve_access_token(self) -> Optional[str]:
-        """Return a usable access token if credentials or manual token are configured."""
-        if self._deployment == "onprem":
-            return self._manual_token or None
-        if self._manual_token:
-            return self._manual_token
-        if not self._auth_enabled:
+        """Return a usable access token for non-SDK on-prem flows."""
+        if self._deployment != "onprem":
             return None
-        return await self._ensure_token()
+        return self._manual_token or None
 
     def _grpc_target(self) -> tuple[str, bool]:
         """Return target host:port and whether TLS should be used."""
@@ -374,12 +660,12 @@ class RTZRClient:
     async def connect_grpc_streaming(
         self,
         config: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> GrpcStreamingSession:
         """Establish an upstream gRPC streaming session."""
         target, use_tls = self._grpc_target()
         token = await self._resolve_access_token()
-        meta: Dict[str, str] = dict(metadata or {})
+        meta = _normalize_grpc_metadata(metadata)
         if token:
             meta.setdefault("authorization", f"bearer {token}")
 
@@ -400,6 +686,14 @@ class RTZRClient:
         title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Submit an audio file for transcription and return the raw response payload."""
+        if self._cloud_api is not None:
+            return await self._cloud_api.submit_transcription(
+                audio_bytes,
+                config=config,
+                title=title,
+            )
+
+        assert self._session is not None
         headers: Dict[str, str] = {}
         token = await self._resolve_access_token()
         if token:
@@ -427,6 +721,10 @@ class RTZRClient:
 
     async def get_transcription(self, job_id: str) -> Dict[str, Any]:
         """Fetch the current status for a transcription job."""
+        if self._cloud_api is not None:
+            return await self._cloud_api.get_transcription(job_id)
+
+        assert self._session is not None
         headers: Dict[str, str] = {}
         token = await self._resolve_access_token()
         if token:
@@ -461,13 +759,15 @@ class RTZRClient:
         self, config: Optional[Dict[str, Any]] = None
     ) -> str:
         """Construct the streaming URL with query parameters mirroring the SDK example."""
-        if "://" not in self._api_base:
-            raise RuntimeError("Invalid API base URL for streaming")
-
-        host_and_path = self._api_base.split("://", 1)[1].rstrip("/")
         streaming_path = self._streaming_path.lstrip("/")
-        scheme = "wss" if self._api_base.lower().startswith("https://") else "ws"
-        base_url = f"{scheme}://{host_and_path}/{streaming_path}"
+        if self._cloud_api is not None:
+            base_url = f"{self._cloud_api.websocket_base}/{streaming_path}"
+        else:
+            if "://" not in self._api_base:
+                raise RuntimeError("Invalid API base URL for streaming")
+            host_and_path = self._api_base.split("://", 1)[1].rstrip("/")
+            scheme = "wss" if self._api_base.lower().startswith("https://") else "ws"
+            base_url = f"{scheme}://{host_and_path}/{streaming_path}"
 
         merged_config: Dict[str, str] = DEFAULT_STREAMING_CONFIG.copy()
         if config:
@@ -496,10 +796,13 @@ class RTZRClient:
     ) -> WebSocketClientProtocol:
         """Establish an upstream streaming WebSocket connection."""
         url = self.get_streaming_url(config=config)
-        token = await self._resolve_access_token()
-        headers: Dict[str, str] = {}
-        if token:
-            headers["Authorization"] = f"bearer {token}"
+        if self._cloud_api is not None:
+            headers = await self._cloud_api.build_auth_headers()
+        else:
+            token = await self._resolve_access_token()
+            headers = {}
+            if token:
+                headers["Authorization"] = f"bearer {token}"
 
         connect_kwargs: Dict[str, Any] = {
             "ping_interval": None,
@@ -520,4 +823,7 @@ class RTZRClient:
 
     async def aclose(self) -> None:
         """Close the underlying HTTP client."""
-        await self._session.aclose()
+        if self._cloud_api is not None:
+            await self._cloud_api.aclose()
+        if self._session is not None:
+            await self._session.aclose()

@@ -90,4 +90,19 @@ describe("settingsStore realtimeAutoSaveSeconds guardrails", () => {
 
     transactionSpy.mockRestore();
   });
+
+  it("keeps single-setting runtime state unchanged when persistence fails", async () => {
+    const putSpy = vi
+      .spyOn(appDb.settings, "put")
+      .mockRejectedValueOnce(new Error("persist failed"));
+
+    await expect(
+      useSettingsStore.getState().updateSetting("defaultSpeakerName", "Moderator")
+    ).rejects.toThrow("persist failed");
+
+    expect(useSettingsStore.getState().defaultSpeakerName).toBe("Speaker");
+    expect(await appDb.settings.get("defaultSpeakerName")).toBeUndefined();
+
+    putSpy.mockRestore();
+  });
 });

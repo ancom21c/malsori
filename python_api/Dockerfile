@@ -15,6 +15,7 @@ WORKDIR /app
 COPY python_api/pyproject.toml ./pyproject.toml
 COPY python_api/uv.lock ./uv.lock
 COPY python_api/api_server ./api_server
+COPY infra/docker-compose/docker-build/python-api-pip/ /root/.pip/
 
 RUN pip install --upgrade pip && pip install .
 

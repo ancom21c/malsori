@@ -8,8 +8,10 @@ import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Dict, Literal, Optional
+from urllib.parse import urlparse
 
 from pydantic import (
     BaseModel,
@@ -30,6 +32,10 @@ _OVERRIDE_KEYS = {
     "pronaia_client_id",
     "pronaia_client_secret",
     "verify_ssl",
+}
+_NULLABLE_OVERRIDE_KEYS = {
+    "pronaia_client_id",
+    "pronaia_client_secret",
 }
 
 
@@ -62,6 +68,12 @@ class Settings(BaseModel):
     )
     poll_interval_seconds: float = Field(1.0, alias="STT_POLL_INTERVAL", gt=0.0)
     poll_timeout_seconds: float = Field(180.0, alias="STT_POLL_TIMEOUT", gt=0.0)
+    transcribe_queue_concurrency: int = Field(
+        2, alias="STT_TRANSCRIBE_QUEUE_CONCURRENCY", ge=1
+    )
+    transcribe_queue_timeout_seconds: float = Field(
+        300.0, alias="STT_TRANSCRIBE_QUEUE_TIMEOUT", gt=0.0
+    )
     verify_ssl: bool = Field(True, alias="STT_VERIFY_SSL")
     deployment: Literal["cloud", "onprem"] = Field("cloud", alias="STT_DEPLOYMENT")
     collector_url: Optional[str] = Field(default=None, alias="STT_COLLECTOR_URL")
@@ -71,11 +83,18 @@ class Settings(BaseModel):
     stt_config_path: Optional[Path] = Field(default=None, alias="STT_CONFIG_PATH")
     storage_persistent: bool = Field(False, alias="STT_STORAGE_PERSISTENT")
     backend_admin_enabled: bool = Field(False, alias="BACKEND_ADMIN_ENABLED")
+    backend_admin_token_required: bool = Field(
+        True, alias="BACKEND_ADMIN_TOKEN_REQUIRED"
+    )
     backend_admin_token: Optional[str] = Field(default=None, alias="BACKEND_ADMIN_TOKEN")
+    cors_allowed_origins_raw: Optional[str] = Field(
+        default=None, alias="CORS_ALLOWED_ORIGINS"
+    )
 
     _transcribe_path: str = PrivateAttr("/v1/transcribe")
     _transcribe_status_path: str = PrivateAttr("/v1/transcribe/{transcribe_id}")
     _streaming_path: str = PrivateAttr("/v1/transcribe:streaming")
+    _cors_allowed_origins: tuple[str, ...] = PrivateAttr(default=())
 
     @model_validator(mode="after")
     def _prepare(self) -> "Settings":
@@ -103,6 +122,9 @@ class Settings(BaseModel):
             if not config_path.is_file():
                 raise ValueError(f"STT config path does not exist: {config_path}")
             self.stt_config_path = config_path
+        self._cors_allowed_origins = _parse_cors_allowed_origins(
+            self.cors_allowed_origins_raw
+        )
         return self
 
     @property
@@ -169,9 +191,78 @@ class Settings(BaseModel):
         return bool(self.collector_url)
 
     @property
+    def cors_allowed_origins(self) -> tuple[str, ...]:
+        """Return the configured public-web origins allowed for CORS."""
+        return self._cors_allowed_origins
+
+    @property
     def has_stt_config(self) -> bool:
         """Return True when an external STT config was provided."""
         return self.stt_config_path is not None
+
+
+def _normalize_cors_origin(value: str) -> str:
+    origin = value.strip()
+    if not origin:
+        raise ValueError("CORS_ALLOWED_ORIGINS entries must not be empty.")
+
+    parsed = urlparse(origin)
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS entries must be absolute http(s) origins."
+        )
+    if (
+        parsed.username
+        or parsed.password
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "CORS_ALLOWED_ORIGINS entries must not include credentials, query, or fragment."
+        )
+    if parsed.path not in {"", "/"}:
+        raise ValueError("CORS_ALLOWED_ORIGINS entries must not include a path.")
+
+    return f"{scheme}://{parsed.netloc}"
+
+
+def _parse_cors_allowed_origins(value: Optional[str]) -> tuple[str, ...]:
+    if value is None:
+        return ()
+
+    raw = value.strip()
+    if not raw:
+        return ()
+
+    candidates: list[str]
+    if raw.startswith("["):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must be a JSON array of origins or a comma-separated string."
+            ) from exc
+        if not isinstance(decoded, list) or not all(
+            isinstance(item, str) for item in decoded
+        ):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS JSON form must be an array of origin strings."
+            )
+        candidates = decoded
+    else:
+        candidates = raw.replace("\n", ",").split(",")
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        origin = _normalize_cors_origin(candidate)
+        if origin in seen:
+            continue
+        seen.add(origin)
+        normalized.append(origin)
+    return tuple(normalized)
 
 
 def _resolve_storage_base_dir(value: Optional[str] = None) -> Path:
@@ -193,10 +284,14 @@ def _normalize_override_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         if key not in _OVERRIDE_KEYS:
             continue
         if value is None:
+            if key in _NULLABLE_OVERRIDE_KEYS:
+                normalized[key] = None
             continue
         if isinstance(value, str):
             trimmed = value.strip()
             if not trimmed:
+                if key in _NULLABLE_OVERRIDE_KEYS:
+                    normalized[key] = None
                 continue
             if key == "deployment":
                 normalized[key] = trimmed.lower()
@@ -226,6 +321,29 @@ def _load_override_payload(base_dir: Path) -> Dict[str, Any]:
     return _normalize_override_payload(data)
 
 
+def _write_override_payload(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Optional[Path] = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        temp_path.replace(path)
+    except Exception:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink()
+        raise
+
+
 def get_backend_override() -> Dict[str, Any]:
     """Return the current backend override payload, if any."""
     base_dir = _resolve_storage_base_dir()
@@ -240,10 +358,7 @@ def apply_backend_override(payload: Dict[str, Any]) -> Settings:
     with _override_lock:
         path = _runtime_override_path(base_dir)
         if normalized:
-            path.write_text(
-                json.dumps(normalized, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            _write_override_payload(path, normalized)
         else:
             with contextlib.suppress(FileNotFoundError):
                 path.unlink()

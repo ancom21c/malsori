@@ -9,6 +9,17 @@ export function normalizeAdminApiBaseUrl(value: string | null | undefined): stri
   return value?.trim() ?? "";
 }
 
+export function resolveAdminApiBaseUrl(
+  adminBaseUrl: string | null | undefined,
+  publicBaseUrl: string | null | undefined
+): string {
+  const normalizedAdmin = normalizeAdminApiBaseUrl(adminBaseUrl);
+  if (normalizedAdmin.length > 0) {
+    return normalizedAdmin;
+  }
+  return normalizePublicApiBaseUrl(publicBaseUrl);
+}
+
 export function joinBaseUrl(baseUrl: string | null | undefined, path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const trimmedBase = baseUrl?.trim() ?? "";

@@ -26,6 +26,8 @@ import {
   resolveSelectedBackendProfile,
 } from "./backendBindingOperatorModel";
 
+const SETTINGS_OPERATOR_CARD_RADIUS = "12px";
+
 type BackendBindingOperatorPanelProps = {
   locale: string;
   disabled: boolean;
@@ -191,7 +193,7 @@ export default function BackendBindingOperatorPanel({
       : null;
 
     return (
-      <Card variant="outlined">
+      <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
         <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
           <Stack spacing={0.75}>
             <Typography variant="caption" color="text.secondary">
@@ -253,7 +255,7 @@ export default function BackendBindingOperatorPanel({
           gap: 1.5,
         }}
       >
-        <Card variant="outlined">
+        <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
           <CardContent>
             <Stack spacing={1}>
               <Typography variant="subtitle2">{t("bindingCompatibility")}</Typography>
@@ -281,7 +283,7 @@ export default function BackendBindingOperatorPanel({
           </CardContent>
         </Card>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
           <CardContent>
             <Stack spacing={1}>
               <Typography variant="subtitle2">{t("availableCapabilities")}</Typography>
@@ -292,7 +294,7 @@ export default function BackendBindingOperatorPanel({
           </CardContent>
         </Card>
 
-        <Card variant="outlined">
+        <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
           <CardContent>
             <Stack spacing={1}>
               <Typography variant="subtitle2">{t("featureBindings")}</Typography>
@@ -314,7 +316,7 @@ export default function BackendBindingOperatorPanel({
         </Card>
       </Box>
 
-      <Card variant="outlined">
+      <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Stack
@@ -565,7 +567,7 @@ export default function BackendBindingOperatorPanel({
         </CardContent>
       </Card>
 
-      <Card variant="outlined">
+      <Card variant="outlined" sx={{ borderRadius: SETTINGS_OPERATOR_CARD_RADIUS }}>
         <CardContent>
           <Stack spacing={1.5}>
             <Stack

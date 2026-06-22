@@ -100,6 +100,22 @@ async function persistSettingsBatch(entries: Array<{ key: SettingKey; value: str
   });
 }
 
+function serializeSettingValue<T extends SettingKey>(
+  key: T,
+  value: SettingsState[T]
+): string {
+  if (key === "realtimeAutoSaveSeconds") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null) {
+    return "";
+  }
+  return String(value);
+}
+
 function normalizeSettingValue<T extends SettingKey>(
   key: T,
   value: SettingsState[T]
@@ -206,17 +222,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   updateSetting: async (key, value) => {
     const normalizedValue = normalizeSettingValue(key, value);
+    await persistSetting(key, serializeSettingValue(key, normalizedValue));
     set({ [key]: normalizedValue } as Partial<SettingsState>);
-    await persistSetting(
-      key,
-      key === "realtimeAutoSaveSeconds"
-        ? String(normalizedValue)
-        : typeof normalizedValue === "string"
-          ? normalizedValue
-          : normalizedValue === null
-            ? ""
-            : String(normalizedValue)
-    );
   },
   updateBackendRuntime: async (profiles, bindings) => {
     await persistSettingsBatch([

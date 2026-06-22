@@ -488,4 +488,56 @@ describe("RtzrApiClient backend error mapping", () => {
       expect.objectContaining({ method: "GET" })
     );
   });
+
+  it("parses backend admin token requirement from health status", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        status: "ok",
+        service: "malsori-python-api",
+        version: "0.1.0",
+        deployment: "cloud",
+        auth_enabled: true,
+        source: "default",
+        backend_admin_enabled: true,
+        backend_admin_token_required: false,
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/", () => "/internal");
+    const health = await client.getHealthStatus();
+
+    expect(health.backendAdminEnabled).toBe(true);
+    expect(health.backendAdminTokenRequired).toBe(false);
+  });
+
+  it("omits the admin token header when no token is provided", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        deployment: "cloud",
+        api_base_url: "https://openapi.vito.ai",
+        transcribe_path: "/v1/transcribe",
+        streaming_path: "/v1/streaming",
+        auth_enabled: true,
+        has_client_id: true,
+        has_client_secret: true,
+        verify_ssl: true,
+        source: "default",
+      })
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const client = new RtzrApiClient(() => "/", () => "https://internal.example.local");
+    await client.getBackendEndpointState();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://internal.example.local/v1/backend/endpoint",
+      expect.objectContaining({
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      })
+    );
+  });
 });

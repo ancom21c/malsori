@@ -12,6 +12,8 @@ dependencies = [
   "httpx[http2]>=0.27",
   "grpcio>=1.64",
   "protobuf>=4.25",
+  "rtzr",
+  "rtzr-internal",
 ]
 
 [build-system]

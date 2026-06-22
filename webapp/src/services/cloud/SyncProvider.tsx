@@ -15,7 +15,7 @@ interface SyncContextType {
 const SyncContext = createContext<SyncContextType | null>(null);
 
 import { ConflictResolutionDialog } from "../../components/ConflictResolutionDialog";
-import { appDb } from "../../data/app-db";
+import { clearCloudSyncLocalState } from "./syncLocalState";
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, token, signOut } = useGoogleAuth();
@@ -113,32 +113,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     const handleReplace = async () => {
         if (pendingSyncManager) {
-            // Wipe local data
-            await appDb.transaction(
-                "rw",
-                [
-                    appDb.transcriptions,
-                    appDb.segments,
-                    appDb.audioChunks,
-                    appDb.videoChunks,
-                    appDb.searchIndexes,
-                    appDb.summaryPartitions,
-                    appDb.summaryRuns,
-                    appDb.publishedSummaries,
-                    appDb.summaryPresetSelections,
-                ],
-                async () => {
-                    await appDb.transcriptions.clear();
-                    await appDb.segments.clear();
-                    await appDb.audioChunks.clear();
-                    await appDb.videoChunks.clear();
-                    await appDb.searchIndexes.clear();
-                    await appDb.summaryPartitions.clear();
-                    await appDb.summaryRuns.clear();
-                    await appDb.publishedSummaries.clear();
-                    await appDb.summaryPresetSelections.clear();
-                }
-            );
+            await clearCloudSyncLocalState();
 
             setSyncManager(pendingSyncManager);
             syncManagerRef.current = pendingSyncManager;

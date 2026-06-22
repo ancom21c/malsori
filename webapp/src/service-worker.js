@@ -14,6 +14,7 @@ const CACHE_FIRST_PATHS = [
   "/malsori-favicon.svg",
   "/manifest.webmanifest",
 ];
+const BUILD_ASSET_PREFIX = "/assets/";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -70,6 +71,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (
+    url.pathname.startsWith(BUILD_ASSET_PREFIX) ||
+    request.destination === "script" ||
+    request.destination === "style"
+  ) {
+    return;
+  }
+
   if (url.pathname === "/config/malsori-config.js") {
     event.respondWith(
       fetch(request)
@@ -85,10 +94,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const shouldUseCacheFirst =
-    CACHE_FIRST_PATHS.includes(url.pathname) ||
-    request.destination === "style" ||
-    request.destination === "script";
+  const shouldUseCacheFirst = CACHE_FIRST_PATHS.includes(url.pathname);
 
   if (shouldUseCacheFirst) {
     event.respondWith(

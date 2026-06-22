@@ -14,10 +14,12 @@
 
 ## Progress
 
-- 완료: task spec + detailed plan review 등록 (`T1101`~`T1110`)
+- 완료: task spec + detailed plan review 등록 (`T1101`~`T1112`)
+- 완료: private RTZR wheelhouse source -> gitignored build context staging helper와 local verify (`T1113`)
 - active now:
   - `T1101` internal operator admin surface activation verify
   - `T1110` live activation runtime / release gate recovery
+  - `T1111` docker compose HTTPS final verify / python-api build unblock
 - ready next:
   - `T1102` backend health/capability live wiring verify
   - `T1103` full summary provider-backed execution verify
@@ -106,6 +108,10 @@
 | T1105 | P1 | Realtime summary partition runner | contiguous partition 기반 realtime summary 실행과 stale lifecycle |
 | T1106 | P1 | Translate final-turn vertical slice | `/translate`가 `translate.turn_final` capability로 실제 동작 |
 | T1107 | P1 | Rollout smoke/evidence hardening | internal/public/admin/summary/translate smoke matrix와 evidence 정리 |
+| T1110 | P1 | Live activation runtime / release gate recovery | operator runtime truth와 release gate를 live surface와 다시 정렬 |
+| T1111 | P1 | Docker compose HTTPS ingress | self-signed TLS로 compose webapp를 same-origin HTTPS로 제공 |
+| T1112 | P0 | State integrity / drift audit | persisted runtime state의 drift/relink/read-write 버그를 실제 재현 기반으로 제거 |
+| T1113 | P1 | Private RTZR wheelhouse deploy staging | gitignored local wheelhouse를 compose/build/deploy 경로에 임시 stage해 private SDK build를 반복 가능하게 만듦 |
 
 ## Definition of Done
 
@@ -115,6 +121,7 @@
 - realtime summary가 partition/stale policy와 함께 additive feature로 동작한다.
 - `/translate`가 redirect shell이 아니라 final-turn execution을 제공한다.
 - deploy smoke가 internal/public boundary와 additive surface visibility를 증명한다.
+- `docker compose` 경로에서 webapp가 self-signed TLS를 사용해 same-origin HTTPS로 기동된다.
 
 ## Self Review
 

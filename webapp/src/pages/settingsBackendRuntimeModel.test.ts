@@ -65,7 +65,7 @@ describe("settingsBackendRuntimeModel", () => {
       resolveBackendRuntimeActionAvailability({
         selectedBackendPreset: null,
         adminApiConfigured: true,
-        backendAdminTokenPresent: true,
+        backendAdminTokenSatisfied: true,
         operatorActionsBlockedByDraft: false,
         backendState: null,
         activeBackendPresetId: null,
@@ -88,7 +88,7 @@ describe("settingsBackendRuntimeModel", () => {
           updatedAt: "2026-03-11T00:00:00.000Z",
         },
         adminApiConfigured: true,
-        backendAdminTokenPresent: false,
+        backendAdminTokenSatisfied: false,
         operatorActionsBlockedByDraft: true,
         backendState: {
           deployment: "cloud",
@@ -121,7 +121,7 @@ describe("settingsBackendRuntimeModel", () => {
           updatedAt: "2026-03-11T00:00:00.000Z",
         },
         adminApiConfigured: true,
-        backendAdminTokenPresent: true,
+        backendAdminTokenSatisfied: true,
         operatorActionsBlockedByDraft: false,
         backendState: {
           deployment: "cloud",
@@ -139,6 +139,39 @@ describe("settingsBackendRuntimeModel", () => {
     ).toEqual({
       applyBlockedReasonKey: null,
       resetBlockedReasonKey: "serverDefaultAlreadyActive",
+    });
+  });
+
+  it("allows live actions without a token when the server marks token auth optional", () => {
+    expect(
+      resolveBackendRuntimeActionAvailability({
+        selectedBackendPreset: {
+          id: "preset-1",
+          name: "Ops RTZR",
+          deployment: "cloud",
+          apiBaseUrl: "https://api.example.com",
+          createdAt: "2026-03-11T00:00:00.000Z",
+          updatedAt: "2026-03-11T00:00:00.000Z",
+        },
+        adminApiConfigured: true,
+        backendAdminTokenSatisfied: true,
+        operatorActionsBlockedByDraft: false,
+        backendState: {
+          deployment: "cloud",
+          apiBaseUrl: "https://api.example.com",
+          transcribePath: "/v1/transcribe",
+          streamingPath: "/v1/listen",
+          authEnabled: false,
+          hasClientId: false,
+          hasClientSecret: false,
+          verifySsl: true,
+          source: "override",
+        },
+        activeBackendPresetId: null,
+      })
+    ).toEqual({
+      applyBlockedReasonKey: null,
+      resetBlockedReasonKey: null,
     });
   });
 });

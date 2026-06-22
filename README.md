@@ -19,11 +19,17 @@ Current canonical/UI references:
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` - additive platform expansion / rollout / rollback baseline
 - `docs/plan-feature-backend-binding-2026-03-10.md` - backend profile / feature binding architecture baseline for summary, translate, QA, and future TTS
 - `docs/plan-summary-feature-2026-03-11.md` - realtime/full summary feature spec baseline
-- `docs/plan-operator-feature-activation-2026-03-11.md` - current execution plan for internal operator activation and summary/translate vertical slices
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` - current architecture boundary refactor plan
+- `docs/plan-realtime-stt-file-upload-2026-04-30.md` - current execution plan for realtime STT file upload promotion
+- `docs/plan-operator-feature-activation-2026-03-11.md` - active operator execution plan for internal operator activation and summary/translate vertical slices
 - `docs/knowledge/README.md` - durable knowledge index and current documentation entry points
 - `docs/todo-workflow.md` - repo-local todo lifecycle, completion policy, and plan/review/verify rules
-- Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
-- Current active execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
+- Current active execution plan: `docs/plan-realtime-stt-file-upload-2026-04-30.md`
+- Current active execution board: `docs/todo/2026-04-30-realtime-stt-file-upload-loop/README.md`
+- Active operator execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`
+- Active operator execution board: `docs/todo/2026-03-11-operator-feature-activation-loop/README.md`
+- Active architecture refactor plan: `docs/plan-architecture-boundary-refactor-2026-05-11.md`
+- Active architecture refactor board: `docs/todo/2026-05-11-architecture-boundary-refactor-loop/README.md`
 - `docs/plan-summary-backend-2026-03-11.md` - latest completed execution plan for summary/backend settings work
 - `docs/todo/2026-03-11-summary-backend-loop/README.md` - latest completed execution board
 - `docs/plan-review-remediation-2026-03-08.md` - previous completed execution plan
@@ -56,10 +62,15 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `PRONAIA_CLIENT_ID` / `PRONAIA_CLIENT_SECRET` – RTZR app credentials used to mint access tokens. Required unless you provide a token manually.
 - `PRONAIA_ACCESS_TOKEN` – optional bearer token to reuse instead of minting via client ID/secret.
 - `PRONAIA_API_BASE` – upstream RTZR API base URL (defaults to `https://openapi.vito.ai`).
+  - The Python API now routes cloud traffic through the official SDK packages: `rtzr` for the public endpoint and `rtzr-internal` when `PRONAIA_API_BASE` points at `dev-openapi.vito.ai` or `sandbox-openapi.vito.ai`.
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
+- `STT_TRANSCRIBE_QUEUE_CONCURRENCY` – maximum concurrent upstream `/v1/transcribe` submissions (defaults to `2`).
+- `STT_TRANSCRIBE_QUEUE_TIMEOUT` – seconds a `/v1/transcribe` request may wait for a queue slot before returning `503` (defaults to `300`).
 - `BACKEND_ADMIN_ENABLED` – set to `1` to enable `/v1/backend/*` runtime override endpoints.
-- `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled; callers must send `X-Malsori-Admin-Token`.
+- `BACKEND_ADMIN_TOKEN_REQUIRED` – set to `0` to allow `/v1/backend/*` calls without `X-Malsori-Admin-Token`. Defaults to `1`.
+- `BACKEND_ADMIN_TOKEN` – required when backend admin is enabled and `BACKEND_ADMIN_TOKEN_REQUIRED=1`; callers must send `X-Malsori-Admin-Token`.
+- `CORS_ALLOWED_ORIGINS` – optional comma-separated or JSON-array list of exact public frontend origins allowed to call the API from another host (for example Cloudflare Pages).
 - `STT_STORAGE_PERSISTENT` – set to `1` when `STT_STORAGE_BASE_DIR` is backed by persistent storage (PVC).
 
 Example launch:
@@ -72,14 +83,14 @@ uvicorn api_server.main:app --host 0.0.0.0 --port 8000
 ```
 
 The FastAPI app exposes `/docs` for interactive testing, `/v1/health` for operational health checks, `/v1/transcribe` for batch jobs, `/v1/streaming` for realtime WebSocket relay, and `/v1/observability/runtime-error` for browser runtime error telemetry.  
-For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth when enabled.
+For cloud deployment, the relay consumes the browser `start` payload, opens upstream with query parameters from `decoder_config`, returns a local `ready` ack, streams binary audio, and maps browser `final` to upstream `EOS`. Backend override endpoints under `/v1/backend/*` are intended for internal-network operations, are disabled by default, and require admin token auth unless `BACKEND_ADMIN_TOKEN_REQUIRED=0`.
 Production ingress should split public/internal surfaces: keep user routes (`/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`) public, and expose `/v1/backend/*` + `/v1/observability/runtime-error` on internal ingress only.
 
 #### Proxy Contract Mapping
 
 | Browser call (to Python API) | Malsori proxy behavior | Upstream RTZR target |
 |---|---|---|
-| `POST /v1/transcribe` (file + `config`) | Forwards multipart request, normalizes `id/transcribe_id`, persists uploaded audio artifact | Cloud/onprem transcribe endpoint (`transcribe_path`) |
+| `POST /v1/transcribe` (file + `config`) | Queues upstream submission with bounded concurrency, forwards multipart request, normalizes `id/transcribe_id`, persists uploaded audio artifact | Cloud/onprem transcribe endpoint (`transcribe_path`) |
 | `GET /v1/transcribe/{id}` | Forwards status lookup, normalizes segment payloads | Cloud/onprem status endpoint (`transcribe_status_path`) |
 | `GET /v1/transcribe/{id}/audio` | Returns **Malsori-local stored artifact** from `STT_STORAGE_BASE_DIR`; does not proxy RTZR download on demand | N/A (local file serving route) |
 | `WS /v1/streaming` (cloud) | Consumes first browser `start`, converts `decoder_config` to query params, sends local `ready`, relays binary audio, maps browser `final/stop/eos` to upstream `EOS` | RTZR websocket streaming path (`streaming_path`) |
@@ -147,8 +158,11 @@ Helm deployments provide `/config/malsori-config.js` (via ConfigMap) for runtime
 - `docs/plan-platform-expansion-rollout-2026-03-10.md` – additive platform expansion rollout / migration / rollback baseline.
 - `docs/plan-feature-backend-binding-2026-03-10.md` – backend profile / feature binding architecture baseline.
 - `docs/plan-summary-feature-2026-03-11.md` – summary feature spec for realtime/full summary, contiguous partitioning, presets, and UX.
+- `docs/plan-architecture-boundary-refactor-2026-05-11.md` – current architecture boundary refactor plan.
 - `docs/plan-operator-feature-activation-2026-03-11.md` – current execution plan for operator-managed backend activation and summary/translate implementation.
 - `docs/knowledge/README.md` – durable knowledge index.
+- `docs/knowledge/docker-compose-https-contract.md` – durable local compose HTTPS/TLS contract.
+- `docs/knowledge/cloudflare-pages-static-profile.md` – durable static frontend + remote API deployment contract.
 - `docs/knowledge/operator-feature-activation-contract.md` – durable operator activation order and boundary rules.
 - `docs/knowledge/summary-feature-contract.md` – stable summary terminology and invariants.
 - Current active execution plan: `docs/plan-operator-feature-activation-2026-03-11.md`.

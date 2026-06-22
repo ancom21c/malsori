@@ -32,7 +32,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloudIcon from "@mui/icons-material/Cloud";
 import CloudOffIcon from "@mui/icons-material/CloudOff";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
-import { updateLocalTranscription } from "../services/data/transcriptionRepository";
+import {
+  replaceDownloadStatusIfCurrent,
+  updateLocalTranscription,
+} from "../services/data/transcriptionRepository";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import HourglassTopIcon from "@mui/icons-material/HourglassTop";
@@ -161,6 +164,16 @@ const KIND_LABEL: Record<LocalTranscriptionKind, string> = {
   file: "fileTranscription",
   realtime: "realTimeTranscription",
 };
+
+function getSttTransportLabelKey(transcription: LocalTranscription) {
+  if (transcription.sttTransport === "streaming") {
+    return "realtimeApi";
+  }
+  if (transcription.kind === "file") {
+    return "batchApi";
+  }
+  return null;
+}
 
 function getEndpointLabel(transcription: LocalTranscription, t: Translator): string {
   if (transcription.backendEndpointName) {
@@ -445,7 +458,7 @@ export default function TranscriptionListPage() {
       enqueueSnackbar(t("downloadCompleted"), { variant: "success" });
     } catch (error) {
       console.error("Cloud download failed", error);
-      await updateLocalTranscription(transcription.id, { downloadStatus: "not_downloaded" });
+      await replaceDownloadStatusIfCurrent(transcription.id, "downloading", "not_downloaded");
       enqueueSnackbar(
         t("downloadFailed"),
         { variant: "error" }
@@ -921,6 +934,7 @@ export default function TranscriptionListPage() {
                   const endpointLabel = getEndpointLabel(item, t);
                   const durationLabel = formatSessionDurationLabel(item.durationMs);
                   const previewText = getPreviewText(item.transcriptText);
+                  const transportLabelKey = getSttTransportLabelKey(item);
                   return (
                     <ListItem
                       key={item.id}
@@ -1006,6 +1020,13 @@ export default function TranscriptionListPage() {
                                     )
                                   )}`}
                                 />
+                                {transportLabelKey ? (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={`${t("sttTransport")}: ${t(transportLabelKey)}`}
+                                  />
+                                ) : null}
                                 {durationLabel ? (
                                   <Chip
                                     size="small"

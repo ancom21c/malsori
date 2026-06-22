@@ -189,6 +189,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "An error occurred during streaming.",
     ja: "ストリーミング中にエラーが発生しました。",
   },
+  noRealtimeTranscriptionResultsReturned: {
+    ko: "실시간 STT API에서 저장할 전사 결과를 받지 못했습니다.",
+    en: "The realtime STT API did not return transcription results to save.",
+    ja: "リアルタイム STT API から保存できる文字起こし結果が返されませんでした。",
+  },
   anErrorOccurredDuringTheTranscriptionRequest: {
     ko: "전사 요청 중 오류가 발생했습니다.",
     en: "An error occurred during the transcription request.",
@@ -358,6 +363,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "전체 API Base URL을 입력하세요. 이 값은 프리셋 저장 후 live apply 시 그대로 서버에 전달됩니다.",
     en: "Enter the full API base URL. This saved value is sent to the server when you apply the preset live.",
     ja: "完全な API Base URL を入力してください。この保存値は live apply 時にそのままサーバーへ送信されます。",
+  },
+  backendAdminTokenHelperDetailedOptional: {
+    ko: "이 서버는 관리자 토큰 없이도 내부 관리자 요청을 허용합니다. 필요하면 추가 헤더로 보낼 수 있지만 현재 페이지 메모리에만 유지되며 로컬에 저장되지 않습니다.",
+    en: "This server allows internal admin requests without an admin token. If needed, you can still send one as an extra header, and it remains only in this page's memory. It is not saved locally.",
+    ja: "このサーバーでは管理者トークンなしでも内部管理リクエストを許可します。必要に応じて追加ヘッダーとして送信できますが、このページのメモリにのみ保持され、ローカルには保存されません。",
   },
   backendPresetsHaveBeenExported: {
     ko: "백엔드 프리셋을 내보냈습니다.",
@@ -1045,9 +1055,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "ファイルのトランスクリプションとライブ ストリーミングのリクエストは、このアドレスに送信されます。",
   },
   internalAdminApiBaseUrlHelper: {
-    ko: "내부망 전용 admin 및 observability 요청이 이 주소로 전달됩니다.",
-    en: "Internal-only admin and observability requests are directed to this address.",
-    ja: "内部ネットワーク専用の admin / observability リクエストはこのアドレスに送信されます。",
+    ko: "비워 두면 Python API Base URL을 그대로 사용합니다. 분리된 내부망 주소가 있을 때만 별도로 입력하세요.",
+    en: "Leave this blank to reuse the Python API Base URL. Set it only when admin traffic must use a separate internal address.",
+    ja: "空欄の場合は Python API Base URL をそのまま使います。管理トラフィックを別の内部アドレスへ分ける必要がある場合のみ設定してください。",
   },
   internalAdminApiBaseUrlNotConfigured: {
     ko: "내부 관리자 URL 미설정",
@@ -1590,9 +1600,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "最初に Python API のベース URL を入力してください。",
   },
   internalAdminApiBaseUrlRequired: {
-    ko: "내부 관리자 API Base URL을 먼저 입력해 주세요.",
-    en: "Please enter the internal admin API Base URL first.",
-    ja: "最初に内部管理 API Base URL を入力してください。",
+    ko: "Python API Base URL을 먼저 저장하거나, 별도 내부 관리자 API Base URL을 입력해 주세요.",
+    en: "Save the Python API Base URL first, or enter a separate internal admin API base URL.",
+    ja: "まず Python API Base URL を保存するか、別の内部管理 API Base URL を入力してください。",
   },
   pleaseEnterThePythonApiBaseUrlOnTheSettingsPage: {
     ko: "Python API Base URL을 설정 페이지에서 입력해 주세요.",
@@ -1754,15 +1764,80 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Send an audio file to the realtime STT API and watch the responses.",
     ja: "音声ファイルをリアルタイム STT API に送り、応答を確認します。",
   },
+  uploadProcessingMode: {
+    ko: "업로드 처리 방식",
+    en: "Upload processing mode",
+    ja: "アップロード処理方式",
+  },
+  uploadQueue: {
+    ko: "업로드 큐",
+    en: "Upload queue",
+    ja: "アップロードキュー",
+  },
+  batchFileTranscription: {
+    ko: "일반 파일 STT",
+    en: "Batch file STT",
+    ja: "通常ファイル STT",
+  },
+  batchFileTranscriptionHelper: {
+    ko: "일반 STT API로 파일 작업을 만들고 상태를 동기화합니다.",
+    en: "Create a file transcription job through the batch STT API and sync status.",
+    ja: "通常の STT API でファイル文字起こしジョブを作成し、状態を同期します。",
+  },
+  bulkTranscriptionRequestsFailed: {
+    ko: "벌크 전사 요청이 모두 실패했습니다.",
+    en: "All bulk transcription requests failed.",
+    ja: "一括文字起こしリクエストはすべて失敗しました。",
+  },
+  bulkTranscriptionRequestsPartiallySent: {
+    ko: "전사 요청 {{total}}개 중 {{success}}개를 전송했습니다.",
+    en: "Sent {{success}} of {{total}} transcription requests.",
+    ja: "{{total}} 件中 {{success}} 件の文字起こしリクエストを送信しました。",
+  },
+  bulkTranscriptionRequestsSent: {
+    ko: "전사 요청 {{count}}개를 전송했습니다.",
+    en: "Sent {{count}} transcription requests.",
+    ja: "{{count}} 件の文字起こしリクエストを送信しました。",
+  },
+  realtimeApiFileUpload: {
+    ko: "실시간 API 파일 STT",
+    en: "Realtime API file STT",
+    ja: "リアルタイム API ファイル STT",
+  },
+  realtimeApiFileUploadHelper: {
+    ko: "브라우저에서 파일을 PCM으로 변환한 뒤 실시간 STT API로 전송하고 결과를 전사 목록에 저장합니다.",
+    en: "Convert the file to PCM in the browser, stream it to the realtime STT API, and save the result in transcription history.",
+    ja: "ブラウザーでファイルを PCM に変換し、リアルタイム STT API に送信して結果を文字起こし履歴に保存します。",
+  },
+  sttTransport: {
+    ko: "STT 전송",
+    en: "STT transport",
+    ja: "STT 送信方式",
+  },
+  batchApi: {
+    ko: "일반 API",
+    en: "Batch API",
+    ja: "通常 API",
+  },
+  realtimeApi: {
+    ko: "실시간 API",
+    en: "Realtime API",
+    ja: "リアルタイム API",
+  },
   realtimeSimulationOption: {
-    ko: "realtime simulation (0.1~0.2초 전송)",
-    en: "Realtime simulation (0.1–0.2s pacing)",
+    ko: "실시간 전송 모사 (0.1~0.2초 간격)",
+    en: "Simulate realtime streaming (0.1–0.2s pacing)",
     ja: "リアルタイムシミュレーション（0.1〜0.2秒間隔）",
   },
   realtimeSimulationHelper: {
     ko: "선택 시 오디오 길이에 맞춰 0.1~0.2초씩 지연해 전송합니다.",
     en: "When enabled, chunks are throttled to match real time, sending only 0.1–0.2s of audio at a time.",
     ja: "有効にすると、0.1〜0.2秒分の音声だけをリアルタイムに合わせて送信します。",
+  },
+  simulateRealtimeFromFile: {
+    ko: "파일로 실시간 전사 모사",
+    en: "Simulate realtime transcription from a file",
+    ja: "ファイルでリアルタイム文字起こしをシミュレート",
   },
   startRealtimeUpload: {
     ko: "전송 시작",
@@ -1880,9 +1955,9 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ja: "録音エラー",
   },
   recordingPlayback: {
-    ko: "녹음 재생",
-    en: "Recording Playback",
-    ja: "録音再生",
+    ko: "녹음 재생 중",
+    en: "Playing recording",
+    ja: "録音再生中",
   },
   redactedText: {
     ko: "교정된 텍스트",
@@ -1928,6 +2003,11 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "요청 필요",
     en: "Request required",
     ja: "リクエストが必要です",
+  },
+  optional: {
+    ko: "선택",
+    en: "Optional",
+    ja: "任意",
   },
   requesting: {
     ko: "요청 중...",
@@ -2063,6 +2143,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "오디오/비디오 파일 선택",
     en: "Select audio or video file",
     ja: "音声/動画ファイルを選択",
+  },
+  selectAudioFiles: {
+    ko: "오디오/비디오 파일 선택",
+    en: "Select audio or video files",
+    ja: "音声/動画ファイルを選択",
+  },
+  selectedFilesSummary: {
+    ko: "선택한 파일 {{count}}개 · {{size}}",
+    en: "{{count}} files selected · {{size}}",
+    ja: "{{count}} 件のファイルを選択 · {{size}}",
   },
   selectFromKoJaMultiOrDetectMultiDetectIsOnlyEnabledOnWhisperFamilyModels: {
     ko: "ko, ja, multi, detect 중 선택합니다. multi/detect는 Whisper 계열 모델에서만 활성화됩니다.",
@@ -3469,10 +3559,20 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Use this area for internal-network checks and overrides that require an admin token. Keep it separate from everyday user settings.",
     ja: "管理者トークンが必要な内部ネットワーク向け確認・オーバーライド機能です。通常のユーザー設定とは分けて扱います。",
   },
+  operatorToolsHelperTokenOptional: {
+    ko: "내부망에서 사용하는 점검/오버라이드 기능입니다. 이 서버는 관리자 토큰 없이도 호출을 허용하지만 일반 사용자 설정과는 분리해서 다룹니다.",
+    en: "Use this area for internal-network checks and overrides. This server allows those calls without an admin token, but keep them separate from everyday user settings.",
+    ja: "内部ネットワーク向けの確認・オーバーライド機能です。このサーバーでは管理者トークンなしでも呼び出せますが、通常のユーザー設定とは分けて扱います。",
+  },
   operatorSettingsBoundaryHelper: {
     ko: "이 영역은 내부 관리자 URL과 관리자 토큰이 필요하며, 조회는 버튼을 눌렀을 때만 실행됩니다.",
     en: "This area requires the internal admin URL and an admin token, and checks run only when you press a button.",
     ja: "この領域では内部管理 URL と管理者トークンが必要で、確認はボタンを押したときにのみ実行されます。",
+  },
+  operatorSettingsBoundaryHelperTokenOptional: {
+    ko: "이 영역은 내부 관리자 URL이 필요하며, 이 서버에서는 관리자 토큰 없이도 조회와 오버라이드를 허용합니다. 요청은 버튼을 눌렀을 때만 실행됩니다.",
+    en: "This area requires the internal admin URL, and this server allows checks and overrides without an admin token. Requests run only when you press a button.",
+    ja: "この領域では内部管理 URL が必要ですが、このサーバーでは管理者トークンなしでも確認とオーバーライドを許可します。リクエストはボタンを押したときにのみ実行されます。",
   },
   operatorMetadata: {
     ko: "운영 메타데이터",
