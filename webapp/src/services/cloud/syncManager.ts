@@ -5,6 +5,11 @@ import { createWavBlobFromPcmChunks } from "../audio/wavBuilder";
 import { markSummaryStateStaleByMutation } from "../data/summaryRepository";
 import { replaceDownloadStatusIfCurrent } from "../data/transcriptionRepository";
 import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
+import {
+    hasMediaStorageFault,
+    hasTranscriptStorageFault,
+    resolveTrustedRemoteAudioUrl,
+} from "../../domain/storageTrust";
 
 const ROOT_FOLDER_NAME = "Malsori Data";
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
@@ -67,6 +72,7 @@ function resolveSyncErrorMessage(error: unknown): string {
 function sanitizeCloudMetadata(record: LocalTranscription): LocalTranscription {
     return {
         ...record,
+        remoteAudioUrl: resolveTrustedRemoteAudioUrl(record),
         searchTitle: undefined,
         searchTranscript: undefined,
         isCloudSynced: undefined,
@@ -261,7 +267,11 @@ export class SyncManager {
                         let nextMetadata = normalizedCloudMetadata;
                         if (localRecord.downloadStatus === "downloaded") {
                             nextSegments = await this.downloadCloudSegments(folder.id, transcriptionId);
-                            nextMedia = await this.downloadRemoteMediaFiles(folder.id);
+                            nextMedia =
+                                hasTranscriptStorageFault(normalizedCloudMetadata) ||
+                                hasMediaStorageFault(normalizedCloudMetadata)
+                                ? { audio: null, video: null }
+                                : await this.downloadRemoteMediaFiles(folder.id);
                             nextMetadata = await this.downloadCloudMetadata(folder.id, transcriptionId);
                             const currentRecord = await appDb.transcriptions.get(transcriptionId);
                             const currentUpdate = parseIsoMillis(currentRecord?.updatedAt);
@@ -319,6 +329,7 @@ export class SyncManager {
         const localRecords = await appDb.transcriptions
             .filter((record) =>
                 record.isCloudSynced === true &&
+                !hasTranscriptStorageFault(record) &&
                 record.downloadStatus !== "not_downloaded" &&
                 record.downloadStatus !== "downloading"
             )
@@ -409,6 +420,11 @@ export class SyncManager {
     private async uploadMediaFiles(record: LocalTranscription, folderId: string) {
         const audioFilenames = ["audio.wav", "audio.webm"] as const;
         const videoFilenames = ["video.webm", "video.mp4"] as const;
+
+        if (hasTranscriptStorageFault(record) || hasMediaStorageFault(record)) {
+            await this.deleteRemoteFiles([...audioFilenames, ...videoFilenames], folderId);
+            return;
+        }
 
         // Audio
         const audioChunks = (
@@ -550,7 +566,10 @@ export class SyncManager {
             const cloudMetadata = await this.downloadCloudMetadata(folderId, transcriptionId);
             // Download segments.json
             const segments = await this.downloadCloudSegments(folderId, transcriptionId);
-            const media = await this.downloadRemoteMediaFiles(folderId);
+            const media =
+                hasTranscriptStorageFault(cloudMetadata) || hasMediaStorageFault(cloudMetadata)
+                ? { audio: null, video: null }
+                : await this.downloadRemoteMediaFiles(folderId);
             const latestCloudMetadata = await this.downloadCloudMetadata(folderId, transcriptionId);
             const fetchedCloudUpdate = parseIsoMillis(cloudMetadata.updatedAt);
             const latestCloudUpdate = parseIsoMillis(latestCloudMetadata.updatedAt);

@@ -19,6 +19,7 @@ import { StatusChipSet, type StatusChipItem } from "../studio";
 interface RealtimeStatusBannerProps {
   sessionState: string;
   sessionStateLabel: string;
+  trustStatusItems?: StatusChipItem[];
   connectionUxState: RealtimeConnectionUxState;
   streamingBufferMetrics: StreamingBufferMetrics;
   latencyLevelLabel: string;
@@ -40,6 +41,7 @@ interface RealtimeStatusBannerProps {
 export default function RealtimeStatusBanner({
   sessionState,
   sessionStateLabel,
+  trustStatusItems = [],
   connectionUxState,
   streamingBufferMetrics,
   latencyLevelLabel,
@@ -103,6 +105,7 @@ export default function RealtimeStatusBanner({
       color: "error" as const,
     });
   }
+  statusChipItems.push(...trustStatusItems);
 
   const compactSupplementaryMessage = compactLayout
     ? connectionUxState.phase === "failed"

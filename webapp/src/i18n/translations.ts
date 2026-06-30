@@ -1949,6 +1949,51 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Real-time transcription was interrupted and the results were temporarily stored.",
     ja: "リアルタイムの転写は中断され、結果は一時的に保存されました。",
   },
+  realtimeStorageAdvisoryWarning: {
+    ko: "이 브라우저에서는 로컬 저장이 불안정할 수 있습니다. 녹음은 계속되지만 저장 복구 범위가 제한될 수 있습니다.",
+    en: "Local save may be unreliable in this browser. Recording will continue, but recovery may be limited if storage fails.",
+    ja: "このブラウザではローカル保存が不安定な可能性があります。録音は続行されますが、保存に失敗すると復旧範囲が制限される場合があります。",
+  },
+  realtimeStorageStopFaultMessage: {
+    ko: "로컬 전사 저장에 실패해 세션을 중단했습니다. 잘못된 저장 기록을 남기지 않도록 복구 모드로 전환했습니다.",
+    en: "Local transcript save failed, so the session was stopped and switched to rescue mode instead of leaving misleading saved history.",
+    ja: "ローカル文字起こしの保存に失敗したため、誤解を招く保存履歴を残さないようセッションを停止してレスキューモードに切り替えました。",
+  },
+  realtimeTranscriptOnlyFallbackMessage: {
+    ko: "로컬 미디어 저장에 실패했습니다. 이 세션은 transcript-only로 계속됩니다.",
+    en: "Local media save failed. This session will continue as transcript-only.",
+    ja: "ローカルメディアの保存に失敗しました。このセッションは transcript-only として継続されます。",
+  },
+  realtimeRescueFaultBanner: {
+    ko: "이 세션은 정상 저장으로 승격되지 않았습니다. 아래 전사 텍스트만 복구용으로 복사하거나 내려받을 수 있습니다.",
+    en: "This session was not promoted into saved history. Only the transcript text below is available for rescue copy or download.",
+    ja: "このセッションは保存履歴に昇格していません。以下の文字起こしテキストのみレスキュー用にコピーまたはダウンロードできます。",
+  },
+  realtimeRescueCopyAction: {
+    ko: "전사 복사",
+    en: "Copy transcript",
+    ja: "文字起こしをコピー",
+  },
+  realtimeRescueDownloadAction: {
+    ko: "텍스트 다운로드",
+    en: "Download text",
+    ja: "テキストをダウンロード",
+  },
+  realtimeRescueCopySucceeded: {
+    ko: "전사 텍스트를 복사했습니다.",
+    en: "Copied the transcript text.",
+    ja: "文字起こしテキストをコピーしました。",
+  },
+  realtimeRescueCopyFailed: {
+    ko: "전사 텍스트를 자동으로 복사하지 못했습니다.",
+    en: "Unable to copy the transcript text automatically.",
+    ja: "文字起こしテキストを自動でコピーできませんでした。",
+  },
+  realtimeRescueTranscriptUnavailable: {
+    ko: "복구용으로 남은 전사 텍스트가 없습니다.",
+    en: "There is no transcript text available for rescue.",
+    ja: "レスキュー用に残っている文字起こしテキストがありません。",
+  },
   recordingError: {
     ko: "녹음 오류",
     en: "Recording error",
@@ -3014,6 +3059,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     en: "Degraded",
     ja: "品質低下",
   },
+  transcriptOnlySessionLabel: {
+    ko: "Transcript-only",
+    en: "Transcript-only",
+    ja: "Transcript-only",
+  },
+  storageStopFaultLabel: {
+    ko: "저장 중단",
+    en: "Storage stopped",
+    ja: "保存停止",
+  },
   someBufferedAudioCouldNotBeReplayedResultsMayBeIncomplete: {
     ko: "일부 버퍼링된 오디오를 다시 보내지 못했습니다. 결과가 일부 누락될 수 있습니다.",
     en: "Some buffered audio could not be replayed. Results may be incomplete.",
@@ -3133,6 +3188,16 @@ const baseTranslations: Record<string, BaseTranslationEntry> = {
     ko: "현재 오디오가 없어 포함할 수 없습니다.",
     en: "Audio is not available right now.",
     ja: "現在音声は利用できません。",
+  },
+  detailTranscriptOnlyMediaHelper: {
+    ko: "로컬 미디어 저장이 실패해 이 세션은 transcript-only로 표시됩니다. 전사는 계속 읽을 수 있지만 재생과 미디어 다운로드는 차단됩니다.",
+    en: "Local media save failed, so this session is shown as transcript-only. The transcript remains readable, but playback and media download stay blocked.",
+    ja: "ローカルメディアの保存に失敗したため、このセッションは transcript-only として表示されます。文字起こしは読めますが、再生とメディアダウンロードはブロックされます。",
+  },
+  detailStorageStopFaultHelper: {
+    ko: "이 세션은 로컬 저장 장애로 정상 기록으로 남지 않았습니다. 텍스트만 복구용으로 다룰 수 있습니다.",
+    en: "This session hit a local save fault and was not kept as a normal saved record. Only text rescue remains available.",
+    ja: "このセッションはローカル保存障害により通常の保存記録としては保持されていません。テキストのレスキューのみ利用できます。",
   },
   shareButtonLabel: {
     ko: "공유하기",

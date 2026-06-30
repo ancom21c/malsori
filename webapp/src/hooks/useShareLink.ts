@@ -5,6 +5,7 @@ import { aggregateSegmentText } from "../utils/segments";
 import { createSharePayload, type ShareAudioData, type ShareDocument } from "../share/payload";
 import { transcodeShareAudio } from "../services/audio/shareTranscoder";
 import { arrayBufferToBase64 } from "../utils/base64";
+import { resolveTrustedRemoteAudioUrl } from "../domain/storageTrust";
 
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 const SHARE_EMBED_DIR = "share-embed";
@@ -180,7 +181,7 @@ export function useShareLink({
         backendEndpointSource: transcription.backendEndpointSource,
         backendDeployment: transcription.backendDeployment,
         backendApiBaseUrl: transcription.backendApiBaseUrl,
-        remoteAudioUrl: transcription.remoteAudioUrl,
+        remoteAudioUrl: resolveTrustedRemoteAudioUrl(transcription),
         segments: serializedSegments,
         audio: audioPayload
           ? {

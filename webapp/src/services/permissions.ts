@@ -1,3 +1,5 @@
+import { appDb } from "../data/app-db";
+
 export type BrowserPermissionState = "granted" | "denied" | "prompt" | "unknown";
 
 type ExtendedPermissionName = PermissionName | "microphone" | "persistent-storage";
@@ -67,6 +69,23 @@ export async function requestPersistentStoragePermission(): Promise<boolean> {
   }
   try {
     return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+export async function runPersistentStorageWriteProbe(): Promise<boolean> {
+  const probeKey = `storage-write-probe:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  try {
+    await appDb.transaction("rw", appDb.settings, async () => {
+      await appDb.settings.put({
+        key: probeKey,
+        value: "probe",
+        updatedAt: new Date().toISOString(),
+      });
+      await appDb.settings.delete(probeKey);
+    });
+    return true;
   } catch {
     return false;
   }

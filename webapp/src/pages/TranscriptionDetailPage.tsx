@@ -99,6 +99,12 @@ import type {
   SummaryRegenerationScope,
   SummaryRunTrigger,
 } from "../domain/session";
+import {
+  hasTranscriptStorageFault,
+  isTranscriptOnlySession,
+  resolveTrustedRemoteAudioUrl,
+} from "../domain/storageTrust";
+import { buildStorageTrustStatusChipItems } from "../domain/storageTrustUi";
 
 const DEFAULT_REALTIME_SAMPLE_RATE = 16000;
 const LOOP_MIN_DURATION_SECONDS = 0.2;
@@ -404,7 +410,8 @@ function buildStreamingResultPayload(
     const isFinal = typeof segment.isFinal === "boolean" ? segment.isFinal : assumeFinal;
     const duration =
       isFinal && hasValidEnd ? Math.max(0, Math.round(segment.endMs) - startAt) : 0;
-    const correctedText = segment.correctedText && segment.correctedText.trim().length > 0 ? segment.correctedText : undefined;
+    const correctedText =
+      segment.correctedText && segment.correctedText.trim().length > 0 ? segment.correctedText : undefined;
 
     const words =
       segment.words && segment.words.length > 0
@@ -498,8 +505,6 @@ export default function TranscriptionDetailPage() {
   const [editingWordInputs, setEditingWordInputs] = useState<string[] | null>(null);
   const [editingWordTimings, setEditingWordTimings] = useState<LocalWordTiming[] | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
-  const audioReady = Boolean(audioUrl || audioBlobRef.current) && !audioLoading;
-  const shareAudioAvailable = Boolean(audioUrl || audioBlobRef.current);
   const [noteMode, setNoteMode] = useState(false);
   const [transcriptSearchQuery, setTranscriptSearchQuery] = useState("");
   const [wordDetailsVisibility, setWordDetailsVisibility] = useState<Record<string, boolean>>({});
@@ -542,6 +547,15 @@ export default function TranscriptionDetailPage() {
     if (!transcriptionId) return null;
     return await readSessionSummaryState(transcriptionId);
   }, [transcriptionId]);
+  const transcriptStorageFault = transcription ? hasTranscriptStorageFault(transcription) : false;
+  const transcriptOnlySession = transcription ? isTranscriptOnlySession(transcription) : false;
+  const mediaActionsBlocked = transcriptStorageFault || transcriptOnlySession;
+  const trustedAudioUrl = mediaActionsBlocked ? null : audioUrl;
+  const trustedVideoUrl = mediaActionsBlocked ? null : videoUrl;
+  const audioReady = Boolean(trustedAudioUrl || (!mediaActionsBlocked && audioBlobRef.current)) && !audioLoading;
+  const shareAudioAvailable =
+    Boolean(trustedAudioUrl || (!mediaActionsBlocked && audioBlobRef.current)) &&
+    !transcriptStorageFault;
 
   useEffect(() => {
     summaryModeTouchedRef.current = false;
@@ -568,7 +582,7 @@ export default function TranscriptionDetailPage() {
     transcriptionId,
     transcription,
     segments,
-    audioUrl,
+    audioUrl: trustedAudioUrl,
     audioBlobRef,
     shareAudioAvailable,
     t,
@@ -1428,7 +1442,7 @@ export default function TranscriptionDetailPage() {
       text: aggregatedText,
       corrected_text: correctedAggregatedText,
       results: streamingResults,
-      audio_url: transcription.remoteAudioUrl,
+      audio_url: resolveTrustedRemoteAudioUrl(transcription),
       error: transcription.errorMessage,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -1834,7 +1848,7 @@ export default function TranscriptionDetailPage() {
   );
 
   const handleDownloadAudio = useCallback(() => {
-    if (!transcription) return;
+    if (!transcription || mediaActionsBlocked) return;
     const useRealtimeName = transcription.kind === "realtime";
     const downloadName = useRealtimeName
       ? buildRealtimeAudioFileName(
@@ -1854,19 +1868,19 @@ export default function TranscriptionDetailPage() {
       URL.revokeObjectURL(url);
       return;
     }
-    if (audioUrl) {
+    if (trustedAudioUrl) {
       const link = document.createElement("a");
-      link.href = audioUrl;
+      link.href = trustedAudioUrl;
       link.download = downloadName;
       document.body.appendChild(link);
       link.click();
       link.remove();
     }
-  }, [audioUrl, transcription]);
+  }, [mediaActionsBlocked, transcription, trustedAudioUrl]);
 
   const handleDownloadVideo = useCallback(() => {
-    if (!transcription) return;
-    if (!videoBlobRef.current && !videoUrl) {
+    if (!transcription || mediaActionsBlocked) return;
+    if (!videoBlobRef.current && !trustedVideoUrl) {
       return;
     }
     const downloadName = buildSessionVideoFileName(
@@ -1878,15 +1892,15 @@ export default function TranscriptionDetailPage() {
       downloadBlobContent(videoBlobRef.current, downloadName);
       return;
     }
-    if (videoUrl) {
+    if (trustedVideoUrl) {
       const link = document.createElement("a");
-      link.href = videoUrl;
+      link.href = trustedVideoUrl;
       link.download = downloadName;
       document.body.appendChild(link);
       link.click();
       link.remove();
     }
-  }, [transcription, videoUrl]);
+  }, [mediaActionsBlocked, transcription, trustedVideoUrl]);
 
   const findSegmentForPlaybackTime = useCallback((currentSeconds: number): LocalSegment | null => {
     const entries = segmentsRef.current;
@@ -2185,7 +2199,7 @@ export default function TranscriptionDetailPage() {
       media.removeEventListener("loadedmetadata", handleLoadedMetadata);
       media.removeEventListener("durationchange", updateDurationState);
     };
-  }, [audioUrl, loopEnabled, loopRange, syncActiveSegmentWithPlayback, videoUrl]);
+  }, [loopEnabled, loopRange, syncActiveSegmentWithPlayback, trustedAudioUrl, trustedVideoUrl]);
 
   if (transcription === undefined) {
     return (
@@ -2213,7 +2227,7 @@ export default function TranscriptionDetailPage() {
     );
   }
 
-  const videoReady = Boolean(videoUrl || videoBlobRef.current);
+  const videoReady = Boolean(trustedVideoUrl || (!mediaActionsBlocked && videoBlobRef.current));
   const detailCopy = {
     overviewTitle: t("detailConsoleOverview"),
     analysisTitle: t("analysisWorkspace"),
@@ -2239,15 +2253,25 @@ export default function TranscriptionDetailPage() {
     searchTranscript: t("searchTranscript"),
     noTranscriptMatches: t("noTranscriptMatches"),
   };
-  const mediaStatusLabel = audioReady
-    ? videoReady
-      ? detailCopy.mediaReadyAudioVideo
-      : detailCopy.mediaReadyAudio
-    : audioLoading || videoLoading
-      ? detailCopy.mediaLoading
-      : detailCopy.mediaPending;
+  const mediaStatusLabel = transcriptStorageFault
+    ? t("storageStopFaultLabel")
+    : transcriptOnlySession
+      ? t("transcriptOnlySessionLabel")
+      : audioReady
+        ? videoReady
+          ? detailCopy.mediaReadyAudioVideo
+          : detailCopy.mediaReadyAudio
+        : audioLoading || videoLoading
+          ? detailCopy.mediaLoading
+          : detailCopy.mediaPending;
   const mediaStatusColor: "success" | "warning" | "default" =
-    audioReady ? "success" : audioLoading || videoLoading ? "warning" : "default";
+    transcriptStorageFault || transcriptOnlySession
+      ? "warning"
+      : audioReady
+        ? "success"
+        : audioLoading || videoLoading
+          ? "warning"
+          : "default";
   const detailStatusLabel =
     transcription.upstreamStatusReason === "unknown_upstream_status"
       ? t("unknownUpstreamStatus")
@@ -2258,30 +2282,44 @@ export default function TranscriptionDetailPage() {
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <MediaPlaybackSection
         transcription={transcription}
-        audioUrl={audioUrl}
-        videoUrl={videoUrl}
+        audioUrl={trustedAudioUrl}
+        videoUrl={trustedVideoUrl}
         mediaRef={mediaElementRef}
         audioLoading={audioLoading}
         videoLoading={videoLoading}
-        audioError={audioError}
-        videoError={videoError}
-        audioDownloadable={Boolean(audioUrl || audioBlobRef.current)}
-        videoDownloadable={Boolean(videoUrl || videoBlobRef.current)}
+        audioError={mediaActionsBlocked ? null : audioError}
+        videoError={mediaActionsBlocked ? null : videoError}
+        audioDownloadable={Boolean(trustedAudioUrl || (!mediaActionsBlocked && audioBlobRef.current))}
+        videoDownloadable={Boolean(trustedVideoUrl || (!mediaActionsBlocked && videoBlobRef.current))}
         onBack={handleNavigateBack}
-        onDownloadJson={handleDownloadJson}
+        onDownloadJson={transcriptStorageFault ? undefined : handleDownloadJson}
         onDownloadText={handleDownloadText}
         onDownloadAudio={handleDownloadAudio}
         onDownloadVideo={handleDownloadVideo}
-        onRetry={transcription.kind === "file" ? handleRetryRequest : undefined}
+        onRetry={
+          transcriptStorageFault
+            ? undefined
+            : transcription.kind === "file"
+              ? handleRetryRequest
+              : undefined
+        }
         retryDisabled={
           retrySubmitting ||
           requestFileTranscription.isPending ||
           requestRealtimeFileTranscription.isPending
         }
         onDelete={handleDelete}
-        onShare={handleShareDialogOpen}
+        onShare={transcriptStorageFault ? undefined : handleShareDialogOpen}
         onTitleUpdate={handleTitleUpdate}
-        mediaNotice={videoReady ? t("sessionVideoSupplementaryNote") : null}
+        mediaNotice={
+          transcriptStorageFault
+            ? t("detailStorageStopFaultHelper")
+            : transcriptOnlySession
+              ? t("detailTranscriptOnlyMediaHelper")
+              : videoReady
+                ? t("sessionVideoSupplementaryNote")
+                : null
+        }
         sticky
         compactOnScroll
         headingComponent="h1"
@@ -2490,6 +2528,7 @@ export default function TranscriptionDetailPage() {
                     label: mediaStatusLabel,
                     color: mediaStatusColor,
                   },
+                  ...buildStorageTrustStatusChipItems(transcription, t),
                 ]}
               />
             </Stack>
@@ -2522,7 +2561,7 @@ export default function TranscriptionDetailPage() {
               <CardContent>
                 <Stack spacing={2}>
                   <SegmentWaveformTimeline
-                    audioSourceUrl={audioUrl}
+                    audioSourceUrl={trustedAudioUrl}
                     segments={segments ?? []}
                     activeSegmentId={activeSegmentId}
                     currentTimeSeconds={mediaCurrentTimeSeconds}

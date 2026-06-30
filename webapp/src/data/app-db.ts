@@ -4,6 +4,14 @@ import type { Table } from "dexie";
 export type LocalTranscriptionKind = "file" | "realtime";
 export type LocalSttTransport = "batch" | "streaming";
 export type LocalCaptureInput = "uploaded_file" | "microphone";
+export type LocalStorageTrustState = "trusted" | "broken";
+export type LocalTranscriptStorageFaultReason =
+  | "segments_write_failed"
+  | "transcript_projection_write_failed"
+  | "session_finalize_write_failed";
+export type LocalMediaStorageFaultReason =
+  | "audio_chunk_write_failed"
+  | "video_chunk_write_failed";
 
 export type BackendEndpointDeployment = "cloud" | "onprem";
 
@@ -56,6 +64,12 @@ export interface LocalTranscription {
   sourceFileStorageState?: "pending" | "ready" | "failed";
   sourceFileChunkCount?: number;
   sourceFileStoredBytes?: number;
+  transcriptStorageTrust?: LocalStorageTrustState;
+  transcriptStorageFaultReason?: LocalTranscriptStorageFaultReason;
+  transcriptStorageFaultAt?: string;
+  mediaStorageTrust?: LocalStorageTrustState;
+  mediaStorageFaultReason?: LocalMediaStorageFaultReason;
+  mediaStorageFaultAt?: string;
 }
 
 export interface LocalWordTiming {

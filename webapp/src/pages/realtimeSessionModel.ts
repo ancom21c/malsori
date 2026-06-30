@@ -8,7 +8,8 @@ export type RealtimeSessionState =
   | "recording"
   | "paused"
   | "stopping"
-  | "saving";
+  | "saving"
+  | "failed";
 
 export type RealtimeInputSource = "microphone" | "uploaded_file";
 

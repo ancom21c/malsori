@@ -40,6 +40,10 @@ import {
 } from "../services/audio/recorderManager";
 import type { DecodedPcmAudio } from "../services/audio/decodeAudioFile";
 import { appDb, type LocalWordTiming, type PresetConfig } from "../data/app-db";
+import type {
+  LocalMediaStorageFaultReason,
+  LocalTranscriptStorageFaultReason,
+} from "../data/app-db";
 import { DEFAULT_STREAMING_TEMPLATE_CONFIG_JSON } from "../data/defaultPresets";
 import {
   buildTranscriptionDetailPath,
@@ -61,6 +65,7 @@ import {
   checkPersistentStoragePermission,
   requestMicrophonePermission,
   requestPersistentStoragePermission,
+  runPersistentStorageWriteProbe,
   type BrowserPermissionState,
 } from "../services/permissions";
 import {
@@ -117,8 +122,21 @@ import type {
   SummaryRegenerationScope,
   SummaryRunTrigger,
 } from "../domain/session";
+import {
+  buildMediaStorageFaultPatch,
+  buildTranscriptStorageFaultPatch,
+} from "../domain/storageTrust";
+import { buildStorageTrustStatusChipItems } from "../domain/storageTrustUi";
 
-type SessionState = "idle" | "countdown" | "connecting" | "recording" | "paused" | "stopping" | "saving";
+type SessionState =
+  | "idle"
+  | "countdown"
+  | "connecting"
+  | "recording"
+  | "paused"
+  | "stopping"
+  | "saving"
+  | "failed";
 
 type RealtimeStartInput =
   | { source: "microphone" }
@@ -137,6 +155,11 @@ type RealtimeSegment = {
   words?: LocalWordTiming[];
 };
 
+type RealtimeRescueState = {
+  transcriptText: string;
+  faultedAt: string;
+};
+
 const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
   idle: "waiting",
   countdown: "sessionStateCountdown",
@@ -145,6 +168,7 @@ const SESSION_STATE_LABEL_KEY: Record<SessionState, string> = {
   paused: "pause",
   stopping: "stopping",
   saving: "saving",
+  failed: "failure",
 };
 
 const LATENCY_LEVEL_LABEL_KEY: Record<RealtimeLatencyLevel, string> = {
@@ -157,6 +181,7 @@ const LATENCY_LEVEL_LABEL_KEY: Record<RealtimeLatencyLevel, string> = {
 const FALLBACK_STREAM_SAMPLE_RATE = 16000;
 const SIMULATED_FILE_STREAM_CHUNK_MS = 160;
 const VIDEO_CAPTURE_TIMESLICE_MS = 4000;
+const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 const VIDEO_MIME_CANDIDATES = [
   "video/webm;codecs=vp9",
   "video/webm;codecs=vp8",
@@ -184,6 +209,25 @@ const DEFAULT_RUNTIME_SETTINGS: RuntimeSettingsState = {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function buildTranscriptDownloadFileName(title: string | undefined, fallbackId: string): string {
+  const normalizedBase = (title?.trim().length ? title.trim() : fallbackId)
+    .replace(INVALID_FILENAME_CHARS, "_")
+    .replace(/\s+/g, "_");
+  return `${normalizedBase || "realtime_transcript"}.txt`;
+}
+
+function downloadTranscriptTextFile(fileName: string, text: string) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function areStreamingBufferMetricsEqual(
@@ -402,6 +446,7 @@ export default function RealtimeSessionPage() {
   const [simulatedFileProgressPercent, setSimulatedFileProgressPercent] = useState<number | null>(null);
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
   const [latencyStaleMs, setLatencyStaleMs] = useState<number | null>(null);
+  const [rescueState, setRescueState] = useState<RealtimeRescueState | null>(null);
   const [runtimeSettingsOpen, setRuntimeSettingsOpen] = useState(false);
   const [streamingJsonEditorOpen, setStreamingJsonEditorOpen] = useState(false);
   const [runtimeStreamConfigOpen, setRuntimeStreamConfigOpen] = useState(false);
@@ -461,8 +506,14 @@ export default function RealtimeSessionPage() {
   const simulatedFileStreamingAbortRef = useRef(false);
   const simulatedFileStreamingStartedRef = useRef(false);
   const segmentsRef = useRef<RealtimeSegment[]>([]);
+  const partialTextRef = useRef<string | null>(null);
   const finalizeReasonRef = useRef<"normal" | "aborted">("normal");
   const finalizingRef = useRef(false);
+  const storageStopTriggeredRef = useRef(false);
+  const mediaStorageFaultRef = useRef(false);
+  const markMediaStorageFaultRef = useRef<
+    (reason: LocalMediaStorageFaultReason, error: unknown) => void | Promise<void>
+  >(() => undefined);
   const stopSessionRef = useRef<(aborted: boolean) => void>(() => {
     /* noop */
   });
@@ -510,6 +561,7 @@ export default function RealtimeSessionPage() {
   sessionStateRef.current = sessionState;
   connectionUxStateRef.current = connectionUxState;
   streamingBufferMetricsRef.current = streamingBufferMetrics;
+  partialTextRef.current = partialText;
 
   const sessionActive =
     sessionState === "recording" ||
@@ -1557,6 +1609,22 @@ export default function RealtimeSessionPage() {
     simulatedFileSession && sessionState === "recording"
       ? t("recordingPlayback")
       : t(SESSION_STATE_LABEL_KEY[sessionState]);
+  const storageTrustStatusItems = useMemo(() => {
+    if (activeTranscription) {
+      return buildStorageTrustStatusChipItems(activeTranscription, t);
+    }
+    if (!rescueState) {
+      return [];
+    }
+    return buildStorageTrustStatusChipItems(
+      {
+        kind: "realtime",
+        transcriptStorageTrust: "broken",
+        mediaStorageTrust: "broken",
+      },
+      t
+    );
+  }, [activeTranscription, rescueState, t]);
   const latencyLevelLabel = t(LATENCY_LEVEL_LABEL_KEY[latencyLevel]);
   const connectionBannerMessage =
     connectionEventMessage ??
@@ -1739,7 +1807,7 @@ export default function RealtimeSessionPage() {
         return;
       }
       const transcriptionId = transcriptionIdRef.current;
-      if (!transcriptionId) return;
+      if (!transcriptionId || mediaStorageFaultRef.current) return;
       const chunkIndex = videoChunkIndexRef.current++;
       void event.data
         .arrayBuffer()
@@ -1757,6 +1825,7 @@ export default function RealtimeSessionPage() {
         )
         .catch((error) => {
           console.error("Failed to persist video chunk", error);
+          void markMediaStorageFaultRef.current("video_chunk_write_failed", error);
         });
     });
     recorder.addEventListener("stop", () => {
@@ -1978,8 +2047,144 @@ export default function RealtimeSessionPage() {
     setAudioLevel(0);
     setSimulatedFileSession(false);
     setSimulatedFileProgressPercent(null);
+    setRescueState(null);
+    partialTextRef.current = null;
+    mediaStorageFaultRef.current = false;
+    storageStopTriggeredRef.current = false;
     setSessionState("idle");
   };
+
+  const buildCurrentTranscriptText = () => {
+    const lines = segmentsRef.current
+      .map((segment) => segment.text?.trim())
+      .filter((text): text is string => Boolean(text && text.length > 0));
+    const partial = partialTextRef.current?.trim();
+    if (partial) {
+      return lines.length > 0 ? `${lines.join("\n")}\n${partial}` : partial;
+    }
+    return lines.join("\n");
+  };
+
+  const handleCopyRescueTranscript = useCallback(async () => {
+    const transcriptText = rescueState?.transcriptText?.trim();
+    if (!transcriptText) {
+      enqueueRealtimeSnackbar(t("realtimeRescueTranscriptUnavailable"), { variant: "warning" });
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      enqueueRealtimeSnackbar(t("realtimeRescueCopyFailed"), { variant: "warning" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(transcriptText);
+      enqueueRealtimeSnackbar(t("realtimeRescueCopySucceeded"), { variant: "success" });
+    } catch {
+      enqueueRealtimeSnackbar(t("realtimeRescueCopyFailed"), { variant: "warning" });
+    }
+  }, [enqueueRealtimeSnackbar, rescueState?.transcriptText, t]);
+
+  const handleDownloadRescueTranscript = useCallback(() => {
+    const transcriptText = rescueState?.transcriptText?.trim();
+    if (!transcriptText) {
+      enqueueRealtimeSnackbar(t("realtimeRescueTranscriptUnavailable"), { variant: "warning" });
+      return;
+    }
+    downloadTranscriptTextFile(
+      buildTranscriptDownloadFileName(activeTranscription?.title, "realtime_rescue"),
+      transcriptText
+    );
+  }, [activeTranscription?.title, enqueueRealtimeSnackbar, rescueState?.transcriptText, t]);
+
+  const triggerTranscriptStorageStop = useCallback(
+    async (
+      reason: LocalTranscriptStorageFaultReason,
+      error: unknown,
+      options?: { sourceRecordId?: string | null }
+    ) => {
+      if (storageStopTriggeredRef.current) {
+        return;
+      }
+      storageStopTriggeredRef.current = true;
+      mediaStorageFaultRef.current = true;
+      finalizingRef.current = true;
+      simulatedFileStreamingAbortRef.current = true;
+      clearCountdown();
+      clearAutosave();
+      clearStopSafetyTimer();
+      waitingForFinalRef.current = false;
+      cameraShouldRecordRef.current = false;
+      stopRecorder();
+      void stopVideoRecorder();
+      streamingClientRef.current?.disconnect();
+      streamingClientRef.current = null;
+      setAudioLevel(0);
+      setRetryingConnection(false);
+      setConnectionEventMessage(null);
+      setConnectionUxState(DEFAULT_REALTIME_CONNECTION_UX_STATE);
+      const recordId = options?.sourceRecordId ?? transcriptionIdRef.current;
+      const transcriptText = buildCurrentTranscriptText();
+      const faultedAt = new Date().toISOString();
+      if (recordId) {
+        try {
+          const existing = await appDb.transcriptions.get(recordId);
+          const trustPatch = buildTranscriptStorageFaultPatch(existing, reason, faultedAt);
+          await updateLocalTranscription(recordId, {
+            ...trustPatch,
+            status: "failed",
+            processingStage: undefined,
+            errorMessage: t("realtimeStorageStopFaultMessage"),
+          });
+        } catch (persistError) {
+          console.error("Failed to mark realtime storage-stop fault", persistError);
+        }
+        try {
+          await deleteTranscription(recordId);
+        } catch (deleteError) {
+          console.error("Failed to delete faulted realtime session", deleteError);
+        }
+      }
+      transcriptionIdRef.current = null;
+      setActiveTranscriptionId(null);
+      setErrorMessage(t("realtimeStorageStopFaultMessage"));
+      setRescueState({ transcriptText, faultedAt });
+      setSessionState("failed");
+      console.error("Realtime transcript persistence failed", error);
+      enqueueRealtimeSnackbar(t("realtimeStorageStopFaultMessage"), { variant: "error" });
+    },
+    [enqueueRealtimeSnackbar, stopRecorder, stopVideoRecorder, t]
+  );
+
+  const markMediaStorageFault = useCallback(
+    async (reason: LocalMediaStorageFaultReason, error: unknown) => {
+      if (mediaStorageFaultRef.current) {
+        return;
+      }
+      mediaStorageFaultRef.current = true;
+      cameraShouldRecordRef.current = false;
+      void stopVideoRecorder();
+      const recordId = transcriptionIdRef.current;
+      if (!recordId) {
+        return;
+      }
+      try {
+        const existing = await appDb.transcriptions.get(recordId);
+        const trustPatch = buildMediaStorageFaultPatch(existing, reason);
+        if (Object.keys(trustPatch).length > 0) {
+          await updateLocalTranscription(recordId, trustPatch);
+        }
+        enqueueRealtimeSnackbar(t("realtimeTranscriptOnlyFallbackMessage"), {
+          variant: "warning",
+        });
+      } catch (persistError) {
+        await triggerTranscriptStorageStop("transcript_projection_write_failed", persistError, {
+          sourceRecordId: recordId,
+        });
+      }
+      console.error("Realtime media persistence failed", error);
+    },
+    [enqueueRealtimeSnackbar, stopVideoRecorder, t, triggerTranscriptStorageStop]
+  );
+  markMediaStorageFaultRef.current = markMediaStorageFault;
 
   const startAutosaveTimer = () => {
     clearAutosave();
@@ -2009,12 +2214,17 @@ export default function RealtimeSessionPage() {
       });
     }
     const index = chunkIndexRef.current++;
-    void appendAudioChunk({
-      transcriptionId: id,
-      chunkIndex: index,
-      data: buffer.slice(0),
-      mimeType: sampleRate ? `audio/pcm;rate=${sampleRate}` : "audio/pcm",
-    }).catch((error) => console.error(t("failedToSaveAudioChunk"), error));
+    if (!mediaStorageFaultRef.current) {
+      void appendAudioChunk({
+        transcriptionId: id,
+        chunkIndex: index,
+        data: buffer.slice(0),
+        mimeType: sampleRate ? `audio/pcm;rate=${sampleRate}` : "audio/pcm",
+      }).catch((error) => {
+        console.error(t("failedToSaveAudioChunk"), error);
+        void markMediaStorageFault("audio_chunk_write_failed", error);
+      });
+    }
 
     lastAudioSentAtRef.current = Date.now();
     streamingClientRef.current?.sendAudioChunk(buffer, { durationMs: info.durationMs });
@@ -2080,24 +2290,38 @@ export default function RealtimeSessionPage() {
   const persistSegments = async () => {
     const id = transcriptionIdRef.current;
     if (!id) return;
-    await replaceSegments(
-      id,
-      segmentsRef.current.map((segment) => ({
-        text: segment.text,
-        rawText: segment.rawText,
-        startMs: segment.startMs,
-        endMs: segment.endMs,
-        isFinal: segment.isFinal,
-        spk: segment.spk,
-        speaker_label: segment.speakerLabel,
-        language: segment.language,
-        words: segment.words,
-      }))
-    );
+    try {
+      await replaceSegments(
+        id,
+        segmentsRef.current.map((segment) => ({
+          text: segment.text,
+          rawText: segment.rawText,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+          isFinal: segment.isFinal,
+          spk: segment.spk,
+          speaker_label: segment.speakerLabel,
+          language: segment.language,
+          words: segment.words,
+        }))
+      );
+    } catch (error) {
+      await triggerTranscriptStorageStop("segments_write_failed", error, {
+        sourceRecordId: id,
+      });
+      throw error;
+    }
     const transcriptText = segmentsRef.current.map((segment) => segment.text).join("\n");
-    await updateLocalTranscription(id, {
-      transcriptText,
-    });
+    try {
+      await updateLocalTranscription(id, {
+        transcriptText,
+      });
+    } catch (error) {
+      await triggerTranscriptStorageStop("transcript_projection_write_failed", error, {
+        sourceRecordId: id,
+      });
+      throw error;
+    }
   };
 
   const processStreamingMessage = async (event: MessageEvent) => {
@@ -2161,7 +2385,11 @@ export default function RealtimeSessionPage() {
       if (lastAudioSentAtRef.current !== null) {
         setLastLatencyMs(Math.max(0, receivedAt - lastAudioSentAtRef.current));
       }
-      await persistSegments();
+      try {
+        await persistSegments();
+      } catch {
+        return;
+      }
 
       if (waitingForFinalRef.current) {
         waitingForFinalRef.current = false;
@@ -2462,6 +2690,10 @@ export default function RealtimeSessionPage() {
       }
     } catch (error) {
       console.error(t("realTimeTranscriptionSaveFailure"), error);
+      await triggerTranscriptStorageStop("session_finalize_write_failed", error, {
+        sourceRecordId: id,
+      });
+      return;
     }
 
     const navigateId = id;
@@ -2487,7 +2719,14 @@ export default function RealtimeSessionPage() {
   };
 
   const stopSession = (aborted: boolean) => {
-    if (sessionState === "idle" || sessionState === "saving" || sessionState === "stopping") return;
+    if (
+      sessionState === "idle" ||
+      sessionState === "failed" ||
+      sessionState === "saving" ||
+      sessionState === "stopping"
+    ) {
+      return;
+    }
     simulatedFileStreamingAbortRef.current = true;
     setConnectionUxState((prev) =>
       reduceRealtimeConnectionUxState(prev, { type: "session-reset" })
@@ -2613,7 +2852,7 @@ export default function RealtimeSessionPage() {
       longPressTriggeredRef.current = false;
       return;
     }
-    if (sessionState === "idle") {
+    if (sessionState === "idle" || sessionState === "failed") {
       void handleStartSession();
       return;
     }
@@ -2659,6 +2898,13 @@ export default function RealtimeSessionPage() {
     }
 
     const inputSource = input.source;
+    const storageWriteProbeOk = await runPersistentStorageWriteProbe();
+    if (
+      (storagePermissionSupported && storagePermissionState === "denied") ||
+      !storageWriteProbeOk
+    ) {
+      enqueueRealtimeSnackbar(t("realtimeStorageAdvisoryWarning"), { variant: "warning" });
+    }
     let decoderConfig: Record<string, unknown>;
     const configString = resolveRealtimeStreamingConfigString({
       draftJson: streamingRequestJson,
@@ -2707,6 +2953,7 @@ export default function RealtimeSessionPage() {
         ? input.file.name.replace(/\.[^/.]+$/, "").trim() || input.file.name
         : null;
 
+    let createdRecordId: string | null = null;
     try {
       const record = await createLocalTranscription({
         title:
@@ -2731,8 +2978,16 @@ export default function RealtimeSessionPage() {
           ...buildRealtimeQualityPatch(EMPTY_STREAMING_BUFFER_METRICS),
         },
       });
+      createdRecordId = record.id;
       transcriptionIdRef.current = record.id;
       setActiveTranscriptionId(record.id);
+      mediaStorageFaultRef.current = false;
+      storageStopTriggeredRef.current = false;
+      finalizingRef.current = false;
+      waitingForFinalRef.current = false;
+      finalizeReasonRef.current = "normal";
+      suppressRecorderOnStopRef.current = false;
+      setRescueState(null);
       await updateLocalTranscription(record.id, {
         audioSampleRate: sampleRate,
         audioChannels: 1,
@@ -2740,6 +2995,15 @@ export default function RealtimeSessionPage() {
       });
       videoChunkIndexRef.current = 0;
     } catch (error) {
+      if (createdRecordId) {
+        try {
+          await deleteTranscription(createdRecordId);
+        } catch (cleanupError) {
+          console.error("Failed to clean up incomplete realtime session row", cleanupError);
+        }
+        transcriptionIdRef.current = null;
+        setActiveTranscriptionId(null);
+      }
       console.error(t("localTranscriptionRecordCreationFailed"), error);
       setErrorMessage(t("localTranscriptionRecordsCannotBeCreated"));
       enqueueRealtimeSnackbar(t("localTranscriptionRecordsCannotBeCreated"), { variant: "error" });
@@ -2803,7 +3067,7 @@ export default function RealtimeSessionPage() {
   };
 
   const handleRealtimeFileUploadAction = () => {
-    if (sessionState !== "idle") {
+    if (sessionState !== "idle" && sessionState !== "failed") {
       enqueueRealtimeSnackbar(t("thereIsRealTimeTranscriptionAlreadyUnderway"), { variant: "info" });
       return;
     }
@@ -3071,6 +3335,7 @@ export default function RealtimeSessionPage() {
             <RealtimeStatusBanner
               sessionState={sessionState}
               sessionStateLabel={sessionStateLabel}
+              trustStatusItems={storageTrustStatusItems}
               connectionUxState={connectionUxState}
               streamingBufferMetrics={streamingBufferMetrics}
               latencyLevelLabel={latencyLevelLabel}
@@ -3098,7 +3363,25 @@ export default function RealtimeSessionPage() {
               </Stack>
             )}
 
-            {featureAvailability.sessionArtifactsVisible && compactRealtimeLayout ? (
+            {rescueState ? (
+              <Alert
+                severity="error"
+                action={
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    <Button color="inherit" size="small" onClick={() => void handleCopyRescueTranscript()}>
+                      {t("realtimeRescueCopyAction")}
+                    </Button>
+                    <Button color="inherit" size="small" onClick={handleDownloadRescueTranscript}>
+                      {t("realtimeRescueDownloadAction")}
+                    </Button>
+                  </Stack>
+                }
+              >
+                {t("realtimeRescueFaultBanner")}
+              </Alert>
+            ) : null}
+
+            {featureAvailability.sessionArtifactsVisible && compactRealtimeLayout && !rescueState ? (
               <SummarySurface
                 compactLayout
                 open={summarySurfaceMode !== "off"}
@@ -3138,7 +3421,7 @@ export default function RealtimeSessionPage() {
                 />
               </Box>
 
-              {featureAvailability.sessionArtifactsVisible && !compactRealtimeLayout ? (
+              {featureAvailability.sessionArtifactsVisible && !compactRealtimeLayout && !rescueState ? (
                 <Box sx={{ flex: "0 0 320px", width: 320, minWidth: 280 }}>
                   <SummarySurface
                     compactLayout={false}

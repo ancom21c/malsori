@@ -31,4 +31,29 @@ describe("useTranscriptions", () => {
     expect(result.current?.[0]?.id).toBe(second.id);
     expect(result.current?.[1]?.id).toBe(first.id);
   });
+
+  it("hides realtime storage-stop fault rows from normal saved history", async () => {
+    const visible = await createLocalTranscription({
+      title: "Visible session",
+      kind: "realtime",
+    });
+    await createLocalTranscription({
+      title: "Hidden storage fault",
+      kind: "realtime",
+      metadata: {
+        transcriptStorageTrust: "broken",
+        transcriptStorageFaultReason: "segments_write_failed",
+        transcriptStorageFaultAt: "2026-06-29T00:00:00.000Z",
+      },
+    });
+
+    const { result } = renderHook(() => useTranscriptions());
+
+    await waitFor(() => {
+      expect(result.current).toBeDefined();
+      expect(result.current?.length).toBe(1);
+    });
+
+    expect(result.current?.[0]?.id).toBe(visible.id);
+  });
 });

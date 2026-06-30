@@ -59,7 +59,7 @@ import { useUiStore } from "../store/uiStore";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { formatLocalizedDateTime } from "../utils/time";
-import { ActionStrip, StudioPageShell } from "../components/studio";
+import { ActionStrip, StatusChipSet, StudioPageShell } from "../components/studio";
 import {
   ALL_TRANSCRIPTION_LIST_FILTER_KINDS,
   DEFAULT_TRANSCRIPTION_LIST_FILTER_STATE,
@@ -80,6 +80,7 @@ import {
   formatSessionDurationLabel,
   getSessionModeLabelKey,
 } from "./sessionWorkspaceModel";
+import { buildStorageTrustStatusChipItems } from "../domain/storageTrustUi";
 
 type Translator = (key: string, options?: TranslateOptions) => string;
 type FilterHistoryMode = "replace" | "push";
@@ -1007,6 +1008,9 @@ export default function TranscriptionListPage() {
                                   {item.title}
                                 </Typography>
                                 {getStatusChip(item, t)}
+                                {buildStorageTrustStatusChipItems(item, t).length > 0 ? (
+                                  <StatusChipSet items={buildStorageTrustStatusChipItems(item, t)} />
+                                ) : null}
                               </Stack>
                               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                                 <Chip

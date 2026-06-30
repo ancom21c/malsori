@@ -51,6 +51,9 @@ describe("transcriptionRepository", () => {
         backendEndpointSource: "server-default",
         backendEndpointName: "서버 기본",
         realtimeSimulationEnabled: true,
+        mediaStorageTrust: "broken",
+        mediaStorageFaultReason: "audio_chunk_write_failed",
+        mediaStorageFaultAt: "2026-06-29T00:00:05.000Z",
       },
     });
     expect(record.status).toBe("pending");
@@ -58,6 +61,8 @@ describe("transcriptionRepository", () => {
     expect(record.captureInput).toBe("microphone");
     expect(record.modelName).toBe("sommers");
     expect(record.realtimeSimulationEnabled).toBe(true);
+    expect(record.mediaStorageTrust).toBe("broken");
+    expect(record.mediaStorageFaultReason).toBe("audio_chunk_write_failed");
     expect(record.searchTitle).toBe("테스트");
 
     await updateLocalTranscription(record.id, {

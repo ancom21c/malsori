@@ -395,6 +395,85 @@ describe("SyncManager", () => {
     );
   });
 
+  it("skips media uploads and prunes remote media for transcript-only sessions", async () => {
+    const record = buildLocalRecord("tx-transcript-only", {
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      remoteAudioUrl: "https://example.com/legacy-audio.webm",
+      mediaStorageTrust: "broken",
+      mediaStorageFaultReason: "audio_chunk_write_failed",
+      mediaStorageFaultAt: new Date().toISOString(),
+    });
+    await appDb.transcriptions.put(record);
+    await appDb.segments.add({
+      id: "seg-transcript-only",
+      transcriptionId: record.id,
+      startMs: 0,
+      endMs: 1000,
+      text: "segment text",
+      createdAt: record.updatedAt,
+    });
+    await appDb.audioChunks.add({
+      id: "audio-transcript-only",
+      transcriptionId: record.id,
+      chunkIndex: 0,
+      data: new Uint8Array([1, 2, 3]).buffer,
+      mimeType: "audio/webm",
+      createdAt: record.updatedAt,
+    });
+    await appDb.videoChunks.add({
+      id: "video-transcript-only",
+      transcriptionId: record.id,
+      chunkIndex: 0,
+      data: new Uint8Array([4, 5, 6]).buffer,
+      mimeType: "video/webm",
+      createdAt: record.updatedAt,
+    });
+
+    const { service, deleteFile, uploadFile } = createPushDriveServiceMock(record.id, {
+      existingFiles: [
+        { id: "remote-audio", name: "audio.webm", mimeType: "audio/webm" },
+        { id: "remote-video", name: "video.webm", mimeType: "video/webm" },
+      ],
+    });
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pushUpdates();
+
+    expect(summary.processed).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(uploadFile.mock.calls.map((call) => call[0])).toEqual(["segments.json", "metadata.json"]);
+    expect(deleteFile.mock.calls).toEqual(
+      expect.arrayContaining([["remote-audio"], ["remote-video"]])
+    );
+    const metadataCall = uploadFile.mock.calls.find((call) => call[0] === "metadata.json");
+    const metadataPayload = await parseBlobJson(metadataCall?.[1]);
+    expect(metadataPayload.mediaStorageTrust).toBe("broken");
+    expect(metadataPayload.mediaStorageFaultReason).toBe("audio_chunk_write_failed");
+    expect(metadataPayload.remoteAudioUrl).toBeUndefined();
+  });
+
+  it("skips cloud push for realtime storage-stop fault rows", async () => {
+    const record = buildLocalRecord("tx-storage-stop", {
+      kind: "realtime",
+      isCloudSynced: true,
+      downloadStatus: "downloaded",
+      transcriptStorageTrust: "broken",
+      transcriptStorageFaultReason: "segments_write_failed",
+      transcriptStorageFaultAt: new Date().toISOString(),
+    });
+    await appDb.transcriptions.put(record);
+
+    const { service, uploadFile } = createPushDriveServiceMock(record.id);
+    const manager = new SyncManager(service);
+
+    const summary = await manager.pushUpdates();
+
+    expect(summary.processed).toBe(0);
+    expect(summary.failed).toBe(0);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
   it("publishes metadata only after artifact uploads succeed", async () => {
     const record = buildLocalRecord("tx-metadata-last", {
       isCloudSynced: true,
@@ -993,6 +1072,69 @@ describe("SyncManager", () => {
     expect(stored?.searchTitle).toBe("cloud title");
     const searchIndex = await appDb.searchIndexes.get(recordId);
     expect(searchIndex?.normalizedTranscript).toContain("cloud");
+  });
+
+  it("keeps full download transcript-only when cloud metadata marks media trust broken", async () => {
+    const recordId = "cloud-download-transcript-only";
+    const localUpdatedAt = new Date(Date.now() - 60_000).toISOString();
+    const cloudUpdatedAt = new Date().toISOString();
+
+    await appDb.transcriptions.put(
+      buildLocalRecord(recordId, {
+        isCloudSynced: true,
+        downloadStatus: "not_downloaded",
+        updatedAt: localUpdatedAt,
+      })
+    );
+    await appDb.audioChunks.add({
+      id: "audio-local-transcript-only",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([9, 9, 9]).buffer,
+      mimeType: "audio/webm",
+      createdAt: localUpdatedAt,
+    });
+    await appDb.videoChunks.add({
+      id: "video-local-transcript-only",
+      transcriptionId: recordId,
+      chunkIndex: 0,
+      data: new Uint8Array([8, 8, 8]).buffer,
+      mimeType: "video/webm",
+      createdAt: localUpdatedAt,
+    });
+
+    const cloudRecord = buildLocalRecord(recordId, {
+      isCloudSynced: true,
+      updatedAt: cloudUpdatedAt,
+      remoteAudioUrl: "https://example.com/cloud-audio.webm",
+      mediaStorageTrust: "broken",
+      mediaStorageFaultReason: "audio_chunk_write_failed",
+      mediaStorageFaultAt: cloudUpdatedAt,
+    });
+    const cloudSegments: LocalSegment[] = [
+      {
+        id: "seg-download-transcript-only",
+        transcriptionId: recordId,
+        startMs: 0,
+        endMs: 1000,
+        text: "cloud text",
+        createdAt: cloudUpdatedAt,
+      },
+    ];
+    const { service } = createPullDriveServiceMock(cloudRecord, {
+      segments: cloudSegments,
+      audioFile: { id: "audio-file", name: "audio.webm", mimeType: "audio/webm" },
+      videoFile: { id: "video-file", name: "video.webm", mimeType: "video/webm" },
+    });
+    const manager = new SyncManager(service);
+
+    await manager.downloadFullRecord(recordId);
+
+    const stored = await appDb.transcriptions.get(recordId);
+    expect(stored?.mediaStorageTrust).toBe("broken");
+    expect(stored?.remoteAudioUrl).toBeUndefined();
+    expect(await appDb.audioChunks.where("transcriptionId").equals(recordId).count()).toBe(0);
+    expect(await appDb.videoChunks.where("transcriptionId").equals(recordId).count()).toBe(0);
   });
 
   it("fails closed when a newer cloud revision lands during full download", async () => {

@@ -72,6 +72,18 @@ function assetVersioningPlugin(hash: string): Plugin {
 }
 
 const devProxyTarget = "http://localhost:8000";
+const appSharedModules = [
+  resolve(__dirname, "src/components/ConfirmDialog.tsx"),
+  resolve(__dirname, "src/components/studio/ActionStrip.tsx"),
+  resolve(__dirname, "src/components/studio/StatusChipSet.tsx"),
+  resolve(__dirname, "src/components/studio/StudioPageShell.tsx"),
+  resolve(__dirname, "src/domain/storageTrustUi.ts"),
+  resolve(__dirname, "src/hooks/useAppPortalContainer.ts"),
+  resolve(__dirname, "src/services/api/realtimeStreamingPayload.ts"),
+  resolve(__dirname, "src/services/permissions.ts"),
+  resolve(__dirname, "src/utils/time.ts"),
+  resolve(__dirname, "src/utils/transcriptionMetadata.ts"),
+];
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -118,6 +130,7 @@ export default defineConfig({
             "zod",
             "pako",
           ],
+          "app-shared": appSharedModules,
         },
         entryFileNames: (chunkInfo) =>
           chunkInfo.name === "service-worker" ? "service-worker.js" : "assets/[name]-[hash].js",

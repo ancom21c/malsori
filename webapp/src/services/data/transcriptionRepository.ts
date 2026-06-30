@@ -8,6 +8,7 @@ import type {
   LocalWordTiming,
 } from "../../data/app-db";
 import { normalizeSearchText, extractSearchTokens, buildCharNgrams } from "../../utils/textIndexing";
+import { shouldHideFromSavedHistory } from "../../domain/storageTrust";
 
 async function upsertTranscriptionSearchIndex(
   transcriptionId: string,
@@ -64,6 +65,12 @@ type TranscriptionMetadataPatch = Partial<
     | "sourceFileStorageState"
     | "sourceFileChunkCount"
     | "sourceFileStoredBytes"
+    | "transcriptStorageTrust"
+    | "transcriptStorageFaultReason"
+    | "transcriptStorageFaultAt"
+    | "mediaStorageTrust"
+    | "mediaStorageFaultReason"
+    | "mediaStorageFaultAt"
     | "configPresetId"
     | "configPresetName"
     | "modelName"
@@ -87,7 +94,7 @@ export function listTranscriptionsQuery() {
       .orderBy("createdAt")
       .reverse()
       .toArray();
-    return records;
+    return records.filter((record) => !shouldHideFromSavedHistory(record));
   });
 }
 
