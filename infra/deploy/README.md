@@ -70,13 +70,15 @@ no-index = true
 find-links = /root/.pip/wheels
 ```
 
-Build/deploy helpers automatically stage this source dir into the gitignored Docker context path `infra/docker-compose/docker-build/python-api-pip/` and clean it up afterward:
+Local build/deploy helpers automatically stage this source dir into the gitignored Docker context path `infra/docker-compose/docker-build/python-api-pip/` and clean it up afterward:
 
 - local compose: `infra/deploy/local/run-malsori-docker.sh`
 - dev cluster image build/redeploy: `infra/deploy/local/deploy-dev.sh`
 - direct image build/push: `scripts/build-images.sh`
 
 Override the default source location with `PYTHON_API_PIP_SOURCE_DIR=/abs/path/to/python-api-pip`.
+
+Shared-cluster Tekton releases do not read your local wheel staging directory. The committed Python API image now boots without these private SDK wheels by using the built-in cloud fallback path, while local staging remains available when you want parity with the official SDK packages.
 
 ## Ingress Surface Policy (Public/Internal Split)
 

@@ -9,6 +9,7 @@ import inspect
 import json
 import logging
 import re
+import time
 from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote, urlencode, urlparse
 
@@ -78,16 +79,51 @@ except ModuleNotFoundError as exc:
                 else self.api_base.replace("https://", "wss://").replace("http://", "ws://")
             )
             self._sess = httpx.AsyncClient()
+            self._cached_token: Optional[str] = None
+            self._token_expires_at: Optional[float] = None
 
         async def _get_token(self) -> Optional[str]:
-            return None
+            now = time.time()
+            if self._cached_token and (
+                self._token_expires_at is None or now < self._token_expires_at - 60
+            ):
+                return self._cached_token
+            if not self.client_id or not self.client_secret:
+                return None
+
+            response = await self._sess.post(
+                f"{self.api_base}/v1/authenticate",
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            access_token = payload.get("access_token")
+            token = access_token.strip() if isinstance(access_token, str) else ""
+            if not token:
+                raise RuntimeError("RTZR authentication response missing access_token.")
+
+            expire_at_raw = payload.get("expire_at")
+            expire_at: Optional[float] = None
+            if expire_at_raw is not None:
+                with contextlib.suppress(TypeError, ValueError):
+                    expire_at = float(expire_at_raw)
+
+            self._cached_token = token
+            self._token_expires_at = expire_at if expire_at and expire_at > now else now + 300
+            return token
 
         async def _build_auth_headers(self) -> Dict[str, str]:
             token = await self._get_token()
             return {"Authorization": f"bearer {token}"} if token else {}
 
         async def get_transcribe_result(self, job_id: str) -> Dict[str, Any]:
-            response = await self._sess.get(f"{self.api_base}/v1/transcribe/{job_id}")
+            response = await self._sess.get(
+                f"{self.api_base}/v1/transcribe/{job_id}",
+                headers=await self._build_auth_headers(),
+            )
             response.raise_for_status()
             return dict(response.json())
 

@@ -27,13 +27,30 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    def __init__(self, payload: dict[str, Any]):
+    def __init__(
+        self,
+        payload: dict[str, Any],
+        *,
+        auth_payload: dict[str, Any] | None = None,
+        get_payload: dict[str, Any] | None = None,
+    ):
         self.payload = payload
-        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.auth_payload = auth_payload or {
+            "access_token": "minted-token",
+            "expire_at": 4102444800,
+        }
+        self.get_payload = get_payload or payload
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
 
     async def post(self, url: str, **kwargs: Any) -> FakeResponse:
-        self.calls.append((url, kwargs))
+        self.calls.append(("post", url, kwargs))
+        if url.endswith("/v1/authenticate"):
+            return FakeResponse(self.auth_payload)
         return FakeResponse(self.payload)
+
+    async def get(self, url: str, **kwargs: Any) -> FakeResponse:
+        self.calls.append(("get", url, kwargs))
+        return FakeResponse(self.get_payload)
 
     async def aclose(self) -> None:
         return None
@@ -150,7 +167,8 @@ def test_cloud_submit_transcription_posts_via_sdk_session(tmp_path: Path) -> Non
 
     assert payload["transcribe_id"] == "job-123"
     assert len(fake_session.calls) == 1
-    url, kwargs = fake_session.calls[0]
+    method, url, kwargs = fake_session.calls[0]
+    assert method == "post"
     assert url == "https://openapi.vito.ai/v1/transcribe"
     assert kwargs["data"]["title"] == "hello"
     config_payload = json.loads(kwargs["data"]["config"])
@@ -196,3 +214,52 @@ def test_cloud_adapter_bootstraps_without_installed_sdk_packages(tmp_path: Path)
 
     assert headers == {"Authorization": "bearer manual-token"}
     assert websocket_base == "wss://openapi.vito.ai"
+
+
+def test_cloud_fallback_mints_and_reuses_auth_token_for_submit_and_status(
+    tmp_path: Path,
+) -> None:
+    settings = Settings(
+        storage_base_dir=tmp_path,
+        pronaia_api_base="https://openapi.vito.ai",
+        deployment="cloud",
+        pronaia_client_id="client-id",
+        pronaia_client_secret="client-secret",
+    )
+    client = RTZRClient(settings)
+    assert client._cloud_api is not None
+
+    replacement_session = client._cloud_api._sdk._sess
+    fake_session = FakeAsyncClient(
+        {"id": "job-123"},
+        get_payload={"id": "job-123", "status": "completed"},
+    )
+    client._cloud_api._sdk._sess = fake_session
+    asyncio.run(replacement_session.aclose())
+    try:
+        submit_payload = asyncio.run(client.submit_transcription(b"audio-bytes"))
+        status_payload = asyncio.run(client.get_transcription("job-123"))
+        headers = asyncio.run(client._cloud_api.build_auth_headers())
+    finally:
+        asyncio.run(client.aclose())
+
+    assert submit_payload["transcribe_id"] == "job-123"
+    assert status_payload["status"] == "completed"
+    assert headers == {"Authorization": "bearer minted-token"}
+
+    auth_calls = [call for call in fake_session.calls if call[1].endswith("/v1/authenticate")]
+    assert len(auth_calls) == 1
+
+    submit_call = next(
+        call for call in fake_session.calls if call[1] == "https://openapi.vito.ai/v1/transcribe"
+    )
+    assert submit_call[0] == "post"
+    assert submit_call[2]["headers"]["Authorization"] == "bearer minted-token"
+
+    status_call = next(
+        call
+        for call in fake_session.calls
+        if call[1] == "https://openapi.vito.ai/v1/transcribe/job-123"
+    )
+    assert status_call[0] == "get"
+    assert status_call[2]["headers"]["Authorization"] == "bearer minted-token"

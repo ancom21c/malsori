@@ -62,7 +62,8 @@ Configure the proxy with environment variables before starting it. At minimum yo
 - `PRONAIA_CLIENT_ID` / `PRONAIA_CLIENT_SECRET` – RTZR app credentials used to mint access tokens. Required unless you provide a token manually.
 - `PRONAIA_ACCESS_TOKEN` – optional bearer token to reuse instead of minting via client ID/secret.
 - `PRONAIA_API_BASE` – upstream RTZR API base URL (defaults to `https://openapi.vito.ai`).
-  - The Python API now routes cloud traffic through the official SDK packages: `rtzr` for the public endpoint and `rtzr-internal` when `PRONAIA_API_BASE` points at `dev-openapi.vito.ai` or `sandbox-openapi.vito.ai`.
+  - When the official SDK wheels are available, the Python API uses `rtzr` for the public endpoint and `rtzr-internal` for `dev-openapi.vito.ai` / `sandbox-openapi.vito.ai`.
+  - When those private SDK wheels are unavailable, the Python API falls back to its built-in cloud auth/HTTP/WebSocket path so shared-cluster builds can still boot.
 - `STT_DEPLOYMENT` – `cloud` (default) or `onprem`, adjusts the upstream endpoint paths.
 - `STT_VERIFY_SSL` – set to `0` to ignore TLS verification when connecting to on-prem deployments.
 - `STT_TRANSCRIBE_QUEUE_CONCURRENCY` – maximum concurrent upstream `/v1/transcribe` submissions (defaults to `2`).

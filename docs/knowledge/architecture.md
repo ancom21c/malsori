@@ -9,6 +9,7 @@ Malsori is a single-product repo with three runtime layers: a browser SPA, a Fas
 - `webapp/`: operator SPA for transcription history, detail playback/export, realtime capture, presets, and runtime settings
 - `python_api/`: FastAPI service handling `/v1/health`, `/v1/transcribe*`, `/v1/streaming`, `/v1/cloud/google/*`, and optional `/v1/backend/*` plus `/v1/observability/runtime-error`
 - `infra/`: Helm chart and deployment assets that control ingress, runtime config injection, and environment policy
+- The Python proxy may use official `rtzr` / `rtzr-internal` SDK wheels when available, but shared-cluster images must still boot without them by falling back to the built-in cloud auth, HTTP, and WebSocket path.
 
 ## Data / State
 
